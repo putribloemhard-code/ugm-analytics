@@ -63,7 +63,13 @@ def fetch_detail(url: str, retries: int = 3) -> dict | None:
                 og = re.search(r'property="og:title" content="(.*?)"', t, re.S)
                 if og:
                     judul = og.group(1).split(" - ")[0].strip()
-            deskripsi = re.sub(r"\s+", " ", desc.group(1)).strip() if desc else ""
+            if desc:
+                deskripsi = re.sub(r"\s+", " ", desc.group(1)).strip()
+            else:
+                # Banyak halaman tidak punya meta name=description tapi punya
+                # og:description — pakai itu sebagai fallback (2026-08-20).
+                ogd = re.search(r'property="og:description" content="(.*?)"', t, re.S)
+                deskripsi = re.sub(r"\s+", " ", ogd.group(1)).strip() if ogd else ""
             return {
                 "judul": judul,
                 "tanggal": date.group(1) if date else None,
