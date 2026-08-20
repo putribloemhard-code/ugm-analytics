@@ -9,7 +9,7 @@ __pycache__/
 *.pyc
 
 # Log update & temp
-berita-dampak/logs_update*.txt
+berita-dampak/logs_*.txt
 docs/_ocr_tmp/
 
 # File sementara
