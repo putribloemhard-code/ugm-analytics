@@ -476,15 +476,33 @@ for topik_name, kws in KEYWORDS_ALL.items():
 if rows:
     kw_df = pd.DataFrame(rows)
     kw_df["label"] = kw_df["topik"].map(LABEL_TOPIC)
-    fig5 = px.bar(
-        kw_df.sort_values("jumlah"), x="jumlah", y="keyword", color="label",
-        orientation="h",
-        title="Jumlah berita yang match tiap keyword",
-        labels={"keyword": "Keyword", "jumlah": "Jumlah berita", "label": "Topik"},
-        color_discrete_sequence=px.colors.qualitative.Bold,
+    # Select per topik biar label keyword tidak menumpuk jadi kecil.
+    topik_ada = [
+        t for t in KEYWORDS_ALL
+        if t in topik_pilih and t in kw_df["topik"].unique()
+    ]
+    pilih_kw = st.selectbox(
+        "Pilih topik (keyword)",
+        options=topik_ada,
+        format_func=lambda k: LABEL_TOPIC.get(k, k),
     )
-    fig5.update_layout(height=420, yaxis=dict(autorange="reversed"))
-    st.plotly_chart(fig5, width="stretch")
+    sub_kw = kw_df[kw_df["topik"] == pilih_kw].sort_values("jumlah")
+    n_kw = len(sub_kw)
+    if n_kw:
+        fig5 = px.bar(
+            sub_kw, x="jumlah", y="keyword", orientation="h",
+            title=f"Jumlah berita yang match tiap keyword — {LABEL_TOPIC.get(pilih_kw, pilih_kw)}",
+            labels={"keyword": "Keyword", "jumlah": "Jumlah berita"},
+            color_discrete_sequence=["#2e7d32"],
+        )
+        fig5.update_layout(
+            height=max(320, 34 * n_kw + 80),
+            yaxis=dict(autorange="reversed"),
+            showlegend=False,
+        )
+        st.plotly_chart(fig5, width="stretch")
+    else:
+        st.info("Tidak ada match keyword untuk topik ini.")
 else:
     st.info("Tidak ada match keyword pada filter ini.")
 

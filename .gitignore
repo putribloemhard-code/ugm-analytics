@@ -19,3 +19,4 @@ tailscale_login.txt
 Thumbs.db
 Desktop.ini
 push_log.txt
+push_log*.txt
