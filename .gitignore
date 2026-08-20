@@ -1,0 +1,20 @@
+# Environment & artefak lokal — JANGAN di-commit
+
+# Python venv (besar, bisa dibuat ulang)
+venv/
+.venv/
+
+# Bytecode
+__pycache__/
+*.pyc
+
+# Log update & temp
+berita-dampak/logs_update*.txt
+docs/_ocr_tmp/
+
+# File sementara
+tailscale_login.txt
+
+# OS
+Thumbs.db
+Desktop.ini
