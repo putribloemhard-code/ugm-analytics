@@ -274,9 +274,21 @@ if mode == "SDGs saja":
             labels={"x": "Tahun", "y": "SDG", "color": "Berita"},
             color_continuous_scale="blues",
         )
-        fig_h.update_yaxes(ticktext=[f"SDG {c}" for c in piv.index],
-                           tickvals=list(range(len(piv))))
-        fig_h.update_layout(height=380)
+        fig_h.update_xaxes(
+            tickmode="array",
+            tickvals=list(range(len(piv.columns))),
+            ticktext=list(piv.columns),
+            tickangle=-45,
+            tickfont=dict(size=10),
+        )
+        fig_h.update_yaxes(
+            tickmode="array",
+            tickvals=list(range(len(piv))),
+            ticktext=[f"SDG {c}" for c in piv.index],
+            tickfont=dict(size=11),
+        )
+        fig_h.update_traces(textfont=dict(size=9))
+        fig_h.update_layout(height=440)
         st.plotly_chart(fig_h, width="stretch")
 
     # Tabel ringkasan
@@ -448,14 +460,20 @@ if mode != "Berdampak" and len(bs_f):
             color_continuous_scale="blues",
         )
         fig_hm.update_xaxes(
+            tickmode="array",
             ticktext=[f"SDG {c}" for c in hm_piv.columns],
             tickvals=list(range(len(hm_piv.columns))),
+            tickangle=-45,
+            tickfont=dict(size=10),
         )
         fig_hm.update_yaxes(
+            tickmode="array",
             ticktext=[LABEL_TOPIC.get(i, i) for i in hm_piv.index],
             tickvals=list(range(len(hm_piv))),
+            tickfont=dict(size=11),
         )
-        fig_hm.update_layout(height=340)
+        fig_hm.update_traces(textfont=dict(size=9))
+        fig_hm.update_layout(height=400)
         st.plotly_chart(fig_hm, width="stretch")
 
     # Tren SDG per tahun
@@ -498,7 +516,15 @@ if mode != "Berdampak" and len(bs_f):
             labels={"x": "Tahun", "y": "Pilar", "color": "Berita"},
             color_continuous_scale="oranges",
         )
-        fig_p.update_layout(height=300)
+        fig_p.update_xaxes(
+            tickmode="array",
+            tickvals=list(range(len(piv_p.columns))),
+            ticktext=list(piv_p.columns),
+            tickangle=-45,
+            tickfont=dict(size=10),
+        )
+        fig_p.update_traces(textfont=dict(size=9))
+        fig_p.update_layout(height=320)
         st.plotly_chart(fig_p, width="stretch")
 
 with st.expander("Ringkasan per pilar dampak (Sosial/Ekonomi/Lingkungan)"):
@@ -557,9 +583,21 @@ if len(piv):
         labels={"x": "Tahun", "y": "Tema", "color": "Berita"},
         color_continuous_scale="greens",
     )
-    fig_h.update_yaxes(ticktext=[LABEL_TOPIC.get(i, i) for i in piv.index],
-                       tickvals=list(range(len(piv))))
-    fig_h.update_layout(height=320)
+    fig_h.update_xaxes(
+        tickmode="array",
+        tickvals=list(range(len(piv.columns))),
+        ticktext=list(piv.columns),
+        tickangle=-45,
+        tickfont=dict(size=10),
+    )
+    fig_h.update_yaxes(
+        tickmode="array",
+        ticktext=[LABEL_TOPIC.get(i, i) for i in piv.index],
+        tickvals=list(range(len(piv))),
+        tickfont=dict(size=11),
+    )
+    fig_h.update_traces(textfont=dict(size=9))
+    fig_h.update_layout(height=380)
     st.plotly_chart(fig_h, width="stretch")
 else:
     st.info("Tidak cukup data untuk heatmap.")

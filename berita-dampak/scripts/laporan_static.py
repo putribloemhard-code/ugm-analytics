@@ -106,9 +106,21 @@ def main() -> None:
         labels={"x": "Tahun", "y": "Tema", "color": "Berita"},
         color_continuous_scale="greens",
     )
-    fig2.update_yaxes(ticktext=[LABEL_TOPIC.get(i, i) for i in piv.index],
-                      tickvals=list(range(len(piv))))
-    fig2.update_layout(height=320)
+    fig2.update_xaxes(
+        tickmode="array",
+        tickvals=list(range(len(piv.columns))),
+        ticktext=list(piv.columns),
+        tickangle=-45,
+        tickfont=dict(size=10),
+    )
+    fig2.update_yaxes(
+        tickmode="array",
+        ticktext=[LABEL_TOPIC.get(i, i) for i in piv.index],
+        tickvals=list(range(len(piv))),
+        tickfont=dict(size=11),
+    )
+    fig2.update_traces(textfont=dict(size=9))
+    fig2.update_layout(height=380)
 
     # 3. Tren tahunan
     tren = b_t.groupby(["topik", "tahun"]).size().reset_index(name="jumlah")
@@ -252,7 +264,15 @@ def main() -> None:
         labels={"x": "Tahun", "y": "Pilar", "color": "Berita"},
         color_continuous_scale="oranges",
     )
-    fig8c.update_layout(height=300)
+    fig8c.update_xaxes(
+        tickmode="array",
+        tickvals=list(range(len(piv_p.columns))),
+        ticktext=list(piv_p.columns),
+        tickangle=-45,
+        tickfont=dict(size=10),
+    )
+    fig8c.update_traces(textfont=dict(size=9))
+    fig8c.update_layout(height=320)
 
     # 9. Word frequency per tema (10 kata teratas)
     wf_figs = []
