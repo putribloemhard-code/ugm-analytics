@@ -18,6 +18,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from scripts.keywords import KEYWORDS  # noqa: E402
+from scripts.sdg_keywords import SDG_KEYWORDS  # noqa: E402
 from scripts.kepmen_sdg import (  # noqa: E402
     SDG_NAMA,
     TOPIK_KEPMEN,
@@ -66,7 +67,8 @@ st.caption("Sumber: berita ugm.ac.id (RSS + sitemap) — data/ugm_news.duckdb")
 
 @st.cache_data(ttl=300)
 def load() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
-                    pd.DataFrame, pd.DataFrame]:
+                    pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
+                    pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     con = _connect_db()
     berita = con.execute("SELECT * FROM berita").fetchdf()
     topik = con.execute("SELECT * FROM berita_topik").fetchdf()
@@ -77,8 +79,11 @@ def load() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
     rp = con.execute("SELECT * FROM ringkasan_pilar").fetchdf()
     rpt = con.execute("SELECT * FROM ringkasan_pilar_tahun").fetchdf()
     rsa = con.execute("SELECT * FROM ringkasan_sdg_all").fetchdf()
+    ss = con.execute("SELECT * FROM sitemap_sdg").fetchdf()
+    rsg = con.execute("SELECT * FROM ringkasan_sdg_sitemap").fetchdf()
+    rsgt = con.execute("SELECT * FROM ringkasan_sdg_sitemap_tahun").fetchdf()
     con.close()
-    return berita, topik, ringkas, sitemap, bk, bs, rp, rpt, rsa
+    return berita, topik, ringkas, sitemap, bk, bs, rp, rpt, rsa, ss, rsg, rsgt
 
 
 def _connect_db():
@@ -108,7 +113,7 @@ def _connect_db():
 
 
 try:
-    berita, topik, ringkas, sitemap, bk, bs, rp, rpt, rsa = load()
+    berita, topik, ringkas, sitemap, bk, bs, rp, rpt, rsa, ss, rsg, rsgt = load()
 except RuntimeError as e:
     st.error(str(e))
     st.info("Tips: jalankan query DuckDB dengan mode read-only agar tidak "
@@ -118,6 +123,15 @@ except RuntimeError as e:
 
 # ---------- Sidebar filter global ----------
 st.sidebar.header("Filter")
+mode = st.sidebar.radio(
+    "Mode analisis",
+    ["Berdampak", "Berdampak × SDGs", "SDGs saja"],
+    index=1,
+    help="Berdampak: 3 pilar & 14 tema Kepmen (tanpa bagian SDG). "
+         "Berdampak × SDGs: tampilan sekarang (tema + SDG dari berita bertema). "
+         "SDGs saja: mapping langsung seluruh 32.130 URL berita ke SDG "
+         "(tanpa tema dampak) — jangkauan lebih luas.",
+)
 tahun_opsi = sorted(
     berita["tanggal"].dropna().str[:4].unique()
 ) if len(berita) else ["2005", "2026"]
@@ -181,6 +195,105 @@ if st.sidebar.button("🔄 Update Berita Terbaru", use_container_width=True):
         "Setelah ±10 menit, muat ulang halaman — data baru otomatis tampil. "
         "Log: logs_update_dashboard.txt"
     )
+    st.stop()
+
+# ---------- Mode "SDGs saja": mapping langsung seluruh 32.130 URL ke SDG ----------
+if mode == "SDGs saja":
+    st.subheader("Analisis SDGs — Seluruh Berita UGM (32.130 URL)")
+    st.caption(
+        "Mapping langsung url berita sitemap ke 17 SDG (tanpa tema dampak Kepmen): "
+        "kata-kata slug URL untuk yang belum di-fetch + judul & deskripsi untuk "
+        "4.787 yang sudah. Satu berita bisa masuk beberapa SDG."
+    )
+    sitemap["tahun"] = sitemap["lastmod"].str[:4]
+    sm = sitemap[sitemap["tahun"].between(tahun_awal, tahun_akhir)].copy()
+    ss_f = ss[ss["url"].isin(set(sm["url"]))]
+    n_url = len(sm)
+    n_tag = ss_f["url"].nunique()
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total berita (sitemap)", f"{n_url:,}")
+    c2.metric("Berita bertanda SDG", f"{n_tag:,}")
+    c3.metric("Cakupan", f"{100 * n_tag / n_url:.1f}%" if n_url else "—")
+    if not len(ss_f):
+        st.warning("Tidak ada data SDG untuk rentang tahun ini.")
+        st.stop()
+
+    # Distribusi per SDG
+    st.subheader("Distribusi Berita per SDG")
+    dist = ss_f.groupby("sdg")["url"].nunique().reset_index(name="jumlah")
+    dist["label"] = dist["sdg"].map(lambda s: f"SDG {s} — {SDG_NAMA.get(s, s)}")
+    fig_d = px.bar(
+        dist.sort_values("jumlah"), x="label", y="jumlah", color="sdg",
+        title="Jumlah berita per SDG (seluruh URL sitemap)",
+        labels={"label": "SDG", "jumlah": "Jumlah berita"},
+    )
+    fig_d.update_layout(height=460, showlegend=False, xaxis=dict(tickangle=-35))
+    st.plotly_chart(fig_d, width="stretch")
+
+    # Tren per tahun + heatmap SDG x tahun
+    st.subheader("Tren SDG per Tahun")
+    sdg_tahun = (
+        ss_f.merge(sm[["url", "tahun"]], on="url", how="left")
+        .drop_duplicates(subset=["url", "sdg", "tahun"])
+        .groupby(["tahun", "sdg"])
+        .size()
+        .reset_index(name="jumlah")
+    )
+    if len(sdg_tahun):
+        sdg_tahun["label"] = sdg_tahun["sdg"].map(lambda s: f"SDG {s}")
+        fig_t = px.line(
+            sdg_tahun, x="tahun", y="jumlah", color="label", markers=True,
+            title="Jumlah berita bertanda SDG per tahun",
+            labels={"tahun": "Tahun", "jumlah": "Jumlah berita", "label": "SDG"},
+        )
+        fig_t.update_layout(height=420)
+        st.plotly_chart(fig_t, width="stretch")
+
+        st.markdown("**Heatmap SDG × Tahun**")
+        piv = (
+            sdg_tahun.pivot_table(index="sdg", columns="tahun", values="jumlah",
+                                  aggfunc="sum", fill_value=0)
+        )
+        fig_h = px.imshow(
+            piv, text_auto=True, aspect="auto",
+            title="Jumlah berita per kombinasi SDG × tahun",
+            labels={"x": "Tahun", "y": "SDG", "color": "Berita"},
+            color_continuous_scale="blues",
+        )
+        fig_h.update_yaxes(ticktext=[f"SDG {c}" for c in piv.index],
+                           tickvals=list(range(len(piv))))
+        fig_h.update_layout(height=380)
+        st.plotly_chart(fig_h, width="stretch")
+
+    # Tabel ringkasan
+    st.subheader("Ringkasan per SDG")
+    ring = dist.copy()
+    ring["sdg_label"] = ring["sdg"].map(lambda s: f"SDG {s}")
+    ring = ring[["sdg_label", "label", "jumlah"]].sort_values("jumlah", ascending=False)
+    ring.columns = ["SDG", "Nama", "Jumlah berita"]
+    st.dataframe(ring, width="stretch", hide_index=True)
+
+    # Keyword per SDG
+    with st.expander("Lihat keyword per SDG (dasar mapping)"):
+        kw_rows = []
+        for sdg, kws in SDG_KEYWORDS.items():
+            kw_rows.append({
+                "SDG": f"SDG {sdg}",
+                "Nama": SDG_NAMA.get(sdg, sdg),
+                "Keyword": ", ".join(kws),
+            })
+        st.dataframe(pd.DataFrame(kw_rows), width="stretch", hide_index=True)
+
+    # Cek manual
+    with st.expander("Berita tanpa tanda SDG (cek manual)"):
+        tagged = set(ss_f["url"])
+        belum = sm[~sm["url"].isin(tagged)]
+        st.write(f"{len(belum)} berita (dalam rentang tahun) tidak masuk SDG mana pun.")
+        if len(belum):
+            st.dataframe(
+                belum[["url", "lastmod"]].sort_values("lastmod", ascending=False).head(200),
+                width="stretch", hide_index=True,
+            )
     st.stop()
 
 # Terapkan filter
@@ -286,7 +399,7 @@ if len(bk_f):
 else:
     st.info("Tidak ada data Kepmen untuk filter ini.")
 
-if len(bs_f):
+if mode != "Berdampak" and len(bs_f):
     dist_s = (
         bs_f.groupby("sdg")["url"]
         .nunique()

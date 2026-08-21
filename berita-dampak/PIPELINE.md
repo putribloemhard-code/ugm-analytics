@@ -53,6 +53,15 @@ Sumber data: situs publik ugm.ac.id (RSS + sitemap). Bukan eLOK.
    Tabel lama (berita_kepmen, berita_sdg, berita_kepmen_lengkap,
    ringkasan_kepmen_lengkap) tetap ada di DB tapi tidak dipakai dashboard.
 
+6b. **Tagging SDG LANGSUNG seluruh sitemap** — `scripts/tag_sdg_langsung.py`
+   (mode dashboard "SDGs saja"). SEMUA 32.130 URL sitemap dipetakan ke 17 SDG
+   TANPA tema dampak: kata-kata slug URL (27.343 yang belum di-fetch) +
+   judul & deskripsi (4.787 yang sudah). Kamus: `scripts/sdg_keywords.py`
+   (17 SDG, ID+EN, sumber nama resmi & target SDG; keyword ≤5 huruf pakai
+   word-boundary). Output: `sitemap_sdg` (url, sdg), `ringkasan_sdg_sitemap`,
+   `ringkasan_sdg_sitemap_tahun`. Hasil (2026-08-21): 22.499 pasangan,
+   15.688 / 32.130 URL (48,8%) bertanda ≥1 SDG.
+
 7. **Output**
    - `dashboard_berita_dampak.py` — Streamlit interaktif dengan filter global
      (tahun, tema, sumber). Bagian: ringkasan, distribusi per tema,

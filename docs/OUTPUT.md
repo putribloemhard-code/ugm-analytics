@@ -60,6 +60,8 @@ File: `berita-dampak/data/ugm_news.duckdb` (21 MB).
 | `ringkasan_pilar` | jumlah berita per pilar | 3 |
 | `ringkasan_pilar_tahun` | jumlah berita per pilar per tahun | 65 |
 | `ringkasan_sdg_all` | jumlah berita per SDG | 14 |
+| `sitemap_sdg` | url–sdg mapping langsung seluruh sitemap (mode SDGs saja) | 22.499 pasangan / 15.688 url unik (48,8%) |
+| `ringkasan_sdg_sitemap` | jumlah berita unik per SDG (17 SDG) | 17 |
 | `berita_kepmen`, `berita_sdg`, `ringkasan_sdg` | legacy (4 tema inti, tidak dipakai dashboard) | — |
 | `berita_kepmen_lengkap`, `ringkasan_kepmen_lengkap` | legacy (eksplorasi 9 tema) | — |
 

@@ -27,6 +27,9 @@ lain di jaringan yang sama; port 8766 harus dibuka di firewall — lihat
 | `ringkasan_pilar` | jumlah berita unik per pilar (Lingkungan/Ekonomi/Sosial) |
 | `ringkasan_pilar_tahun` | jumlah berita per pilar per tahun |
 | `ringkasan_sdg_all` | jumlah berita unik per SDG (semua 14 tema) |
+| `sitemap_sdg` | pasangan url–SDG mapping LANGSUNG seluruh 32.130 URL sitemap (mode "SDGs saja"; slug + judul/deskripsi) |
+| `ringkasan_sdg_sitemap` | jumlah berita unik per SDG (17 SDG) dari sitemap_sdg |
+| `ringkasan_sdg_sitemap_tahun` | jumlah berita per SDG per tahun (lastmod sitemap) |
 | `berita_kepmen`, `berita_sdg`, `ringkasan_sdg` | legacy: 4 tema inti saja (masih ada, tidak dipakai dashboard) |
 | `berita_kepmen_lengkap`, `ringkasan_kepmen_lengkap` | legacy: eksplorasi 9 tema (tidak dipakai dashboard) |
 
@@ -36,7 +39,12 @@ Data dimuat dengan cache Streamlit (`@st.cache_data`, TTL 300 detik).
 
 Semua chart dan tabel di bawah mengikuti filter; ringkasan dihitung ulang
 sesuai filter.
-
+**Sidebar filter global** (berlaku ke semua bagian):
+- **Mode analisis** — radio 3 mode:
+  - *Berdampak* — 3 pilar & 14 tema Kepmen, tanpa bagian SDG.
+  - *Berdampak × SDGs* — tampilan penuh sekarang (tema + SDG dari berita bertema).
+  - *SDGs saja* — mapping LANGSUNG seluruh 32.130 URL berita sitemap ke 17 SDG
+    (tanpa tema dampak; teks = slug URL + judul/deskripsi yang sudah di-fetch).
 - **Rentang tahun** — select slider, default seluruh data (2005–2026).
 - **Tema dampak** — multi-select 14 tema Kepmen, default semua.
 - **Sumber** — sitemap dan/atau RSS.
@@ -160,6 +168,18 @@ Tabel lengkap sesuai filter dengan kolom:
 Daftar berita dalam filter yang tidak masuk tema mana pun. Dipakai untuk
 cek manual — false positive/negative bisa terjadi karena data sumber
 (deskripsi terpotong, keyword tidak lengkap, dll).
+
+## Mode "SDGs saja" (seluruh 32.130 URL)
+
+Menu Mode analisis → *SDGs saja*. Mapping langsung url berita sitemap ke
+17 SDG TANPA tema dampak Kepmen — jangkauan jauh lebih luas (15.688 / 32.130
+= 48,8% URL bertanda ≥1 SDG, vs 2.369 berita bertema). Teks yang dicocokkan:
+kata-kata slug URL (untuk 27.343 yang belum di-fetch) + judul & deskripsi
+(untuk 4.787 yang sudah). Satu berita bisa masuk beberapa SDG. Kamus:
+`scripts/sdg_keywords.py` (17 SDG, ID+EN, dari nama resmi & target SDG).
+Bagian: metrik cakupan, bar distribusi per SDG (17), tren SDG per tahun,
+heatmap SDG × tahun, tabel ringkasan per SDG, expander "Lihat keyword per
+SDG", cek manual berita tanpa tanda SDG.
 
 ## Laporan Statis (tanpa server)
 
