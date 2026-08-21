@@ -21,12 +21,12 @@ lain di jaringan yang sama; port 8766 harus dibuka di firewall — lihat
 | `berita` | 4.777 berita: judul, tanggal, deskripsi, sumber (RSS/sitemap) |
 | `berita_topik` | 471 pasangan url–topik (4 topik inti; 1 berita bisa multi-topik) |
 | `ringkasan_topik_tahun` | jumlah berita per topik per tahun |
-| `berita_kepmen_all` | 1.487 pasangan url–tema (13 topik Kepmen) + pilar + sdg — sumber utama dashboard |
-| `berita_sdg_all` | pasangan url–SDG dedup (semua 13 tema) |
-| `ringkasan_topik_all` | jumlah berita unik per 13 topik (topik, pilar, topik_kepmen, sdg) |
+| `berita_kepmen_all` | 1.487 pasangan url–tema (14 tema Kepmen) + pilar + sdg — sumber utama dashboard |
+| `berita_sdg_all` | pasangan url–SDG dedup (semua 14 tema) |
+| `ringkasan_topik_all` | jumlah berita unik per 14 tema (topik, pilar, topik_kepmen, sdg) |
 | `ringkasan_pilar` | jumlah berita unik per pilar (Lingkungan/Ekonomi/Sosial) |
 | `ringkasan_pilar_tahun` | jumlah berita per pilar per tahun |
-| `ringkasan_sdg_all` | jumlah berita unik per SDG (semua 13 tema) |
+| `ringkasan_sdg_all` | jumlah berita unik per SDG (semua 14 tema) |
 | `berita_kepmen`, `berita_sdg`, `ringkasan_sdg` | legacy: 4 topik inti saja (masih ada, tidak dipakai dashboard) |
 | `berita_kepmen_lengkap`, `ringkasan_kepmen_lengkap` | legacy: eksplorasi 9 tema (tidak dipakai dashboard) |
 
@@ -38,7 +38,7 @@ Semua chart dan tabel di bawah mengikuti filter; ringkasan dihitung ulang
 sesuai filter.
 
 - **Rentang tahun** — select slider, default seluruh data (2005–2026).
-- **Topik dampak** — multi-select 13 topik Kepmen (4 inti + 9 tema lain),
+- **Topik dampak** — multi-select 14 tema Kepmen (4 inti + 9 tema lain),
   default semua.
 - **Sumber** — sitemap dan/atau RSS.
 - **Pilar dampak (Kepmen)** — Lingkungan/Ekonomi/Sosial, default semua;
@@ -49,12 +49,12 @@ sesuai filter.
 
 ### Ringkasan (4 kartu)
 1. Total berita (sesuai filter).
-2. Berita bertopik dampak — jumlah berita unik yang match ≥ 1 dari 13 topik.
+2. Berita bertopik dampak — jumlah berita unik yang match ≥ 1 dari 14 tema.
 3. Topik terpilih — berapa topik yang aktif di filter.
 4. Rentang tahun — rentang yang sedang difilter.
 
 ### 1 — Distribusi per Topik Dampak
-Bar horizontal jumlah berita unik per 13 topik, warna per pilar.
+Bar horizontal jumlah berita unik per 14 tema, warna per pilar.
 Saat ini: limbah (376), pengabdian masyarakat (294), kewirausahaan (276),
 penelitian & inovasi (172), rehabilitasi_lingkungan (95), energi (88),
 kunjungan akademik (65), kolaborasi riset (35), instansi publik (33),
@@ -64,7 +64,7 @@ belanja UMKM (21), pendidikan inklusif (18), transportasi (14).
 Menjawab "berita ini masuk indikator Kepmen yang mana dan SDGs berapa".
 Pemetaan Kepmendikti Saintek 361/M/KEP/2025 (dari `UGM Analytics.xlsx`
 sheet "Konten UGM Berdampak" & "#Ref", divalidasi dengan PDF Kepmen asli).
-13 topik:
+14 tema:
 
 | Topik berita | Pilar | Topik Resmi Kepmen | Klaster SDGs |
 |---|---|---|---|
@@ -94,7 +94,7 @@ Sub-bagian di dalamnya:
 - **Heatmap Pilar Dampak × Tahun** — jumlah berita per pilar per tahun.
 - **Expander: Ringkasan per pilar dampak** — kartu metrik + bar 3 pilar
   (Lingkungan 547, Ekonomi 373, Sosial 473 saat ini).
-- **Expander: tabel pemetaan resmi + indikator Kepmen (13 topik)** — mapping
+- **Expander: tabel pemetaan resmi + indikator Kepmen (14 tema)** — mapping
   lengkap + nama indikator resmi, formula, satuan (sesuai PDF Kepmen).
 
 Indikator resmi Kepmen per topik (dari

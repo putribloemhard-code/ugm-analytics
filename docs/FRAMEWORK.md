@@ -43,9 +43,9 @@ fetch_detail.py     → filter URL sitemap relevan + fetch halaman (8 thread,
                       throttle) → tabel berita (sumber='sitemap')
 normalisasi.py      → bersihkan teks, konversi tanggal, dedup URL (mentah→bersih)
 process_nlp.py      → tagging 4 topik inti → berita_topik, ringkasan_topik_tahun
-tag_kepmen_all.py   → tagging 13 topik Kepmen + SDG → berita_kepmen_all,
+tag_kepmen_all.py   → tagging 14 tema Kepmen + SDG → berita_kepmen_all,
                       berita_sdg_all, ringkasan_pilar(_tahun), ringkasan_sdg_all
-laporan_static.py   → laporan_berita_dampak.html (11 chart + tabel 13 topik)
+laporan_static.py   → laporan_berita_dampak.html (11 chart + tabel 14 tema)
 update_mingguan.py  → jalankan seluruh pipeline berurutan (lock file
                       data/.update_lock; dipakai cron + tombol dashboard)
 ```
@@ -54,9 +54,9 @@ update_mingguan.py  → jalankan seluruh pipeline berurutan (lock file
 
 - `scripts/kepmen_sdg.py` — dict `TOPIK_KEPMEN` (4 topik inti),
   `TEMA_KEPMEN_LENGKAP` (9 tema lain, `sdg` diisi dari sheet "#Ref"),
-  `TOPIK_KEPMEN_ALL` (gabungan 13), `LABEL_TOPIC_ALL`, `WARNA_PILAR`,
+  `TOPIK_KEPMEN_ALL` (gabungan 14), `LABEL_TOPIC_ALL`, `WARNA_PILAR`,
   `SDG_NAMA`. Dashboard + laporan + tagging semua import dari sini.
-- Sumber: `UGM Analytics.xlsx` sheet "Konten UGM Berdampak" (7 baris resmi)
+- Sumber: `sumber/UGM Analytics.xlsx` sheet "Konten UGM Berdampak" (7 baris resmi)
   + "#Ref" (Dampak→Topik→SDG, sparse/merged — baca per-sel dengan koordinat),
   PDF Kepmen 361 (OCR: `docs/kepmen_361_ocr.txt`).
 - Pitfall konseptual: klaster SDG adalah atribut TOPIK (semua berita dalam

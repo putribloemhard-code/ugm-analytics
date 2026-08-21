@@ -33,8 +33,8 @@ Sumber data: situs publik ugm.ac.id (RSS + sitemap). Bukan eLOK.
    terhadap judul + deskripsi. Satu berita bisa multi-topik.
    Output: tabel `berita_topik` (url, topik) dan `ringkasan_topik_tahun`.
 
-6. **Tagging Kepmen & SDG — SEMUA tema (13 topik)** — `scripts/tag_kepmen_all.py`
-   Map tiap berita ke 13 topik resmi Kepmen 361/M/KEP/2025: 4 topik inti
+6. **Tagging Kepmen & SDG — SEMUA tema (14 tema)** — `scripts/tag_kepmen_all.py`
+   Map tiap berita ke 14 tema resmi Kepmen 361/M/KEP/2025: 4 topik inti
    (rehabilitasi_lingkungan, kewirausahaan, kunjungan_akademik, kolaborasi_riset
    — keyword dari `scripts/keywords.py`) + 9 tema lain (pendidikan inklusif,
    penelitian & inovasi, pengabdian masyarakat, instansi publik, pengajaran &
@@ -72,7 +72,7 @@ Sumber data: situs publik ugm.ac.id (RSS + sitemap). Bukan eLOK.
 ../venv/Scripts/python.exe scripts/fetch_detail.py   # lama: ~4.700 halaman
 ../venv/Scripts/python.exe scripts/normalisasi.py
 ../venv/Scripts/python.exe scripts/process_nlp.py
-../venv/Scripts/python.exe scripts/tag_kepmen_all.py   # 13 topik + SDG (utama)
+../venv/Scripts/python.exe scripts/tag_kepmen_all.py   # 14 tema + SDG (utama)
 ../venv/Scripts/python.exe scripts/tag_kepmen_berita.py   # legacy: 4 topik inti saja
 ../venv/Scripts/python.exe scripts/tag_kepmen_lengkap.py  # legacy: 9 tema eksplorasi
 ../venv/Scripts/python.exe scripts/laporan_static.py
@@ -83,7 +83,7 @@ streamlit run dashboard_berita_dampak.py
 
 - sitemap: 32.130 URL berita (2005–2026)
 - berita di tabel: 4.787 (20 dari RSS, sisanya fetch detail sitemap)
-- tagging 13 topik Kepmen (tag_kepmen_all.py):
+- tagging 14 tema Kepmen (tag_kepmen_all.py):
   - 2.481 baris url–tema; 1.969 berita unik match ≥1 tema (41% dari 4.787)
   - per pilar: Lingkungan 1.094, Sosial 631, Ekonomi 577
   - per topik: rehabilitasi lingkungan 653, limbah 379, kewirausahaan 374,
@@ -101,7 +101,7 @@ streamlit run dashboard_berita_dampak.py
 - 2026-08-20 (update otomatis): `scripts/update_mingguan.py` menjalankan
   pipeline lengkap (lock file data/.update_lock mencegah tumpang tindih);
   dashboard punya tombol "🔄 Update Berita Terbaru" (sidebar, jalankan
-  background); cron Hermes Senin 06:00 (update_berita_dampak.sh).
+  background); cron Hermes Sabtu 06:00 (update_berita_dampak.sh).
   fetch_detail incremental: hanya URL yang belum ada (dibandingkan dalam
   bentuk bersih — rtrim '/' + split '?' — karena sitemap menyimpan URL mentah
   sedangkan normalisasi menyimpan versi bersih; kalau dibandingkan mentah,
@@ -109,7 +109,7 @@ streamlit run dashboard_berita_dampak.py
   Terverifikasi: run penuh exit 0 (13 menit), 4.787 berita, AppTest OK.
 - indikator resmi per topik (nama + formula + satuan) dari hasil OCR PDF
   Kepmen (`docs/kepmen_361_ocr.txt`); tampil di expander dashboard + tabel
-  laporan statis (13 topik)
+  laporan statis (14 tema)
 
 ## Caveat
 
@@ -121,19 +121,57 @@ streamlit run dashboard_berita_dampak.py
   (terjemahan). Dedup berdasarkan URL, bukan konten.
 - Baseline sitemap mencakup semua post UGM (bukan hanya berita) — proporsi
   di chart "Cakupan vs Total" adalah indikasi kasar.
-- Angka bertopik adalah lower-bound: keyword terbatas pada 13 topik + deskripsi
+- Angka bertopik adalah lower-bound: keyword terbatas pada 14 tema + deskripsi
   yang tersedia di halaman.
 
-## Pengembangan dashboard (2026-08-20 — 13 topik / 3 pilar lengkap)
+## Re-tagging keyword berbasis detailing tabel Kepmen (2026-08-21)
+
+Semua keyword mapping (dampak/pilar, topik Kepmen, SDG) dirombak agar
+bersumber dari detailing indikator tiap tema di TABEL Kepmen 361
+(bagian "DEFINISI, KRITERIA, KETENTUAN, DAN FORMULA", OCR:
+`docs/kepmen_361_ocr.txt`) — bukan dugaan/istilah umum. Prinsip:
+
+1. Keyword = istilah yang benar-benar muncul di detailing tema itu
+   (nama tema, definisi, kriteria, ketentuan). Istilah di luar detailing
+   DIBUANG, mis.: ekosistem/habitat/wildlife/deforestasi (kehati),
+   umkm/smes (kewirausahaan — itu tema Pengabdian/Pengeluaran Institusi),
+   polusi/pencemaran/microplastic/biodegradable (limbah),
+   regulasi (kebijakan publik), bangunan hijau/net zero/karbon/biodiesel/
+   transisi energi (energi), bus kampus/shuttle/trans jogja/transportasi
+   publik/kampus hijau (transportasi), studi banding/delegasi/guest lecture
+   (kunjungan akademik), bazar/pasar/pemberdayaan umkm (belanja UMKM),
+   riset untuk masyarakat/penelitian terapan/applied research/science for
+   society (penelitian & inovasi sosial).
+2. Keyword baru dari detailing yang masuk: reboisasi, lahan kritis, ruang
+   terbuka hijau, erosi, banjir (kehati); hilirisasi, paten, lisensi, royalti,
+   komersialisasi, HKI, prototipe (kolaborasi riset); wisuda, seminar,
+   konferensi, simposium, lomba, festival, gathering alumni (kunjungan
+   akademik); PLTS, mikrohidro, emisi, kendaraan listrik (energi); pupuk
+   organik, ekonomi sirkular, IPAL, komposting (limbah); BUMDes, ketahanan
+   pangan, digitalisasi desa (pengabdian); puskesmas, pemerintah desa,
+   kelurahan (kebijakan publik).
+3. Kata luas yang = materi lintas-tema TIDAK dipakai (93/160 match tema
+   "Pendidikan & Penelitian" ternyata noise berita umum lewat kata
+   pembangunan berkelanjutan/perubahan iklim/sustainability — dibuang;
+   tersisa 8 berita matkul/modul/ESD).
+4. Token pendek (≤5 huruf) otomatis word boundary di `tag_kepmen_all.py`
+   (proven: "paten" substring-match "kabupaten" 190x → \bpaten\b 2x relevan).
+
+Hasil re-tag (DuckDB, 2026-08-21): 3.084 baris url–tema / 2.369 berita unik
+bertopik (49,5%); pilar Lingkungan 1.105, Sosial 1.009, Ekonomi 700; topik
+terbesar rehabilitasi_lingkungan 638, pengabdian_masyarakat 635, limbah 392,
+kewirausahaan 303; SDG terbesar SDG 8 (1.050), 17 (1.021), 1 (838), 13 (759).
+
+## Pengembangan dashboard (2026-08-20 — 14 tema / 3 pilar lengkap)
 
 Sosial pilar sebelumnya kosong (3 topik inti = Ekonomi, 1 = Lingkungan).
-Sekarang: tagging SEMUA berita ke 13 topik Kepmen (4 inti + 9 tema lain)
+Sekarang: tagging SEMUA berita ke 14 tema Kepmen (4 inti + 9 tema lain)
 via `tag_kepmen_all.py`; klaster SDG 9 tema lain diisi dari sheet "#Ref"
-(sebelumnya kosong). Dashboard: filter topik & pilar berlaku ke 13 topik;
+(sebelumnya kosong). Dashboard: filter topik & pilar berlaku ke 14 tema;
 bagian baru "Ringkasan per pilar"; peta Kepmen + SDG mencakup semua tema;
-expander eksplorasi lama diganti tabel 13 topik. Hasil: 1.181 berita unik
+expander eksplorasi lama diganti tabel 14 tema. Hasil: 1.181 berita unik
 (Lingkungan 547, Sosial 473, Ekonomi 373). Laporan statis disinkronkan
-(11 chart + tabel 13 topik). Verifikasi: AppTest default + filter pilar
+(11 chart + tabel 14 tema). Verifikasi: AppTest default + filter pilar
 Sosial tanpa exception; Streamlit HTTP 200.
 
 ## Pengembangan dashboard (2026-08-19)
@@ -147,9 +185,9 @@ SDG. Laporan statis disinkronkan (8 chart + word frequency).
 Verifikasi: AppTest 3 skenario (default, 1 topik, rentang tahun) tanpa
 exception; Streamlit HTTP 200.
 
-Referensi resmi di root workspace:
-- `Salinan_Kepmen_361_M_KEP_2025_Indikator_Dampak.pdf` — Kepmen asli
+Referensi resmi di folder `sumber/`:
+- `sumber/Salinan_Kepmen_361_M_KEP_2025_Indikator_Dampak.pdf` — Kepmen asli
   (scan; hasil OCR: `docs/kepmen_361_ocr.txt`, via `scripts/ocr_kepmen.py`)
-- `Buku_IKU_Diktisaintek_Berdampak_V1.pdf` — buku IKU (12 IKU, detail)
-- `UGM Analytics.xlsx` — template pengumpulan data + sheet `#Ref` (pemetaan
+- `sumber/Buku_IKU_Diktisaintek_Berdampak_V1.pdf` — buku IKU (12 IKU, detail)
+- `sumber/UGM Analytics.xlsx` — template pengumpulan data + sheet `#Ref` (pemetaan
   Dampak → Topik Kepmen → SDGs), sumber mapping `scripts/kepmen_sdg.py`

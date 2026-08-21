@@ -13,17 +13,17 @@ Buka http://localhost:8766. Fitur:
 
 **Sidebar filter global** (berlaku ke semua bagian):
 - Rentang tahun (slider, 2005–2026)
-- Topik dampak (13 topik, multi-select)
+- Topik dampak (14 tema, multi-select)
 - Sumber (sitemap / RSS)
 - Pilar Kepmen (Lingkungan / Ekonomi / Sosial)
 - Tombol "🔄 Update Berita Terbaru" (jalankan pipeline di background)
 
 **11 bagian:**
 1. Ringkasan — 4 kartu: total berita, berita bertopik dampak, topik terpilih, rentang tahun
-2. Distribusi per Topik Dampak — bar horizontal 13 topik, warna per pilar
+2. Distribusi per Topik Dampak — bar horizontal 14 tema, warna per pilar
 3. Peta Topik Resmi Kepmen & Klaster SDGs — bar per Topik Kepmen (warna pilar),
    bar per SDG, heatmap topik×SDG, tren SDG per tahun, heatmap pilar×tahun,
-   expander ringkasan per pilar, expander tabel pemetaan + indikator 13 topik
+   expander ringkasan per pilar, expander tabel pemetaan + indikator 14 tema
 4. Heatmap Topik × Tahun
 5. Tren Tahunan per Topik (line)
 6. Tren Bulanan (musiman, bar stacked)
@@ -43,7 +43,7 @@ buka langsung di browser tanpa server, tanpa internet). Regenerate:
 ..\venv\Scripts\python.exe scripts\laporan_static.py
 ```
 
-Isi: 11 chart + tabel indikator resmi 13 topik + tabel contoh berita per topik.
+Isi: 11 chart + tabel indikator resmi 14 tema + tabel contoh berita per topik.
 
 ## 3. Database DuckDB
 
@@ -53,12 +53,12 @@ File: `berita-dampak/data/ugm_news.duckdb` (21 MB).
 |---|---|---|
 | `sitemap` | URL berita ugm.ac.id + lastmod (baseline) | 32.130 |
 | `berita` | Judul, tanggal, deskripsi, sumber | 4.787 |
-| `berita_topik` | url–topik (4 topik inti) | 1.233 |
-| `berita_kepmen_all` | url–topik–pilar–topik_kepmen–sdg (13 topik, sumber utama) | 2.481 |
-| `berita_sdg_all` | url–sdg (dedup) | — |
-| `ringkasan_topik_all` | jumlah berita per 13 topik | 12 |
+| `berita_topik` | url–topik (4 topik inti) | 1.392 |
+| `berita_kepmen_all` | url–topik–dampak–topik_kepmen–sdg (14 tema resmi, sumber utama) | 3.084 baris / 2.369 url unik |
+| `berita_sdg_all` | url–sdg (dedup) | 7.739 |
+| `ringkasan_topik_all` | jumlah berita unik per tema (dari 14 tema resmi; pengajaran_pembelajaran 0 match) | 13 |
 | `ringkasan_pilar` | jumlah berita per pilar | 3 |
-| `ringkasan_pilar_tahun` | jumlah berita per pilar per tahun | — |
+| `ringkasan_pilar_tahun` | jumlah berita per pilar per tahun | 65 |
 | `ringkasan_sdg_all` | jumlah berita per SDG | 14 |
 | `berita_kepmen`, `berita_sdg`, `ringkasan_sdg` | legacy (4 topik inti, tidak dipakai dashboard) | — |
 | `berita_kepmen_lengkap`, `ringkasan_kepmen_lengkap` | legacy (eksplorasi 9 tema) | — |
@@ -66,22 +66,22 @@ File: `berita-dampak/data/ugm_news.duckdb` (21 MB).
 Query manual: `duckdb -readonly data/ugm_news.duckdb` (jangan mode tulis saat
 dashboard/update jalan).
 
-## 4. Angka kunci (2026-08-20, lower-bound keyword match)
+## 4. Angka kunci (2026-08-21, lower-bound keyword match)
 
-- Total berita: 4.787 | bertopik dampak: **1.969 (41%)**
-- Per pilar: **Lingkungan 1.094**, **Sosial 631**, **Ekonomi 577**
-- Topik terbesar: rehabilitasi lingkungan 653, limbah 379, kewirausahaan 374,
-  pengabdian masyarakat 374, penelitian & inovasi 179, kolaborasi riset 138,
-  instansi publik 124, energi 109, kunjungan akademik 70, belanja UMKM 31,
-  pendidikan inklusif 20, transportasi 15
-- SDG terbesar: SDG 13 (755), SDG 8 (703), SDG 9 (659), SDG 14 (651),
-  SDG 15 (651), SDG 17 (608), SDG 1 (538)
-- 2.818 berita tidak match — mayoritas berita umum (prestasi, wisuda,
+- Total berita: 4.787 | bertopik dampak: **2.393 (50%)**
+- Per pilar: **Lingkungan 1.165**, **Sosial 1.017**, **Ekonomi 692**
+- Topik terbesar: rehabilitasi lingkungan 696, pengabdian masyarakat 616,
+  kewirausahaan 410, limbah 403, instansi publik 271, penelitian & inovasi 264,
+  kolaborasi riset 172, energi 135, kunjungan akademik 114, belanja UMKM 61,
+  pendidikan inklusif 33, transportasi 21
+- SDG terbesar: SDG 8 (1.009), SDG 17 (976), SDG 1 (844), SDG 13 (825),
+  SDG 9 (794), SDG 11 (745)
+- 2.394 berita tidak match — mayoritas berita umum (prestasi, wisuda,
   pengumuman); tersedia di expander cek manual.
 
 ## 5. Update otomatis
 
-- **Cron mingguan**: Senin 06:00 (job Hermes `update_berita_dampak.sh`),
+- **Cron mingguan**: Sabtu 06:00 (job Hermes `update_berita_dampak.sh`),
   log: `logs_update_mingguan.txt`.
 - **Tombol dashboard**: sidebar → "🔄 Update Berita Terbaru" (background,
   log: `logs_update_dashboard.txt`).

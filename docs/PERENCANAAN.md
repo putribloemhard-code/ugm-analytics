@@ -14,7 +14,7 @@ atau data internal kampus — TANPA akses eLOK yang disetujui.
   dulu sebelum scraping/network ke eLOK. ugm.ac.id (RSS + sitemap) sudah
   disetujui.
 - **Satu sumber kebenaran**: mapping topik → Topik Resmi Kepmen → SDG diambil
-  dari `UGM Analytics.xlsx` (sheet "Konten UGM Berdampak" + "#Ref") dan PDF
+  dari `sumber/UGM Analytics.xlsx` (sheet "Konten UGM Berdampak" + "#Ref") dan PDF
   Kepmen asli — jangan menebak.
 - **Lower-bound & eksplorasi jelas**: angka hasil keyword-match adalah
   batas bawah (bukan angka resmi); label "eksplorasi — cek manual" dipakai
@@ -28,7 +28,7 @@ atau data internal kampus — TANPA akses eLOK yang disetujui.
    pada deskripsi matkul → bar per fakultas, drill-down per prodi, tren.
    `matkul-sustainability/`.
 2. ~~Berita Dampak~~ — SELESAI (2026-08-18) + diperluas (2026-08-19/20):
-   berita ugm.ac.id → 13 topik Kepmen → 3 pilar → SDG.
+   berita ugm.ac.id → 14 tema Kepmen → 3 pilar → SDG.
    `berita-dampak/`. + update otomatis mingguan (cron + tombol dashboard).
 3. KKN Desa Binaan — BELUM: folder `kkn-desa-binaan/` kosong; butuh data
    eLOK (kkn.ugm.ac.id / pengabdian.ugm.ac.id/wilayah-binaan/). Perlu izin.
@@ -42,9 +42,9 @@ atau data internal kampus — TANPA akses eLOK yang disetujui.
 | 2026-08-18 | Pipeline awal: sitemap (32.120 URL) + RSS + fetch detail (4.777 berita) + tagging 4 topik inti (462 unik) + dashboard + laporan HTML |
 | 2026-08-19 | Tagging Kepmen/SDG resmi (berita_kepmen, berita_sdg, ringkasan_sdg); dashboard bagian Peta Kepmen & SDGs; filter pilar; laporan statis 8 chart |
 | 2026-08-19 | Setup akses dashboard dari laptop lain: firewall rule 8766, Tailscale |
-| 2026-08-20 | 13 topik lengkap (4 inti + 9 tema Kepmen lain) dengan SDG dari sheet #Ref → 1.181 berita unik; pilar Sosial terisi (sebelumnya 0) |
+| 2026-08-20 | 14 tema lengkap (4 inti + 10 tema Kepmen lain) dengan SDG dari sheet #Ref → 1.181 berita unik; pilar Sosial terisi (sebelumnya 0) |
 | 2026-08-20 | Perluasan keyword berbasis bukti (validasi sampel, tolak false positive) → 1.969 berita unik |
-| 2026-08-20 | Update otomatis: `update_mingguan.py` (lock + incremental fetch), tombol dashboard, cron Senin 06:00 |
+| 2026-08-20 | Update otomatis: `update_mingguan.py` (lock + incremental fetch), tombol dashboard, cron Sabtu 06:00 |
 | 2026-08-20 | Dokumentasi lengkap + Git repo |
 
 ## Roadmap (ide berikutnya)

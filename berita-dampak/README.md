@@ -13,15 +13,15 @@ Identifikasi dan pemetaan berita dampak UGM pada 4 topik:
 | `scripts/fetch_detail.py` | Filter URL relevan + ambil detail halaman (judul, deskripsi, tanggal) |
 | `scripts/normalisasi.py` | Bersihkan teks + tanggal, dedup |
 | `scripts/keywords.py` | Kamus kata kunci 4 topik inti dampak |
-| `scripts/kepmen_sdg.py` | Pemetaan 13 topik → pilar → Topik Resmi Kepmen 361/M/KEP/2025 → klaster SDGs (dari UGM Analytics.xlsx) |
+| `scripts/kepmen_sdg.py` | Pemetaan 14 tema → pilar → Topik Resmi Kepmen 361/M/KEP/2025 → klaster SDGs (dari UGM Analytics.xlsx) |
 | `scripts/process_nlp.py` | Tagging 4 topik inti + ringkasan per tahun |
-| `scripts/tag_kepmen_all.py` | **Utama**: tagging SEMUA berita ke 13 topik Kepmen + SDG (tabel berita_kepmen_all, berita_sdg_all, ringkasan_pilar, ringkasan_sdg_all) |
+| `scripts/tag_kepmen_all.py` | **Utama**: tagging SEMUA berita ke 14 tema Kepmen + SDG (tabel berita_kepmen_all, berita_sdg_all, ringkasan_pilar, ringkasan_sdg_all) |
 | `scripts/tag_kepmen_berita.py` | Legacy: tagging 4 topik inti saja (tabel berita_kepmen, berita_sdg) |
 | `scripts/tag_kepmen_lengkap.py` | Legacy: eksplorasi 9 tema Kepmen lain (tabel berita_kepmen_lengkap) |
-| `scripts/laporan_static.py` | Cetak `laporan_berita_dampak.html` (11 chart + tabel 13 topik, JS inline) |
+| `scripts/laporan_static.py` | Cetak `laporan_berita_dampak.html` (11 chart + tabel 14 tema, JS inline) |
 | `scripts/update_mingguan.py` | Update berkala: jalankan pipeline lengkap (sitemap → RSS → fetch → normalisasi → tagging → laporan) |
 | `scripts/ocr_kepmen.py` | OCR PDF Kepmen 361 (scan) → `../docs/kepmen_361_ocr.txt` |
-| `dashboard_berita_dampak.py` | Dashboard Streamlit interaktif (filter sidebar: tahun, 13 topik, sumber, pilar) |
+| `dashboard_berita_dampak.py` | Dashboard Streamlit interaktif (filter sidebar: tahun, 14 tema, sumber, pilar) |
 | `laporan_berita_dampak.html` | Laporan statis — buka di browser, render tanpa internet |
 | `DASHBOARD.md` | Penjelasan isi dashboard + cara membaca hasil |
 | `PIPELINE.md` | Dokumentasi alur + perintah run |
@@ -92,7 +92,7 @@ Data diambil dari ugm.ac.id (RSS + sitemap). Dua cara update:
 1. **Tombol di dashboard** — sidebar → "🔄 Update Berita Terbaru". Menjalankan
    seluruh pipeline (sitemap → RSS → fetch detail baru → normalisasi → tagging
    → laporan), lalu dashboard reload sendiri. Butuh internet + beberapa menit.
-2. **Cron mingguan** — otomatis setiap Senin 06:00 (job Hermes `update_berita_dampak.sh`
+2. **Cron mingguan** — otomatis setiap Sabtu 06:00 (job Hermes `update_berita_dampak.sh`
    → `scripts/update_mingguan.sh` → `scripts/update_mingguan.py`). Jalankan
    manual kapan saja:
    ```bash
@@ -107,8 +107,8 @@ Update bersifat incremental: URL yang sudah ada di tabel `berita` di-skip
 - RSS: `https://ugm.ac.id/id/feed/` dan `https://ugm.ac.id/en/feed/`
 - Sitemap: `https://ugm.ac.id/wp-sitemap.xml` (~32.000 URL berita, 2007–2026)
 - REST API wp-json diblokir (401) — tidak dipakai.
-- Pemetaan Kepmen & SDG: `../UGM Analytics.xlsx` (sheet "Konten UGM Berdampak"
-  & "#Ref"); dokumen resmi: `../Salinan_Kepmen_361_M_KEP_2025_Indikator_Dampak.pdf`
-  dan `../Buku_IKU_Diktisaintek_Berdampak_V1.pdf`.
+- Pemetaan Kepmen & SDG: `../sumber/UGM Analytics.xlsx` (sheet "Konten UGM Berdampak"
+  & "#Ref"); dokumen resmi: `../sumber/Salinan_Kepmen_361_M_KEP_2025_Indikator_Dampak.pdf`
+  dan `../sumber/Buku_IKU_Diktisaintek_Berdampak_V1.pdf`.
 
 Detail alur lengkap: lihat `PIPELINE.md`. Detail isi dashboard: lihat `DASHBOARD.md`.

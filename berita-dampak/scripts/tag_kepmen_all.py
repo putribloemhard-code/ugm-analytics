@@ -1,8 +1,8 @@
-"""Tagging berita ke SEMUA tema resmi Kepmen 361/M/KEP/2025 (13 topik: 4 inti + 9 lengkap).
+"""Tagging berita ke SEMUA tema resmi Kepmen 361/M/KEP/2025 (14 tema: 4 inti + 10 lengkap).
 
 Menggantikan tag_kepmen_berita.py (4 topik inti) dan tag_kepmen_lengkap.py
 (9 topik tambahan) menjadi satu pipeline: semua berita di tabel `berita`
-dicocokkan (keyword substring, case-insensitive, judul + deskripsi) ke 13 tema,
+dicocokkan (keyword substring, case-insensitive, judul + deskripsi) ke 14 tema,
 tiap tema membawa pilar (Sosial/Ekonomi/Lingkungan) dan klaster SDGs dari
 UGM Analytics.xlsx (sheet Konten + #Ref).
 
@@ -56,7 +56,14 @@ def main() -> None:
     for _, r in berita.iterrows():
         t = f"{r['judul'] or ''} {r['deskripsi'] or ''}".lower()
         for topik_id, m in meta.items():
-            if any(re.search(re.escape(kw), t) for kw in m["keywords"]):
+            # Keyword <= 5 huruf rawan false positive substring (mis. "paten"
+            # match "kabupaten", "esd" match kata lain) — pakai word boundary.
+            if any(
+                re.search(
+                    rf"\b{re.escape(kw)}\b" if len(kw) <= 5 else re.escape(kw), t
+                )
+                for kw in m["keywords"]
+            ):
                 rows.append(
                     {
                         "url": r["url"],

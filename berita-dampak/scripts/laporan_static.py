@@ -72,12 +72,12 @@ def main() -> None:
     b_t = berita.merge(bk, on="url", how="inner")
     b_t["label"] = b_t["topik"].map(LABEL_TOPIC)
 
-    # 1. Distribusi per topik (13 topik, warna pilar)
+    # 1. Distribusi per topik (14 tema, warna pilar)
     dist = bk.groupby(["topik", "dampak"])["url"].nunique().reset_index(name="jumlah")
     dist["label"] = dist["topik"].map(LABEL_TOPIC)
     fig1 = px.bar(
         dist.sort_values("jumlah"), x="jumlah", y="label", orientation="h",
-        title="Jumlah berita per topik dampak (13 topik Kepmen)",
+        title="Jumlah berita per topik dampak (14 tema Kepmen)",
         labels={"label": "Topik", "jumlah": "Jumlah berita"},
         color="dampak", color_discrete_map=WARNA_PILAR,
     )
@@ -153,7 +153,7 @@ def main() -> None:
         labels={"jumlah topik": "Jumlah topik", "berita": "Jumlah berita"},
     )
 
-    # 7. Peta Topik Resmi Kepmen (13 topik)
+    # 7. Peta Topik Resmi Kepmen (14 tema)
     dist_k = (
         bk.groupby(["dampak", "topik_kepmen"])["url"]
         .nunique()
@@ -222,7 +222,7 @@ def main() -> None:
     )
     fig8c = px.imshow(
         piv_p, text_auto=True, aspect="auto",
-        title="Jumlah berita per pilar dampak per tahun (13 topik Kepmen)",
+        title="Jumlah berita per pilar dampak per tahun (14 tema Kepmen)",
         labels={"x": "Tahun", "y": "Pilar", "color": "Berita"},
         color_continuous_scale="oranges",
     )
@@ -257,7 +257,7 @@ def main() -> None:
     tabel += "<tr style='background:#eee'><th>Topik</th><th>Tanggal</th><th>Judul</th></tr>"
     tabel += "".join(tabel_rows) + "</table>"
 
-    # Tabel indikator resmi Kepmen (13 topik)
+    # Tabel indikator resmi Kepmen (14 tema)
     ind_rows = []
     for topik_id, meta in TOPIK_KEPMEN_ALL.items():
         ind_rows.append(
@@ -267,6 +267,8 @@ def main() -> None:
             f"<td>{meta['topik_kepmen']}</td>"
             f"<td>{', '.join(sdg_label(s) for s in meta['sdg']) or '—'}</td>"
             f"<td>{meta['indikator']}</td>"
+            f"<td>{meta['definisi']}</td>"
+            f"<td>{meta['kriteria']}</td>"
             f"<td>{meta['formula']}</td>"
             f"<td>{meta['satuan']}</td>"
             "</tr>"
@@ -275,7 +277,7 @@ def main() -> None:
         "<table border='1' cellpadding='6' style='border-collapse:collapse;width:100%'>"
         "<tr style='background:#eee'><th>Topik berita</th><th>Pilar</th>"
         "<th>Topik Resmi Kepmen</th><th>Klaster SDGs</th><th>Indikator</th>"
-        "<th>Formula</th><th>Satuan</th></tr>"
+        "<th>Definisi</th><th>Kriteria</th><th>Formula</th><th>Satuan</th></tr>"
         + "".join(ind_rows) + "</table>"
     )
 
@@ -284,7 +286,7 @@ def main() -> None:
     parts = [
         "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Laporan Analisis Dampak Berita UGM</title></head><body>",
         "<h1>Laporan Analisis Dampak Berita UGM</h1>",
-        f"<p>Total berita: {len(berita)} &middot; Berita bertopik dampak (13 topik Kepmen): "
+        f"<p>Total berita: {len(berita)} &middot; Berita bertopik dampak (14 tema Kepmen): "
         f"{bk['url'].nunique()} &middot; Sumber: ugm.ac.id (RSS + sitemap)</p>",
         figs[0].to_html(full_html=False, include_plotlyjs=True),
         figs[1].to_html(full_html=False, include_plotlyjs=False),
@@ -298,7 +300,7 @@ def main() -> None:
         figs[8].to_html(full_html=False, include_plotlyjs=False),
         figs[9].to_html(full_html=False, include_plotlyjs=False),
         figs[10].to_html(full_html=False, include_plotlyjs=False),
-        "<h2>Indikator resmi Kepmen per topik (13 topik)</h2>",
+        "<h2>Indikator resmi Kepmen per topik (14 tema)</h2>",
         tabel_ind,
         "<h2>Kata yang paling sering muncul per topik</h2>",
         *wf_figs,

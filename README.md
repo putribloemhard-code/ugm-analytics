@@ -8,7 +8,7 @@ klaster **SDGs** — berbasis data publik yang bisa diambil offline.
 
 | Subproyek | Fokus | Status |
 |---|---|---|
-| `berita-dampak/` | Analisis berita dampak ugm.ac.id (13 topik Kepmen, 3 pilar, SDG) | **Aktif** — pipeline + dashboard + laporan + update mingguan |
+| `berita-dampak/` | Analisis berita dampak ugm.ac.id (14 tema Kepmen, 3 pilar, SDG) | **Aktif** — pipeline + dashboard + laporan + update mingguan |
 | `matkul-sustainability/` | Mata kuliah terkait sustainability per fakultas/prodi | Selesai (2026-08-12) |
 | `kkn-desa-binaan/` | Sebaran KKN & desa binaan (data dari eLOK — belum ada) | Kosong, butuh akses eLOK |
 | `mahasiswa-afirmasi/` | Analisis kelompok afirmasi (data sensitif — belum ada) | Kosong, butuh akses resmi |
@@ -35,14 +35,14 @@ Laporan statis (tanpa server): `berita-dampak/laporan_berita_dampak.html`.
 - `berita-dampak/DASHBOARD.md` — isi dashboard + cara membaca
 - `matkul-sustainability/README.md` + `PIPELINE.md` + `DASHBOARD.md` — subproyek matkul
 
-## Referensi resmi (root)
+## Referensi resmi (folder `sumber/`)
 
-- `UGM Analytics.xlsx` — template resmi pengumpulan data Kepmen 361
+- `sumber/UGM Analytics.xlsx` — template resmi pengumpulan data Kepmen 361
   (sheet "Konten UGM Berdampak" = 7 baris template; sheet "#Ref" = pemetaan
   Dampak → Topik Kepmen → SDGs). SUMBER KEBENARAN mapping topik→Kepmen→SDG.
-- `Salinan_Kepmen_361_M_KEP_2025_Indikator_Dampak.pdf` — Kepmen asli (scan;
+- `sumber/Salinan_Kepmen_361_M_KEP_2025_Indikator_Dampak.pdf` — Kepmen asli (scan;
   OCR: `docs/kepmen_361_ocr.txt`)
-- `Buku_IKU_Diktisaintek_Berdampak_V1.pdf` — 12 IKU (ranah berbeda, jangan dicampur)
+- `sumber/Buku_IKU_Diktisaintek_Berdampak_V1.pdf` — 12 IKU (14 tema sama dgn Kepmen; jangan campur hitungan: 12 IKU ≠ 14 tema)
 
 ## Lingkungan
 

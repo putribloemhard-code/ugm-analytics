@@ -6,7 +6,7 @@ Menjalankan seluruh pipeline berurutan:
   3. fetch_detail.py    — fetch detail URL sitemap yang belum ada di tabel berita
   4. normalisasi.py     — bersihkan teks + tanggal, dedup
   5. process_nlp.py     — tagging 4 topik inti (tabel berita_topik)
-  6. tag_kepmen_all.py  — tagging 13 topik Kepmen + SDG (tabel berita_kepmen_all)
+  6. tag_kepmen_all.py  — tagging 14 tema Kepmen + SDG (tabel berita_kepmen_all)
   7. laporan_static.py  — regenerate laporan HTML statis
 
 Semua script idempoten (INSERT OR IGNORE / CREATE OR REPLACE), aman dijalankan

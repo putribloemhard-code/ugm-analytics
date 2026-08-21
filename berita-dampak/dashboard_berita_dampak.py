@@ -30,7 +30,7 @@ from scripts.kepmen_sdg import LABEL_TOPIC_ALL as LABEL_TOPIC  # noqa: E402
 
 DB_PATH = Path(__file__).resolve().parent / "data" / "ugm_news.duckdb"
 
-# Semua keyword (4 topik inti + 9 tema Kepmen lain) untuk breakdown.
+# Semua keyword (4 topik inti + 10 tema Kepmen lain) untuk breakdown.
 KEYWORDS_ALL = dict(KEYWORDS)
 KEYWORDS_ALL.update({k: v["keywords"] for k, v in TEMA_KEPMEN_LENGKAP.items()})
 
@@ -187,7 +187,7 @@ if st.sidebar.button("🔄 Update Berita Terbaru", use_container_width=True):
 b = berita.copy()
 b["tahun"] = b["tanggal"].str[:4]
 b = b[b["tahun"].between(tahun_awal, tahun_akhir) & b["sumber"].isin(sumber_pilih)]
-# t = semua tema Kepmen (13 topik: 4 inti + 9 lengkap) dari tabel gabungan.
+# t = semua tema Kepmen (14 tema: 4 inti + 10 lengkap) dari tabel gabungan.
 # Kalau filter topik/pilar kosong, fallback ke 4 topik inti (topik berita).
 t = bk[bk["topik"].isin(topik_pilih)] if topik_pilih else bk
 if pilar_pilih:
@@ -232,8 +232,8 @@ st.plotly_chart(fig, width="stretch")
 st.subheader("Peta Topik Resmi Kepmen & Klaster SDGs")
 st.caption(
     "Pemetaan Kepmendikti Saintek 361/M/KEP/2025 (UGM Analytics.xlsx — "
-    "sheet 'Konten UGM Berdampak' & '#Ref'): 13 topik dampak berita (4 topik "
-    "inti + 9 tema Kepmen lain) dipetakan ke Topik Resmi Kepmen, pilar "
+    "sheet 'Konten UGM Berdampak' & '#Ref'): 14 tema resmi dampak (4 topik "
+    "inti + 10 tema Kepmen lain) dipetakan ke Topik Resmi Kepmen, pilar "
     "Sosial/Ekonomi/Lingkungan, dan klaster SDGs. Filter pilar di sidebar "
     "berlaku untuk grafik di bawah."
 )
@@ -339,7 +339,7 @@ if len(bs_f):
         )
         fig_p = px.imshow(
             piv_p, text_auto=True, aspect="auto",
-            title="Jumlah berita per pilar dampak per tahun (13 topik Kepmen)",
+            title="Jumlah berita per pilar dampak per tahun (14 tema Kepmen)",
             labels={"x": "Tahun", "y": "Pilar", "color": "Berita"},
             color_continuous_scale="oranges",
         )
@@ -365,7 +365,7 @@ with st.expander("Ringkasan per pilar dampak (Sosial/Ekonomi/Lingkungan)"):
     else:
         st.info("Tidak ada data pilar untuk filter ini.")
 
-with st.expander("Lihat tabel pemetaan resmi + indikator Kepmen (13 topik)"):
+with st.expander("Lihat tabel pemetaan resmi + indikator Kepmen (14 tema)"):
     map_rows = []
     for topik_id, meta in TOPIK_KEPMEN_ALL.items():
         map_rows.append(
@@ -375,15 +375,17 @@ with st.expander("Lihat tabel pemetaan resmi + indikator Kepmen (13 topik)"):
                 "Topik Resmi Kepmen": meta["topik_kepmen"],
                 "Klaster SDGs": ", ".join(sdg_label(s) for s in meta["sdg"]) or "—",
                 "Indikator Kepmen": meta["indikator"],
+                "Definisi": meta["definisi"],
+                "Kriteria": meta["kriteria"],
                 "Formula": meta["formula"],
                 "Satuan": meta["satuan"],
             }
         )
     st.dataframe(pd.DataFrame(map_rows), width="stretch", hide_index=True)
     st.caption(
-        "13 topik = 4 topik inti berita (resmi, sheet 'Konten UGM Berdampak') "
-        "+ 9 tema Kepmen lain (klaster SDG dari sheet '#Ref'). Indikator dari "
-        "Salinan Kepmen 361/M/KEP/2025 (OCR)."
+        "14 tema resmi = 4 topik inti berita (resmi, sheet 'Konten UGM Berdampak') "
+        "+ 10 tema Kepmen lain (klaster SDG dari sheet '#Ref'). Definisi & "
+        "kriteria dari Salinan Kepmen 361/M/KEP/2025 (OCR)."
     )
 
 # ---------- Heatmap topik x tahun ----------
@@ -456,7 +458,7 @@ st.caption(
     "Garis abu-abu = seluruh URL di sitemap ugm.ac.id per tahun (baseline). "
     "Garis hijau = berita yang match topik dampak. Proporsi menggambarkan "
     "seberapa besar konten UGM yang tercatat sebagai aktivitas dampak; "
-    "nilainya lower-bound karena pencocokan keyword terbatas pada 13 topik "
+    "nilainya lower-bound karena pencocokan keyword terbatas pada 14 tema "
     "Kepmen yang dideteksi."
 )
 
