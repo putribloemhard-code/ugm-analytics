@@ -268,27 +268,22 @@ if mode == "SDGs saja":
             sdg_tahun.pivot_table(index="sdg", columns="tahun", values="jumlah",
                                   aggfunc="sum", fill_value=0)
         )
+        piv_h = piv.copy()
+        # index jadi string 'SDG n' -> sumbu kategori menampilkan SEMUA label
+        # otomatis di posisi benar (override tickvals 0..n di axis kategori
+        # bikin label menipis/misplace — terlihat '5 10 15' bertabrakan).
+        piv_h.index = [f"SDG {c}" for c in piv.index]
         fig_h = px.imshow(
-            piv, text_auto=True, aspect="auto",
+            piv_h, text_auto=True, aspect="auto",
             title="Jumlah berita per kombinasi SDG × tahun",
             labels={"x": "Tahun", "y": "SDG", "color": "Berita"},
             color_continuous_scale="blues",
         )
-        fig_h.update_xaxes(
-            tickmode="array",
-            tickvals=list(range(len(piv.columns))),
-            ticktext=list(piv.columns),
-            tickangle=-45,
-            tickfont=dict(size=10),
-        )
-        fig_h.update_yaxes(
-            tickmode="array",
-            tickvals=list(range(len(piv))),
-            ticktext=[f"SDG {c}" for c in piv.index],
-            tickfont=dict(size=11),
-        )
-        fig_h.update_traces(textfont=dict(size=9))
-        fig_h.update_layout(height=440)
+        fig_h.update_xaxes(tickangle=-45, tickfont=dict(size=10),
+                           automargin=True)
+        fig_h.update_yaxes(tickfont=dict(size=11), automargin=True)
+        fig_h.update_traces(textfont=dict(size=8))
+        fig_h.update_layout(height=480)
         st.plotly_chart(fig_h, width="stretch")
 
     # Tabel ringkasan
@@ -464,26 +459,20 @@ if mode != "Berdampak" and len(bs_f):
                            aggfunc="nunique", fill_value=0)
             .reindex(index=TOPIK_TAMPIL, fill_value=0)
         )
+        hm_piv2 = hm_piv.copy()
+        # index/columns jadi string -> sumbu kategori menampilkan semua label
+        hm_piv2.index = [LABEL_TOPIC.get(i, i) for i in hm_piv.index]
+        hm_piv2.columns = [f"SDG {c}" for c in hm_piv.columns]
         fig_hm = px.imshow(
-            hm_piv, text_auto=True, aspect="auto",
+            hm_piv2, text_auto=True, aspect="auto",
             title="Berita per kombinasi tema dampak × SDG",
             labels={"x": "SDG", "y": "Tema dampak", "color": "Berita"},
             color_continuous_scale="blues",
         )
-        fig_hm.update_xaxes(
-            tickmode="array",
-            ticktext=[f"SDG {c}" for c in hm_piv.columns],
-            tickvals=list(range(len(hm_piv.columns))),
-            tickangle=-45,
-            tickfont=dict(size=10),
-        )
-        fig_hm.update_yaxes(
-            tickmode="array",
-            ticktext=[LABEL_TOPIC.get(i, i) for i in hm_piv.index],
-            tickvals=list(range(len(hm_piv))),
-            tickfont=dict(size=11),
-        )
-        fig_hm.update_traces(textfont=dict(size=9))
+        fig_hm.update_xaxes(tickangle=-45, tickfont=dict(size=10),
+                            automargin=True)
+        fig_hm.update_yaxes(tickfont=dict(size=11), automargin=True)
+        fig_hm.update_traces(textfont=dict(size=8))
         fig_hm.update_layout(height=400)
         st.plotly_chart(fig_hm, width="stretch")
 
@@ -527,14 +516,9 @@ if mode != "Berdampak" and len(bs_f):
             labels={"x": "Tahun", "y": "Pilar", "color": "Berita"},
             color_continuous_scale="oranges",
         )
-        fig_p.update_xaxes(
-            tickmode="array",
-            tickvals=list(range(len(piv_p.columns))),
-            ticktext=list(piv_p.columns),
-            tickangle=-45,
-            tickfont=dict(size=10),
-        )
-        fig_p.update_traces(textfont=dict(size=9))
+        fig_p.update_xaxes(tickangle=-45, tickfont=dict(size=10),
+                           automargin=True)
+        fig_p.update_traces(textfont=dict(size=8))
         fig_p.update_layout(height=320)
         st.plotly_chart(fig_p, width="stretch")
 
@@ -588,26 +572,18 @@ piv = (
     .reindex(index=TOPIK_TAMPIL, fill_value=0)
 )
 if len(piv):
+    piv2 = piv.copy()
+    piv2.index = [LABEL_TOPIC.get(i, i) for i in piv.index]
     fig_h = px.imshow(
-        piv, text_auto=True, aspect="auto",
+        piv2, text_auto=True, aspect="auto",
         title="Jumlah berita per tema per tahun",
         labels={"x": "Tahun", "y": "Tema", "color": "Berita"},
         color_continuous_scale="greens",
     )
-    fig_h.update_xaxes(
-        tickmode="array",
-        tickvals=list(range(len(piv.columns))),
-        ticktext=list(piv.columns),
-        tickangle=-45,
-        tickfont=dict(size=10),
-    )
-    fig_h.update_yaxes(
-        tickmode="array",
-        ticktext=[LABEL_TOPIC.get(i, i) for i in piv.index],
-        tickvals=list(range(len(piv))),
-        tickfont=dict(size=11),
-    )
-    fig_h.update_traces(textfont=dict(size=9))
+    fig_h.update_xaxes(tickangle=-45, tickfont=dict(size=10),
+                       automargin=True)
+    fig_h.update_yaxes(tickfont=dict(size=11), automargin=True)
+    fig_h.update_traces(textfont=dict(size=8))
     fig_h.update_layout(height=380)
     st.plotly_chart(fig_h, width="stretch")
 else:
