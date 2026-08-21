@@ -235,13 +235,18 @@ if mode == "SDGs saja":
     # Distribusi per SDG
     st.subheader("Distribusi Berita per SDG")
     dist = ss_f.groupby("sdg")["url"].nunique().reset_index(name="jumlah")
-    dist["label"] = dist["sdg"].map(lambda s: f"SDG {s} — {SDG_NAMA.get(s, s)}")
+    # Label sumbu pendek 'SDG n'; nama lengkap di kolom 'nama' (tabel & hover).
+    dist["label"] = dist["sdg"].map(lambda s: f"SDG {s}")
+    dist["nama"] = dist["sdg"].map(SDG_NAMA.get)
     fig_d = px.bar(
         dist.sort_values("jumlah"), x="label", y="jumlah", color="sdg",
         title="Jumlah berita per SDG (seluruh URL sitemap)",
         labels={"label": "SDG", "jumlah": "Jumlah berita"},
+        hover_data={"nama": True, "sdg": False, "label": False},
     )
-    fig_d.update_layout(height=460, showlegend=False, xaxis=dict(tickangle=-35))
+    fig_d.update_layout(height=460, showlegend=False,
+                        xaxis=dict(tickangle=-45, tickfont=dict(size=10),
+                                   automargin=True))
     st.plotly_chart(fig_d, width="stretch")
 
     # Tren per tahun + heatmap SDG x tahun
@@ -290,7 +295,7 @@ if mode == "SDGs saja":
     st.subheader("Ringkasan per SDG")
     ring = dist.copy()
     ring["sdg_label"] = ring["sdg"].map(lambda s: f"SDG {s}")
-    ring = ring[["sdg_label", "label", "jumlah"]].sort_values("jumlah", ascending=False)
+    ring = ring[["sdg_label", "nama", "jumlah"]].sort_values("jumlah", ascending=False)
     ring.columns = ["SDG", "Nama", "Jumlah berita"]
     st.dataframe(ring, width="stretch", hide_index=True)
 
@@ -438,13 +443,18 @@ if mode != "Berdampak" and len(bs_f):
         .reset_index(name="jumlah")
         .sort_values("jumlah")
     )
-    dist_s["label"] = dist_s["sdg"].apply(sdg_label)
+    # Label sumbu pendek 'SDG n' biar tidak bertabrakan; nama lengkap di hover.
+    dist_s["label"] = dist_s["sdg"].map(lambda s: f"SDG {s}")
+    dist_s["nama"] = dist_s["sdg"].apply(sdg_label)
     fig_s = px.bar(
         dist_s, x="label", y="jumlah", color="sdg",
         title="Jumlah berita per SDG (klaster resmi)",
         labels={"label": "SDG", "jumlah": "Jumlah berita"},
+        hover_data={"nama": True, "sdg": False, "label": False},
     )
-    fig_s.update_layout(height=400, showlegend=False)
+    fig_s.update_layout(height=420, showlegend=False,
+                        xaxis=dict(tickangle=-45, tickfont=dict(size=10),
+                                   automargin=True))
     st.plotly_chart(fig_s, width="stretch")
 
     # Heatmap tema dampak x SDG

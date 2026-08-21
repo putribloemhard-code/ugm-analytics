@@ -223,13 +223,18 @@ def main() -> None:
         .reset_index(name="jumlah")
         .sort_values("jumlah")
     )
-    dist_s["label"] = dist_s["sdg"].apply(sdg_label)
+    # Label sumbu pendek 'SDG n'; nama lengkap di hover.
+    dist_s["label"] = dist_s["sdg"].map(lambda s: f"SDG {s}")
+    dist_s["nama"] = dist_s["sdg"].apply(sdg_label)
     fig8 = px.bar(
         dist_s, x="label", y="jumlah", color="sdg",
         title="Jumlah berita per SDG (klaster resmi semua tema)",
         labels={"label": "SDG", "jumlah": "Jumlah berita"},
+        hover_data={"nama": True, "sdg": False, "label": False},
     )
-    fig8.update_layout(height=400, showlegend=False)
+    fig8.update_layout(height=420, showlegend=False,
+                       xaxis=dict(tickangle=-45, tickfont=dict(size=10),
+                                  automargin=True))
 
     # 8b. Tren SDG per tahun
     sdg_tahun = (
