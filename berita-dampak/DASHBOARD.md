@@ -39,7 +39,7 @@ Data dimuat dengan cache Streamlit (`@st.cache_data`, TTL 300 detik).
 
 Semua chart dan tabel di bawah mengikuti filter; ringkasan dihitung ulang
 sesuai filter.
-**Sidebar filter global** (berlaku ke semua bagian):
+
 - **Mode analisis** — radio 3 mode:
   - *Berdampak* — 3 pilar & 14 tema Kepmen, tanpa bagian SDG.
   - *Berdampak × SDGs* — tampilan penuh sekarang (tema + SDG dari berita bertema).
