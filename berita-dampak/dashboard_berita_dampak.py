@@ -140,20 +140,33 @@ tahun_awal, tahun_akhir = st.sidebar.select_slider(
     options=tahun_opsi,
     value=(tahun_opsi[0], tahun_opsi[-1]),
 )
-topik_pilih = st.sidebar.multiselect(
-    "Tema dampak",
-    options=list(LABEL_TOPIC.keys()),
-    format_func=lambda k: LABEL_TOPIC[k],
-    default=list(LABEL_TOPIC.keys()),
-)
-sumber_pilih = st.sidebar.multiselect(
-    "Sumber", options=["sitemap", "rss"], default=["sitemap", "rss"]
-)
-pilar_pilih = st.sidebar.multiselect(
-    "Pilar dampak (Kepmen)",
-    options=["Lingkungan", "Ekonomi", "Sosial"],
-    default=["Lingkungan", "Ekonomi", "Sosial"],
-)
+topik_pilih: list = []
+sumber_pilih: list = []
+pilar_pilih: list = []
+if mode == "SDGs saja":
+    # Mode SDG: filter berdasarkan SDG, bukan tema dampak.
+    sdg_pilih = st.sidebar.multiselect(
+        "SDG (17)",
+        options=list(range(1, 18)),
+        default=list(range(1, 18)),
+        format_func=lambda s: f"SDG {s} — {SDG_NAMA.get(s, s)}",
+    )
+else:
+    sdg_pilih = list(range(1, 18))
+    topik_pilih = st.sidebar.multiselect(
+        "Tema dampak",
+        options=list(LABEL_TOPIC.keys()),
+        format_func=lambda k: LABEL_TOPIC[k],
+        default=list(LABEL_TOPIC.keys()),
+    )
+    sumber_pilih = st.sidebar.multiselect(
+        "Sumber", options=["sitemap", "rss"], default=["sitemap", "rss"]
+    )
+    pilar_pilih = st.sidebar.multiselect(
+        "Pilar dampak (Kepmen)",
+        options=["Lingkungan", "Ekonomi", "Sosial"],
+        default=["Lingkungan", "Ekonomi", "Sosial"],
+    )
 
 # ---------- Tombol update berita terbaru ----------
 st.sidebar.divider()
@@ -203,11 +216,12 @@ if mode == "SDGs saja":
     st.caption(
         "Mapping langsung url berita sitemap ke 17 SDG (tanpa tema dampak Kepmen): "
         "kata-kata slug URL untuk yang belum di-fetch + judul & deskripsi untuk "
-        "4.787 yang sudah. Satu berita bisa masuk beberapa SDG."
+        "4.787 yang sudah. Satu berita bisa masuk beberapa SDG. Filter SDG di "
+        "sidebar berlaku di sini."
     )
     sitemap["tahun"] = sitemap["lastmod"].str[:4]
     sm = sitemap[sitemap["tahun"].between(tahun_awal, tahun_akhir)].copy()
-    ss_f = ss[ss["url"].isin(set(sm["url"]))]
+    ss_f = ss[ss["sdg"].isin(sdg_pilih) & ss["url"].isin(set(sm["url"]))]
     n_url = len(sm)
     n_tag = ss_f["url"].nunique()
     c1, c2, c3 = st.columns(3)

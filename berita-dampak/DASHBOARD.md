@@ -46,11 +46,10 @@ sesuai filter.
   - *SDGs saja* — mapping LANGSUNG seluruh 32.130 URL berita sitemap ke 17 SDG
     (tanpa tema dampak; teks = slug URL + judul/deskripsi yang sudah di-fetch).
 - **Rentang tahun** — select slider, default seluruh data (2005–2026).
-- **Tema dampak** — multi-select 14 tema Kepmen, default semua.
-- **Sumber** — sitemap dan/atau RSS.
-- **Pilar dampak (Kepmen)** — Lingkungan/Ekonomi/Sosial, default semua;
-  memfilter SELURUH bagian (ringkasan, distribusi, peta Kepmen & SDG,
-  heatmap, tren, daftar berita) — bukan hanya bagian Peta.
+- **Filter mengikuti mode**: mode *Berdampak* / *Berdampak × SDGs* menampilkan
+  filter **Tema dampak**, **Sumber**, **Pilar dampak (Kepmen)**; mode *SDGs saja*
+  menampilkan filter **SDG (17)** (multi-select, contoh "SDG 4 — Pendidikan
+  Berkualitas") — bukan filter tema.
 
 ## Isi Dashboard
 
@@ -179,7 +178,8 @@ kata-kata slug URL (untuk 27.343 yang belum di-fetch) + judul & deskripsi
 `scripts/sdg_keywords.py` (17 SDG, ID+EN, dari nama resmi & target SDG).
 Bagian: metrik cakupan, bar distribusi per SDG (17), tren SDG per tahun,
 heatmap SDG × tahun, tabel ringkasan per SDG, expander "Lihat keyword per
-SDG", cek manual berita tanpa tanda SDG.
+SDG", cek manual berita tanpa tanda SDG. Filter sidebar mode ini = **SDG (17)**
+multi-select (bukan tema dampak) — metrik & grafik mengikuti SDG terpilih.
 
 ## Laporan Statis (tanpa server)
 
