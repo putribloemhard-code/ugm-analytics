@@ -394,7 +394,7 @@ LABEL_TOPIC_ALL = {
     "pengabdian_masyarakat": "Pengabdian Masyarakat",
     "instansi_publik": "Kebijakan Publik",
     "pengajaran_pembelajaran": "Pengajaran & Pembelajaran",
-    "belanja_umkm": "Belanja UMKM Lokal",
+    "belanja_umkm": "Pengeluaran Institusi",
     "energi": "Energi",
     "limbah": "Konsumsi yang Bertanggung Jawab",
     "transportasi": "Transportasi",

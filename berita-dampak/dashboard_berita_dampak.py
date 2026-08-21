@@ -30,7 +30,7 @@ from scripts.kepmen_sdg import LABEL_TOPIC_ALL as LABEL_TOPIC  # noqa: E402
 
 DB_PATH = Path(__file__).resolve().parent / "data" / "ugm_news.duckdb"
 
-# Semua keyword (4 topik inti + 10 tema Kepmen lain) untuk breakdown.
+# Semua keyword (14 tema resmi Kepmen) untuk breakdown.
 KEYWORDS_ALL = dict(KEYWORDS)
 KEYWORDS_ALL.update({k: v["keywords"] for k, v in TEMA_KEPMEN_LENGKAP.items()})
 
@@ -127,7 +127,7 @@ tahun_awal, tahun_akhir = st.sidebar.select_slider(
     value=(tahun_opsi[0], tahun_opsi[-1]),
 )
 topik_pilih = st.sidebar.multiselect(
-    "Topik dampak",
+    "Tema dampak",
     options=list(LABEL_TOPIC.keys()),
     format_func=lambda k: LABEL_TOPIC[k],
     default=list(LABEL_TOPIC.keys()),
@@ -187,20 +187,29 @@ if st.sidebar.button("🔄 Update Berita Terbaru", use_container_width=True):
 b = berita.copy()
 b["tahun"] = b["tanggal"].str[:4]
 b = b[b["tahun"].between(tahun_awal, tahun_akhir) & b["sumber"].isin(sumber_pilih)]
-# t = semua tema Kepmen (14 tema: 4 inti + 10 lengkap) dari tabel gabungan.
-# Kalau filter topik/pilar kosong, fallback ke 4 topik inti (topik berita).
+# t = semua tema Kepmen (14 tema resmi) dari tabel gabungan.
+# Kalau filter tema/pilar kosong, fallback ke 4 tema inti (tema berita).
 t = bk[bk["topik"].isin(topik_pilih)] if topik_pilih else bk
 if pilar_pilih:
     t = t[t["dampak"].isin(pilar_pilih)]
 if len(b) and len(t):
     t = t[t["url"].isin(set(b["url"]))]
 
+# Tema yang harus tampil penuh di chart (sinkron 14 tema): semua tema yang
+# dipilih di sidebar DAN masuk pilar terpilih — tema tanpa match (mis.
+# Pengajaran & Pembelajaran, 0 berita) tetap tampil dengan angka 0.
+_pilar_set = set(pilar_pilih) if pilar_pilih else {"Lingkungan", "Ekonomi", "Sosial"}
+TOPIK_TAMPIL = [
+    k for k in LABEL_TOPIC
+    if k in set(topik_pilih) and TOPIK_KEPMEN_ALL[k]["dampak"] in _pilar_set
+]
+
 # ---------- Ringkasan ----------
 st.subheader("Ringkasan")
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Total berita (filter)", len(b))
-c2.metric("Berita bertopik dampak", t["url"].nunique() if len(t) else 0)
-c3.metric("Topik terpilih", len(topik_pilih))
+c2.metric("Berita bertema dampak", t["url"].nunique() if len(t) else 0)
+c3.metric("Tema terpilih", len(topik_pilih))
 c4.metric("Rentang tahun", f"{tahun_awal}–{tahun_akhir}")
 
 if len(b) == 0 or len(t) == 0:
@@ -214,41 +223,60 @@ urls_t = set(b_t["url"])
 bk_f = t[t["url"].isin(urls_t)].copy()
 bs_f = bs[bs["url"].isin(urls_t)].copy()
 
-# ---------- Distribusi per topik ----------
-st.subheader("Distribusi per Topik Dampak")
+# ---------- Distribusi per tema ----------
+st.subheader("Distribusi per Tema Dampak")
 dist = t.groupby("topik")["url"].nunique().reset_index(name="jumlah")
+# Sinkron 14 tema: tema tanpa match (mis. Pengajaran & Pembelajaran) tetap
+# tampil dengan jumlah 0, bukan hilang dari chart.
+dist = dist.set_index("topik").reindex(TOPIK_TAMPIL, fill_value=0).reset_index()
 dist["label"] = dist["topik"].map(LABEL_TOPIC)
 fig = px.bar(
     dist.sort_values("jumlah"),
     x="jumlah", y="label", orientation="h",
-    title="Jumlah berita per topik dampak",
-    labels={"label": "Topik", "jumlah": "Jumlah berita"},
+    title="Jumlah berita per tema dampak",
+    labels={"label": "Tema", "jumlah": "Jumlah berita"},
     color="label", color_discrete_sequence=px.colors.qualitative.Bold,
 )
 fig.update_layout(showlegend=False, height=380)
 st.plotly_chart(fig, width="stretch")
 
 # ---------- Peta Kepmen & SDGs ----------
-st.subheader("Peta Topik Resmi Kepmen & Klaster SDGs")
+st.subheader("Peta Tema Resmi Kepmen & Klaster SDGs")
 st.caption(
     "Pemetaan Kepmendikti Saintek 361/M/KEP/2025 (UGM Analytics.xlsx — "
-    "sheet 'Konten UGM Berdampak' & '#Ref'): 14 tema resmi dampak (4 topik "
-    "inti + 10 tema Kepmen lain) dipetakan ke Topik Resmi Kepmen, pilar "
+    "sheet 'Konten UGM Berdampak' & '#Ref'): 14 tema resmi dampak "
+    "dipetakan ke Tema Resmi Kepmen, pilar "
     "Sosial/Ekonomi/Lingkungan, dan klaster SDGs. Filter pilar di sidebar "
     "berlaku untuk grafik di bawah."
 )
 
 if len(bk_f):
-    dist_k = (
-        bk_f.groupby(["dampak", "topik_kepmen"])["url"]
+    # Sinkron 14 tema: reindex per tema dulu (0 utk tak ada match), lalu
+    # petakan ke nama resmi + pilar dari TOPIK_KEPMEN_ALL.
+    dist_k_t = (
+        bk_f.groupby("topik")["url"]
         .nunique()
         .reset_index(name="jumlah")
+        .set_index("topik")
+        .reindex(TOPIK_TAMPIL, fill_value=0)
+        .reset_index()
+    )
+    dist_k_t["dampak"] = dist_k_t["topik"].map(
+        lambda k: TOPIK_KEPMEN_ALL[k]["dampak"]
+    )
+    dist_k_t["topik_kepmen"] = dist_k_t["topik"].map(
+        lambda k: TOPIK_KEPMEN_ALL[k]["topik_kepmen"]
+    )
+    dist_k = (
+        dist_k_t.groupby(["dampak", "topik_kepmen"])["jumlah"]
+        .sum()
+        .reset_index()
         .sort_values("jumlah")
     )
     fig_k = px.bar(
         dist_k, x="jumlah", y="topik_kepmen", color="dampak", orientation="h",
-        title="Jumlah berita per Topik Resmi Kepmen (berdasarkan pilar dampak)",
-        labels={"topik_kepmen": "Topik Resmi Kepmen", "jumlah": "Jumlah berita",
+        title="Jumlah berita per Tema Resmi Kepmen (berdasarkan pilar dampak)",
+        labels={"topik_kepmen": "Tema Resmi Kepmen", "jumlah": "Jumlah berita",
                 "dampak": "Pilar"},
         color_discrete_map={"Lingkungan": "#2e7d32", "Ekonomi": "#1565c0",
                             "Sosial": "#e65100"},
@@ -274,8 +302,8 @@ if len(bs_f):
     fig_s.update_layout(height=400, showlegend=False)
     st.plotly_chart(fig_s, width="stretch")
 
-    # Heatmap topik dampak x SDG
-    st.markdown("**Heatmap Topik Dampak × SDG**")
+    # Heatmap tema dampak x SDG
+    st.markdown("**Heatmap Tema Dampak × SDG**")
     hm = (
         bs_f.merge(bk_f[["url", "topik"]], on="url", how="left")
         .drop_duplicates(subset=["url", "topik", "sdg"])
@@ -284,12 +312,12 @@ if len(bs_f):
         hm_piv = (
             hm.pivot_table(index="topik", columns="sdg", values="url",
                            aggfunc="nunique", fill_value=0)
-            .reindex(index=[k for k in LABEL_TOPIC if k in hm["topik"].unique()])
+            .reindex(index=TOPIK_TAMPIL, fill_value=0)
         )
         fig_hm = px.imshow(
             hm_piv, text_auto=True, aspect="auto",
-            title="Berita per kombinasi topik dampak × SDG",
-            labels={"x": "SDG", "y": "Topik dampak", "color": "Berita"},
+            title="Berita per kombinasi tema dampak × SDG",
+            labels={"x": "SDG", "y": "Tema dampak", "color": "Berita"},
             color_continuous_scale="blues",
         )
         fig_hm.update_xaxes(
@@ -322,7 +350,7 @@ if len(bs_f):
         fig_st.update_layout(height=420)
         st.plotly_chart(fig_st, width="stretch")
 
-    # Heatmap pilar x tahun (dari topik Kepmen)
+    # Heatmap pilar x tahun (dari tema Kepmen)
     st.markdown("**Heatmap Pilar Dampak × Tahun**")
     bk_tahun = (
         bk_f.merge(b[["url", "tahun"]], on="url", how="left")
@@ -370,9 +398,9 @@ with st.expander("Lihat tabel pemetaan resmi + indikator Kepmen (14 tema)"):
     for topik_id, meta in TOPIK_KEPMEN_ALL.items():
         map_rows.append(
             {
-                "Topik dampak berita": LABEL_TOPIC.get(topik_id, topik_id),
+                "Tema dampak berita": LABEL_TOPIC.get(topik_id, topik_id),
                 "Pilar": meta["dampak"],
-                "Topik Resmi Kepmen": meta["topik_kepmen"],
+                "Tema Resmi Kepmen": meta["topik_kepmen"],
                 "Klaster SDGs": ", ".join(sdg_label(s) for s in meta["sdg"]) or "—",
                 "Indikator Kepmen": meta["indikator"],
                 "Definisi": meta["definisi"],
@@ -383,23 +411,23 @@ with st.expander("Lihat tabel pemetaan resmi + indikator Kepmen (14 tema)"):
         )
     st.dataframe(pd.DataFrame(map_rows), width="stretch", hide_index=True)
     st.caption(
-        "14 tema resmi = 4 topik inti berita (resmi, sheet 'Konten UGM Berdampak') "
-        "+ 10 tema Kepmen lain (klaster SDG dari sheet '#Ref'). Definisi & "
+        "14 tema resmi Kepmen 361/M/KEP/2025 (klaster SDG dari sheet '#Ref' "
+        "UGM Analytics.xlsx). Definisi & "
         "kriteria dari Salinan Kepmen 361/M/KEP/2025 (OCR)."
     )
 
-# ---------- Heatmap topik x tahun ----------
-st.subheader("Heatmap Topik × Tahun")
+# ---------- Heatmap tema x tahun ----------
+st.subheader("Heatmap Tema × Tahun")
 piv = (
     b_t.pivot_table(index="topik", columns="tahun", values="url",
                     aggfunc="nunique", fill_value=0)
-    .reindex(index=[k for k in LABEL_TOPIC if k in b_t["topik"].unique()])
+    .reindex(index=TOPIK_TAMPIL, fill_value=0)
 )
 if len(piv):
     fig_h = px.imshow(
         piv, text_auto=True, aspect="auto",
-        title="Jumlah berita per topik per tahun",
-        labels={"x": "Tahun", "y": "Topik", "color": "Berita"},
+        title="Jumlah berita per tema per tahun",
+        labels={"x": "Tahun", "y": "Tema", "color": "Berita"},
         color_continuous_scale="greens",
     )
     fig_h.update_yaxes(ticktext=[LABEL_TOPIC.get(i, i) for i in piv.index],
@@ -410,13 +438,13 @@ else:
     st.info("Tidak cukup data untuk heatmap.")
 
 # ---------- Tren tahunan ----------
-st.subheader("Tren Tahunan per Topik")
+st.subheader("Tren Tahunan per Tema")
 tren = b_t.groupby(["topik", "tahun"]).size().reset_index(name="jumlah")
 tren["label"] = tren["topik"].map(LABEL_TOPIC)
 fig2 = px.line(
     tren, x="tahun", y="jumlah", color="label", markers=True,
     title="Jumlah berita per tahun",
-    labels={"tahun": "Tahun", "jumlah": "Jumlah berita", "label": "Topik"},
+    labels={"tahun": "Tahun", "jumlah": "Jumlah berita", "label": "Tema"},
     color_discrete_sequence=px.colors.qualitative.Bold,
 )
 fig2.update_layout(height=420)
@@ -430,7 +458,7 @@ musim["label"] = musim["topik"].map(LABEL_TOPIC)
 fig3 = px.bar(
     musim, x="bulan", y="jumlah", color="label", barmode="stack",
     title="Jumlah berita per bulan kalender (semua tahun digabung)",
-    labels={"bulan": "Bulan", "jumlah": "Jumlah berita", "label": "Topik"},
+    labels={"bulan": "Bulan", "jumlah": "Jumlah berita", "label": "Tema"},
     color_discrete_sequence=px.colors.qualitative.Bold,
 )
 fig3.update_layout(height=400)
@@ -446,24 +474,24 @@ gab = gab[gab["tahun"].between(tahun_awal, tahun_akhir)]
 fig4 = go.Figure()
 fig4.add_bar(x=gab["tahun"], y=gab["total"], name="Total berita (sitemap)",
              marker_color="rgba(150,150,150,0.35)")
-fig4.add_scatter(x=gab["tahun"], y=gab["bertopik"], name="Berita bertopik dampak",
+fig4.add_scatter(x=gab["tahun"], y=gab["bertopik"], name="Berita bertema dampak",
                  mode="lines+markers", marker_color="#2e7d32", line=dict(width=3))
 fig4.update_layout(
-    title="Volume berita UGM vs berita yang terdeteksi topik dampak",
+    title="Volume berita UGM vs berita yang terdeteksi tema dampak",
     xaxis_title="Tahun", yaxis_title="Jumlah berita", height=420,
     barmode="overlay",
 )
 st.plotly_chart(fig4, width="stretch")
 st.caption(
     "Garis abu-abu = seluruh URL di sitemap ugm.ac.id per tahun (baseline). "
-    "Garis hijau = berita yang match topik dampak. Proporsi menggambarkan "
+    "Garis hijau = berita yang match tema dampak. Proporsi menggambarkan "
     "seberapa besar konten UGM yang tercatat sebagai aktivitas dampak; "
     "nilainya lower-bound karena pencocokan keyword terbatas pada 14 tema "
     "Kepmen yang dideteksi."
 )
 
 # ---------- Breakdown keyword ----------
-st.subheader("Keyword yang Memicu Match per Topik")
+st.subheader("Keyword yang Memicu Match per Tema")
 rows = []
 for topik_name, kws in KEYWORDS_ALL.items():
     if topik_name not in topik_pilih:
@@ -478,22 +506,28 @@ for topik_name, kws in KEYWORDS_ALL.items():
 if rows:
     kw_df = pd.DataFrame(rows)
     kw_df["label"] = kw_df["topik"].map(LABEL_TOPIC)
-    # Select per topik biar label keyword tidak menumpuk jadi kecil.
-    topik_ada = [
-        t for t in KEYWORDS_ALL
-        if t in topik_pilih and t in kw_df["topik"].unique()
-    ]
+    # Select per tema biar label keyword tidak menumpuk jadi kecil.
+    # Semua 14 tema tampil (TOPIK_TAMPIL — ikut filter sidebar); tema tanpa
+    # match keyword menampilkan info kosong, bukan hilang dari dropdown.
+    topik_ada = sorted(
+        TOPIK_TAMPIL,
+        key=lambda k: (TOPIK_KEPMEN_ALL[k]["dampak"], LABEL_TOPIC.get(k, k)),
+    )
+
+    def tema_kw_label(k: str) -> str:
+        return f"{TOPIK_KEPMEN_ALL[k]['dampak']} - {LABEL_TOPIC.get(k, k)}"
+
     pilih_kw = st.selectbox(
-        "Pilih topik (keyword)",
+        "Pilih tema (keyword)",
         options=topik_ada,
-        format_func=lambda k: LABEL_TOPIC.get(k, k),
+        format_func=tema_kw_label,
     )
     sub_kw = kw_df[kw_df["topik"] == pilih_kw].sort_values("jumlah")
     n_kw = len(sub_kw)
     if n_kw:
         fig5 = px.bar(
             sub_kw, x="jumlah", y="keyword", orientation="h",
-            title=f"Jumlah berita yang match tiap keyword — {LABEL_TOPIC.get(pilih_kw, pilih_kw)}",
+            title=f"Jumlah berita yang match tiap keyword — {tema_kw_label(pilih_kw)}",
             labels={"keyword": "Keyword", "jumlah": "Jumlah berita"},
             color_discrete_sequence=["#2e7d32"],
         )
@@ -504,19 +538,19 @@ if rows:
         )
         st.plotly_chart(fig5, width="stretch")
     else:
-        st.info("Tidak ada match keyword untuk topik ini.")
+        st.info("Tidak ada match keyword untuk tema ini.")
 else:
     st.info("Tidak ada match keyword pada filter ini.")
 
-# ---------- Multi-topik ----------
-st.subheader("Berita Multi-Topik")
+# ---------- Multi-tema ----------
+st.subheader("Berita Multi-Tema")
 cnt = b_t.groupby("url").size().reset_index(name="n_topik")
 dist_n = cnt["n_topik"].value_counts().sort_index().reset_index()
-dist_n.columns = ["jumlah topik", "berita"]
+dist_n.columns = ["jumlah tema", "berita"]
 fig6 = px.bar(
-    dist_n, x="jumlah topik", y="berita",
-    title="Berapa banyak topik per berita",
-    labels={"jumlah topik": "Jumlah topik", "berita": "Jumlah berita"},
+    dist_n, x="jumlah tema", y="berita",
+    title="Berapa banyak tema per berita",
+    labels={"jumlah tema": "Jumlah tema", "berita": "Jumlah berita"},
 )
 fig6.update_layout(height=350)
 st.plotly_chart(fig6, width="stretch")
@@ -531,12 +565,12 @@ if len(multi):
     kombo["jumlah"] = kombo["url"].map(cnt.set_index("url")["n_topik"])
     st.dataframe(kombo[["kombinasi", "jumlah"]], width="stretch", hide_index=True)
 else:
-    st.caption("Tidak ada berita multi-topik pada filter ini.")
+    st.caption("Tidak ada berita multi-tema pada filter ini.")
 
 # ---------- Word frequency ----------
-st.subheader("Kata yang Paling Sering Muncul per Topik")
+st.subheader("Kata yang Paling Sering Muncul per Tema")
 topik_wf = st.selectbox(
-    "Pilih topik",
+    "Pilih tema",
     options=[k for k in LABEL_TOPIC if k in t["topik"].unique()],
     format_func=lambda k: LABEL_TOPIC[k],
 )
@@ -554,13 +588,7 @@ st.plotly_chart(fig7, width="stretch")
 
 # ---------- Drill-down ----------
 st.subheader("Daftar Berita")
-label_by_url = (
-    t.assign(label=t["topik"].map(LABEL_TOPIC))
-    .groupby("url")["label"]
-    .apply(lambda s: ", ".join(sorted(s)))
-    .to_dict()
-)
-# Topik Kepmen per url (gabung nama resmi)
+# Tema Kepmen per url (gabung nama resmi)
 if len(bk_f):
     kepmen_by_url = (
         bk_f.groupby("url")["topik_kepmen"]
@@ -591,16 +619,15 @@ else:
     sdg_by_url = {}
 
 df = b.copy()
-df["Topik"] = df["url"].map(label_by_url).fillna("—")
-df["Topik Kepmen"] = df["url"].map(kepmen_by_url).fillna("—")
+df["Tema Kepmen"] = df["url"].map(kepmen_by_url).fillna("—")
 df["Indikator Kepmen"] = df["url"].map(indikator_by_url).fillna("—")
 df["SDG"] = df["url"].map(sdg_by_url).fillna("—")
 df = df.sort_values("tanggal", ascending=False)
 
 if len(df):
-    tampil = df[["tanggal", "judul", "Topik", "Topik Kepmen",
+    tampil = df[["tanggal", "judul", "Tema Kepmen",
                  "Indikator Kepmen", "SDG", "sumber"]].copy()
-    tampil.columns = ["Tanggal", "Judul", "Topik", "Topik Kepmen",
+    tampil.columns = ["Tanggal", "Judul", "Tema Kepmen",
                       "Indikator Kepmen", "SDG", "Sumber"]
     tampil["Tautan"] = df["url"].apply(lambda u: f"[buka]({u})")
     st.dataframe(tampil, width="stretch", hide_index=True)
@@ -608,10 +635,10 @@ else:
     st.info("Tidak ada berita untuk filter ini.")
 
 # ---------- Cek manual ----------
-with st.expander("Berita tanpa match topik (cek manual)"):
+with st.expander("Berita tanpa match tema (cek manual)"):
     tagged = set(t["url"])
     belum = b[~b["url"].isin(tagged)]
-    st.write(f"{len(belum)} berita (dalam filter) tidak masuk topik mana pun.")
+    st.write(f"{len(belum)} berita (dalam filter) tidak masuk tema mana pun.")
     if len(belum):
         st.dataframe(
             belum[["tanggal", "judul", "url"]].sort_values("tanggal", ascending=False),

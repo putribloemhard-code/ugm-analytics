@@ -42,7 +42,7 @@ ingest.py           → RSS /id/feed/ + /en/feed/ → tabel berita (sumber='rss'
 fetch_detail.py     → filter URL sitemap relevan + fetch halaman (8 thread,
                       throttle) → tabel berita (sumber='sitemap')
 normalisasi.py      → bersihkan teks, konversi tanggal, dedup URL (mentah→bersih)
-process_nlp.py      → tagging 4 topik inti → berita_topik, ringkasan_topik_tahun
+process_nlp.py      → tagging 4 tema inti → berita_topik, ringkasan_topik_tahun
 tag_kepmen_all.py   → tagging 14 tema Kepmen + SDG → berita_kepmen_all,
                       berita_sdg_all, ringkasan_pilar(_tahun), ringkasan_sdg_all
 laporan_static.py   → laporan_berita_dampak.html (11 chart + tabel 14 tema)
@@ -52,20 +52,20 @@ update_mingguan.py  → jalankan seluruh pipeline berurutan (lock file
 
 ## Mapping resmi (satu sumber kebenaran)
 
-- `scripts/kepmen_sdg.py` — dict `TOPIK_KEPMEN` (4 topik inti),
-  `TEMA_KEPMEN_LENGKAP` (9 tema lain, `sdg` diisi dari sheet "#Ref"),
+- `scripts/kepmen_sdg.py` — dict `TOPIK_KEPMEN` (4 tema inti),
+  `TEMA_KEPMEN_LENGKAP` (10 tema lain, `sdg` diisi dari sheet "#Ref"),
   `TOPIK_KEPMEN_ALL` (gabungan 14), `LABEL_TOPIC_ALL`, `WARNA_PILAR`,
   `SDG_NAMA`. Dashboard + laporan + tagging semua import dari sini.
 - Sumber: `sumber/UGM Analytics.xlsx` sheet "Konten UGM Berdampak" (7 baris resmi)
-  + "#Ref" (Dampak→Topik→SDG, sparse/merged — baca per-sel dengan koordinat),
+  + "#Ref" (Dampak→Tema→SDG, sparse/merged — baca per-sel dengan koordinat),
   PDF Kepmen 361 (OCR: `docs/kepmen_361_ocr.txt`).
-- Pitfall konseptual: klaster SDG adalah atribut TOPIK (semua berita dalam
-  satu topik membawa SDG sama), bukan hasil matching per berita.
+- Pitfall konseptual: klaster SDG adalah atribut tema (semua berita dalam
+  satu tema membawa SDG sama), bukan hasil matching per berita.
 
 ## Konvensi tagging
 
 - Substring match case-insensitive pada judul + deskripsi (ID + EN).
-- Berita bisa multi-topik (multi-tag by design); SDG di-dedup per url.
+- Berita bisa multi-tema (multi-tag by design); SDG di-dedup per url.
 - Keyword dipilih berbasis bukti: simulasi jumlah match di data + validasi
   sampel judul; kandidat false-positive (delegation, desa/village,
   kebijakan/policy, nuclear) DITOLAK — catatan di PIPELINE.md.

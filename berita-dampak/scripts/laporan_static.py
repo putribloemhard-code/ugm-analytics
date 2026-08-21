@@ -72,27 +72,38 @@ def main() -> None:
     b_t = berita.merge(bk, on="url", how="inner")
     b_t["label"] = b_t["topik"].map(LABEL_TOPIC)
 
-    # 1. Distribusi per topik (14 tema, warna pilar)
-    dist = bk.groupby(["topik", "dampak"])["url"].nunique().reset_index(name="jumlah")
+    # 1. Distribusi per tema (14 tema, warna pilar) — sinkron 14: tema tanpa
+    # match (mis. Pengajaran & Pembelajaran) tetap tampil dengan jumlah 0.
+    dist = (
+        bk.groupby("topik")["url"]
+        .nunique()
+        .reset_index(name="jumlah")
+        .set_index("topik")
+        .reindex(LABEL_TOPIC.keys(), fill_value=0)
+        .reset_index()
+    )
+    dist["dampak"] = dist["topik"].map(
+        lambda k: TOPIK_KEPMEN_ALL[k]["dampak"]
+    )
     dist["label"] = dist["topik"].map(LABEL_TOPIC)
     fig1 = px.bar(
         dist.sort_values("jumlah"), x="jumlah", y="label", orientation="h",
-        title="Jumlah berita per topik dampak (14 tema Kepmen)",
-        labels={"label": "Topik", "jumlah": "Jumlah berita"},
+        title="Jumlah berita per tema dampak (14 tema Kepmen)",
+        labels={"label": "Tema", "jumlah": "Jumlah berita"},
         color="dampak", color_discrete_map=WARNA_PILAR,
     )
     fig1.update_layout(showlegend=True)
 
-    # 2. Heatmap topik x tahun
+    # 2. Heatmap tema x tahun
     piv = (
         b_t.pivot_table(index="topik", columns="tahun", values="url",
                         aggfunc="nunique", fill_value=0)
-        .reindex(index=[k for k in LABEL_TOPIC if k in b_t["topik"].unique()])
+        .reindex(index=list(LABEL_TOPIC.keys()), fill_value=0)
     )
     fig2 = px.imshow(
         piv, text_auto=True, aspect="auto",
-        title="Jumlah berita per topik per tahun",
-        labels={"x": "Tahun", "y": "Topik", "color": "Berita"},
+        title="Jumlah berita per tema per tahun",
+        labels={"x": "Tahun", "y": "Tema", "color": "Berita"},
         color_continuous_scale="greens",
     )
     fig2.update_yaxes(ticktext=[LABEL_TOPIC.get(i, i) for i in piv.index],
@@ -104,8 +115,8 @@ def main() -> None:
     tren["label"] = tren["topik"].map(LABEL_TOPIC)
     fig3 = px.line(
         tren, x="tahun", y="jumlah", color="label", markers=True,
-        title="Tren tahunan per topik",
-        labels={"tahun": "Tahun", "jumlah": "Jumlah berita", "label": "Topik"},
+        title="Tren tahunan per tema",
+        labels={"tahun": "Tahun", "jumlah": "Jumlah berita", "label": "Tema"},
         color_discrete_sequence=px.colors.qualitative.Bold,
     )
 
@@ -118,12 +129,12 @@ def main() -> None:
     fig4.add_bar(x=gab["tahun"], y=gab["total"], name="Total berita (sitemap)",
                  marker_color="rgba(150,150,150,0.35)")
     fig4.add_scatter(x=gab["tahun"], y=gab["bertopik"],
-                     name="Berita bertopik dampak", mode="lines+markers",
+                     name="Berita bertema dampak", mode="lines+markers",
                      marker_color="#2e7d32", line=dict(width=3))
-    fig4.update_layout(title="Volume berita UGM vs berita bertopik dampak per tahun",
+    fig4.update_layout(title="Volume berita UGM vs berita bertema dampak per tahun",
                        xaxis_title="Tahun", yaxis_title="Jumlah berita", barmode="overlay")
 
-    # 5. Keyword yang match per topik
+    # 5. Keyword yang match per tema
     kw_rows = []
     for topik_name, kws in KEYWORDS_ALL.items():
         urls_t = set(b_t.loc[b_t["topik"] == topik_name, "url"])
@@ -138,32 +149,47 @@ def main() -> None:
     fig5 = px.bar(
         kw_df.sort_values("jumlah"), x="jumlah", y="keyword", color="label",
         orientation="h", title="Jumlah berita yang match tiap keyword",
-        labels={"keyword": "Keyword", "jumlah": "Jumlah berita", "label": "Topik"},
+        labels={"keyword": "Keyword", "jumlah": "Jumlah berita", "label": "Tema"},
         color_discrete_sequence=px.colors.qualitative.Bold,
     )
     fig5.update_layout(yaxis=dict(autorange="reversed"))
 
-    # 6. Multi-topik
+    # 6. Multi-tema
     cnt = b_t.groupby("url").size().reset_index(name="n_topik")
     dist_n = cnt["n_topik"].value_counts().sort_index().reset_index()
-    dist_n.columns = ["jumlah topik", "berita"]
+    dist_n.columns = ["jumlah tema", "berita"]
     fig6 = px.bar(
-        dist_n, x="jumlah topik", y="berita",
-        title="Berapa banyak topik per berita",
-        labels={"jumlah topik": "Jumlah topik", "berita": "Jumlah berita"},
+        dist_n, x="jumlah tema", y="berita",
+        title="Berapa banyak tema per berita",
+        labels={"jumlah tema": "Jumlah tema", "berita": "Jumlah berita"},
     )
 
-    # 7. Peta Topik Resmi Kepmen (14 tema)
-    dist_k = (
-        bk.groupby(["dampak", "topik_kepmen"])["url"]
+    # 7. Peta Tema Resmi Kepmen (14 tema) — sinkron 14: tema tanpa match
+    # tetap tampil (0), dipetakan ke nama resmi + pilar.
+    dist_k_t = (
+        bk.groupby("topik")["url"]
         .nunique()
         .reset_index(name="jumlah")
+        .set_index("topik")
+        .reindex(LABEL_TOPIC.keys(), fill_value=0)
+        .reset_index()
+    )
+    dist_k_t["dampak"] = dist_k_t["topik"].map(
+        lambda k: TOPIK_KEPMEN_ALL[k]["dampak"]
+    )
+    dist_k_t["topik_kepmen"] = dist_k_t["topik"].map(
+        lambda k: TOPIK_KEPMEN_ALL[k]["topik_kepmen"]
+    )
+    dist_k = (
+        dist_k_t.groupby(["dampak", "topik_kepmen"])["jumlah"]
+        .sum()
+        .reset_index()
         .sort_values("jumlah")
     )
     fig7 = px.bar(
         dist_k, x="jumlah", y="topik_kepmen", color="dampak", orientation="h",
-        title="Jumlah berita per Topik Resmi Kepmen (Kepmen 361/M/KEP/2025)",
-        labels={"topik_kepmen": "Topik Resmi Kepmen", "jumlah": "Jumlah berita",
+        title="Jumlah berita per Tema Resmi Kepmen (Kepmen 361/M/KEP/2025)",
+        labels={"topik_kepmen": "Tema Resmi Kepmen", "jumlah": "Jumlah berita",
                 "dampak": "Pilar"},
         color_discrete_map=WARNA_PILAR,
     )
@@ -228,7 +254,7 @@ def main() -> None:
     )
     fig8c.update_layout(height=300)
 
-    # 9. Word frequency per topik (10 kata teratas)
+    # 9. Word frequency per tema (10 kata teratas)
     wf_figs = []
     for topik_name, label in LABEL_TOPIC.items():
         urls_t = set(b_t.loc[b_t["topik"] == topik_name, "url"])
@@ -243,7 +269,7 @@ def main() -> None:
         f.update_layout(yaxis=dict(autorange="reversed"), showlegend=False)
         wf_figs.append(f.to_html(full_html=False, include_plotlyjs=False))
 
-    # Tabel detail topik (5 contoh per topik)
+    # Tabel detail tema (5 contoh per tema)
     tabel_rows = []
     for topik_name in LABEL_TOPIC:
         urls = set(bk.loc[bk["topik"] == topik_name, "url"])
@@ -254,7 +280,7 @@ def main() -> None:
                 f"<td><a href='{html.escape(r['url'])}'>{html.escape(str(r['judul']))}</a></td></tr>"
             )
     tabel = "<table border='1' cellpadding='6' style='border-collapse:collapse;width:100%'>"
-    tabel += "<tr style='background:#eee'><th>Topik</th><th>Tanggal</th><th>Judul</th></tr>"
+    tabel += "<tr style='background:#eee'><th>Tema</th><th>Tanggal</th><th>Judul</th></tr>"
     tabel += "".join(tabel_rows) + "</table>"
 
     # Tabel indikator resmi Kepmen (14 tema)
@@ -275,8 +301,8 @@ def main() -> None:
         )
     tabel_ind = (
         "<table border='1' cellpadding='6' style='border-collapse:collapse;width:100%'>"
-        "<tr style='background:#eee'><th>Topik berita</th><th>Pilar</th>"
-        "<th>Topik Resmi Kepmen</th><th>Klaster SDGs</th><th>Indikator</th>"
+        "<tr style='background:#eee'><th>Tema berita</th><th>Pilar</th>"
+        "<th>Tema Resmi Kepmen</th><th>Klaster SDGs</th><th>Indikator</th>"
         "<th>Definisi</th><th>Kriteria</th><th>Formula</th><th>Satuan</th></tr>"
         + "".join(ind_rows) + "</table>"
     )
@@ -286,7 +312,7 @@ def main() -> None:
     parts = [
         "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Laporan Analisis Dampak Berita UGM</title></head><body>",
         "<h1>Laporan Analisis Dampak Berita UGM</h1>",
-        f"<p>Total berita: {len(berita)} &middot; Berita bertopik dampak (14 tema Kepmen): "
+        f"<p>Total berita: {len(berita)} &middot; Berita bertema dampak (14 tema Kepmen): "
         f"{bk['url'].nunique()} &middot; Sumber: ugm.ac.id (RSS + sitemap)</p>",
         figs[0].to_html(full_html=False, include_plotlyjs=True),
         figs[1].to_html(full_html=False, include_plotlyjs=False),
@@ -294,17 +320,17 @@ def main() -> None:
         figs[3].to_html(full_html=False, include_plotlyjs=False),
         figs[4].to_html(full_html=False, include_plotlyjs=False),
         figs[5].to_html(full_html=False, include_plotlyjs=False),
-        "<h2>Peta Topik Resmi Kepmen &amp; Klaster SDGs</h2>",
+        "<h2>Peta Tema Resmi Kepmen &amp; Klaster SDGs</h2>",
         figs[6].to_html(full_html=False, include_plotlyjs=False),
         figs[7].to_html(full_html=False, include_plotlyjs=False),
         figs[8].to_html(full_html=False, include_plotlyjs=False),
         figs[9].to_html(full_html=False, include_plotlyjs=False),
         figs[10].to_html(full_html=False, include_plotlyjs=False),
-        "<h2>Indikator resmi Kepmen per topik (14 tema)</h2>",
+        "<h2>Indikator resmi Kepmen per tema (14 tema)</h2>",
         tabel_ind,
-        "<h2>Kata yang paling sering muncul per topik</h2>",
+        "<h2>Kata yang paling sering muncul per tema</h2>",
         *wf_figs,
-        "<h2>Contoh berita per topik</h2>",
+        "<h2>Contoh berita per tema</h2>",
         tabel,
         "</body></html>",
     ]

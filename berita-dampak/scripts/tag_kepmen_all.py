@@ -14,12 +14,13 @@ Output tabel baru (idempoten, DROP + recreate):
   - berita_sdg_all    : url, sdg (satu baris per pasangan url–sdg, dedup —
                         berita multi-topik bisa memetakan ke SDG sama)
   - ringkasan_topik_all   : topik, dampak, topik_kepmen, sdg, jumlah_berita
+                        (selalu 14 baris — semua tema resmi, 0 utk yang tak ada match)
   - ringkasan_pilar       : dampak, jumlah_berita (berita unik)
   - ringkasan_pilar_tahun : dampak, tahun, jumlah_berita
   - ringkasan_sdg_all     : sdg, nama_sdg, jumlah_berita
 
 Keyword: TOPIK_KEPMEN (4 inti, di scripts/keywords.py) + TEMA_KEPMEN_LENGKAP
-(9 tambahan, di scripts/kepmen_sdg.py). Berita bisa match >1 tema (multi-tag
+(10 tambahan, di scripts/kepmen_sdg.py). Berita bisa match >1 tema (multi-tag
 by design).
 
 Jalankan (dari folder berita-dampak):
@@ -111,11 +112,22 @@ def main() -> None:
             df_sdg.itertuples(index=False, name=None),
         )
 
-        # -- ringkasan_topik_all --
+        # -- ringkasan_topik_all (semua 14 tema; jumlah 0 untuk yang tak ada match,
+        #    mis. pengajaran_pembelajaran — biar dashboard sinkron 14 topik) --
+        hitung = df.groupby("topik")["url"].nunique()
+        ring_topik_rows = []
+        for topik_id, m in meta.items():
+            ring_topik_rows.append(
+                {
+                    "topik": topik_id,
+                    "dampak": m["dampak"],
+                    "topik_kepmen": m["topik_kepmen"],
+                    "sdg": "|".join(str(s) for s in m["sdg"]) or None,
+                    "jumlah_berita": int(hitung.get(topik_id, 0)),
+                }
+            )
         ring_topik = (
-            df.groupby(["topik", "dampak", "topik_kepmen", "sdg"])["url"]
-            .nunique()
-            .reset_index(name="jumlah_berita")
+            pd.DataFrame(ring_topik_rows)
             .sort_values("jumlah_berita", ascending=False)
         )
         con.executemany(
