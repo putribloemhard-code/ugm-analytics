@@ -308,7 +308,18 @@ if mode == "SDGs saja":
                 "Nama": SDG_NAMA.get(sdg, sdg),
                 "Keyword": ", ".join(kws),
             })
-        st.dataframe(pd.DataFrame(kw_rows), width="stretch", hide_index=True)
+        # Lebar kolom Keyword dipaksa lebar (640px) supaya tabel overflow dan
+        # scroll HORIZONTAL muncul — default auto-fit memotong teks tanpa scroll.
+        st.dataframe(
+            pd.DataFrame(kw_rows),
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "SDG": st.column_config.TextColumn(width="small"),
+                "Nama": st.column_config.TextColumn(width="medium"),
+                "Keyword": st.column_config.TextColumn(width=640),
+            },
+        )
 
     # Cek manual
     with st.expander("Berita tanpa tanda SDG (cek manual)"):
