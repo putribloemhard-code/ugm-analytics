@@ -47,6 +47,7 @@ Laporan statis (tanpa server): `berita-dampak/laporan_berita_dampak.html`.
 ## Lingkungan
 
 - Python venv: `venv/` (pandas, plotly, streamlit, requests, bs4, duckdb,
-  openpyxl, pymupdf, rapidocr-onnxruntime). Bukan matplotlib/kaleido —
-  output statis pakai plotly `write_html`.
+  openpyxl, pymupdf, rapidocr-onnxruntime, sqlalchemy, pymysql, python-dotenv,
+  google-genai). Bukan matplotlib/kaleido — output statis pakai plotly
+  `write_html`.
 - OS: Windows; terminal pakai git-bash (MSYS).

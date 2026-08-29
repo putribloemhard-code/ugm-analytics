@@ -32,6 +32,11 @@ from scripts.kepmen_sdg import (  # noqa: E402
     sdg_label,
 )
 from scripts.kepmen_sdg import LABEL_TOPIC_ALL as LABEL_TOPIC  # noqa: E402
+from scripts.narasi_logic import (  # noqa: E402
+    generate_executive_summary,
+    generate_impact_insight,
+    generate_sdg_saja_summary,
+)
 
 # Kredensial MySQL dibaca dari .env di root project (JANGAN di-commit; lihat .gitignore).
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -90,189 +95,56 @@ def penjelasan(teks: str):
     st.caption(f"💡 {teks}")
 
 
-def generate_impact_insight(
-    df: pd.DataFrame,
-    pilar: str,
-    tahun_awal: str,
-    tahun_akhir: str,
-    selected_t: pd.DataFrame,
-    mode: str,
-    sdg_df: pd.DataFrame | None = None,
-) -> str:
-    """Narasi dinamis pilar -- dihitung ulang tiap render dari data ter-filter.
-
-    Bukan animasi: tiap dashboard dimuat ulang (mis. setelah update berita
-    mingguan menambah data baru), angka & kalimat di sini otomatis mengikuti.
+st.set_page_config(page_title="Analisis Dampak UGM", layout="wide", page_icon="🎓")
+st.markdown(
     """
-    if df.empty:
-        return f"Belum ada data untuk pilar {pilar} pada rentang {tahun_awal}–{tahun_akhir}."
+    <style>
+    .block-container { padding-top: 2.2rem; padding-bottom: 3rem; max-width: 1200px; }
 
-    total_berita = int(df["url"].nunique())
-    tahun_df = df.groupby("tahun")["url"].nunique().reset_index(name="jumlah")
-    if len(tahun_df) > 1:
-        awal = int(tahun_df.iloc[0]["jumlah"])
-        akhir = int(tahun_df.iloc[-1]["jumlah"])
-        y_awal, y_akhir = tahun_df.iloc[0]["tahun"], tahun_df.iloc[-1]["tahun"]
-        if awal >= 5:
-            # Persentase hanya bermakna kalau basis awalnya cukup besar --
-            # basis <5 berita bisa menghasilkan persentase ratusan/ribuan % yang menyesatkan.
-            delta = (akhir - awal) / awal * 100
-            trend_text = f"dengan tren {akhir - awal:+d} berita dari {y_awal} ke {y_akhir} ({delta:+.1f}%)"
-        elif akhir != awal:
-            trend_text = f"meningkat dari {awal} menjadi {akhir} berita antara {y_awal} dan {y_akhir}" if akhir > awal else f"menurun dari {awal} menjadi {akhir} berita antara {y_awal} dan {y_akhir}"
-        else:
-            trend_text = f"dengan konsistensi {akhir} berita antara {y_awal} dan {y_akhir}"
-    else:
-        trend_text = "dengan konsistensi volume yang stabil di rentang waktu tersebut"
-
-    tema_df = (
-        selected_t.groupby("topik")["url"].nunique().reset_index(name="jumlah")
-        .sort_values("jumlah", ascending=False)
-    )
-    if not tema_df.empty:
-        topik_teratas = tema_df.iloc[0]["topik"]
-        tema_jumlah = int(tema_df.iloc[0]["jumlah"])
-        label_teratas = LABEL_TOPIC.get(topik_teratas, topik_teratas)
-        meta_teratas = TOPIK_KEPMEN_ALL.get(topik_teratas, {})
-        nama_resmi = meta_teratas.get("topik_kepmen", label_teratas)
-        indikator_resmi = meta_teratas.get("indikator", "")
-        tema_display = f"{nama_resmi} ({label_teratas})" if nama_resmi != label_teratas else label_teratas
-    else:
-        tema_display, tema_jumlah, indikator_resmi = "tema utama", 0, ""
-
-    indikator_text = (
-        f" Tema ini searah dengan indikator resmi Kepmen 361/M/KEP/2025: “{indikator_resmi}”."
-        if indikator_resmi else ""
-    )
-
-    total_tema_pilar = sum(1 for v in TOPIK_KEPMEN_ALL.values() if v["dampak"] == pilar)
-    tema_aktif = selected_t["topik"].nunique() if len(selected_t) else 0
-    cakupan_text = (
-        f"Dari {total_tema_pilar} tema resmi Kepmen pada pilar ini, {tema_aktif} di antaranya "
-        f"sudah terekam aktivitasnya dalam pemberitaan."
-    )
-
-    sdg_text = ""
-    if mode != "Berdampak" and sdg_df is not None and len(sdg_df):
-        n_sdg = sdg_df["sdg"].nunique()
-        top_sdg = int(sdg_df.groupby("sdg")["url"].nunique().sort_values(ascending=False).index[0])
-        sdg_text = (
-            f" Aktivitas pada pilar ini turut menyentuh {n_sdg} klaster SDG, dengan {sdg_label(top_sdg)} "
-            f"sebagai yang paling banyak disentuh."
-        )
-
-    pilar_intro = {
-        "Ekonomi": "kinerja program, kolaborasi riset, serta penguatan ekosistem ekonomi berbasis inovasi",
-        "Sosial": "peningkatan akses, kesejahteraan, edukasi, dan pemberdayaan masyarakat",
-        "Lingkungan": "pengelolaan lingkungan, keberlanjutan, dan adaptasi ekosistem alam",
-    }[pilar]
-    lead = {
-        "Ekonomi": "UGM menunjukkan kinerja ekonomi yang konsisten dan terukur",
-        "Sosial": "UGM memperlihatkan kontribusi sosial yang luas dan berdampak nyata",
-        "Lingkungan": "UGM menegaskan komitmen lingkungan yang kuat dalam agenda keberlanjutan",
-    }[pilar]
-    penutup = {
-        "Ekonomi": "UGM berfungsi sebagai enabler bagi penguatan kewirausahaan, hilirisasi riset, "
-                   "dan kolaborasi ekonomi berbasis inovasi kampus",
-        "Sosial": "UGM berfungsi sebagai enabler pemberdayaan masyarakat dan perluasan akses "
-                  "pendidikan yang inklusif",
-        "Lingkungan": "UGM berfungsi sebagai enabler transisi menuju kampus dan masyarakat yang "
-                      "berkelanjutan",
-    }[pilar]
-
-    return (
-        f"{lead} pada pilar {pilar}. Dalam rentang {tahun_awal}–{tahun_akhir}, terdapat {total_berita:,} berita unik yang mencerminkan "
-        f"{pilar_intro}. {tema_display} menjadi tema paling dominan dengan {tema_jumlah:,} berita, {trend_text}.{indikator_text} "
-        f"{cakupan_text}{sdg_text} Kondisi ini menunjukkan bahwa fokus narasi media dan program akademik UGM secara konsisten "
-        f"bergerak pada isu yang memberi dampak nyata, di mana {penutup}."
-    )
-
-
-def generate_executive_summary(
-    b: pd.DataFrame,
-    t: pd.DataFrame,
-    bs_f: pd.DataFrame,
-    mode: str,
-    tahun_awal: str,
-    tahun_akhir: str,
-) -> dict:
-    """Ringkasan naratif lintas-pilar untuk bagian paling atas dashboard.
-
-    Sama seperti generate_impact_insight: dihitung ulang dari data ter-filter
-    saat render, jadi otomatis ter-update begitu ada berita baru masuk.
-    """
-    bt = b.merge(t, on="url", how="inner")
-    total_berita = int(bt["url"].nunique())
-    if total_berita == 0:
-        return {
-            "total_berita": 0,
-            "pilar_top": "-",
-            "pilar_top_naik": 0,
-            "pilar_top_pct": None,
-            "topik_top_label": "-",
-            "berita_tahun_ini": 0,
-            "narasi": f"Belum ada data pada rentang {tahun_awal}–{tahun_akhir} untuk filter ini.",
-        }
-
-    # Pilar "pertumbuhan tertinggi" dipilih dari kenaikan ABSOLUT (bukan %) --
-    # basis awal yang sangat kecil (mis. 2 berita) bisa membuat persentase
-    # meledak jadi ribuan % dan menyesatkan pembaca laporan. Persentase cuma
-    # ditampilkan kalau basis awalnya cukup besar (>=5) supaya bermakna.
-    pilar_tahun = bt.groupby(["dampak", "tahun"])["url"].nunique().reset_index(name="jumlah")
-    pilar_top, pilar_top_naik, pilar_top_pct = "-", None, None
-    for pilar in ["Lingkungan", "Ekonomi", "Sosial"]:
-        sub = pilar_tahun[pilar_tahun["dampak"] == pilar].sort_values("tahun")
-        if len(sub) > 1:
-            awal, akhir = int(sub.iloc[0]["jumlah"]), int(sub.iloc[-1]["jumlah"])
-            naik = akhir - awal
-            pct = (naik / awal * 100) if awal >= 5 else None
-        else:
-            naik, pct = 0, None
-        if pilar_top_naik is None or naik > pilar_top_naik:
-            pilar_top, pilar_top_naik, pilar_top_pct = pilar, naik, pct
-    pilar_top_naik = pilar_top_naik or 0
-
-    if mode != "Berdampak" and len(bs_f):
-        sdg_counts = bs_f.groupby("sdg")["url"].nunique().sort_values(ascending=False)
-        topik_top_label = sdg_label(int(sdg_counts.index[0]))
-        topik_top_n = int(sdg_counts.iloc[0])
-        topik_kind = "SDG"
-    else:
-        tema_counts = t.groupby("topik_kepmen")["url"].nunique().sort_values(ascending=False)
-        topik_top_label = tema_counts.index[0] if len(tema_counts) else "-"
-        topik_top_n = int(tema_counts.iloc[0]) if len(tema_counts) else 0
-        topik_kind = "tema resmi Kepmen"
-
-    berita_tahun_ini = int(bt[bt["tahun"] == tahun_akhir]["url"].nunique())
-    if pilar_top_pct is not None:
-        delta_text = f"tumbuh {pilar_top_pct:+.1f}% ({pilar_top_naik:+d} berita) dari {tahun_awal} ke {tahun_akhir}"
-    elif pilar_top_naik:
-        delta_text = f"bertambah {pilar_top_naik} berita dari {tahun_awal} ke {tahun_akhir}"
-    else:
-        delta_text = "menunjukkan volume pemberitaan yang stabil"
-
-    narasi = (
-        f"Sepanjang {tahun_awal}–{tahun_akhir}, UGM mencatat {total_berita:,} berita dampak yang tersebar di tiga pilar "
-        f"Lingkungan, Ekonomi, dan Sosial. Pilar {pilar_top} mencatat pertumbuhan tercepat, {delta_text}. "
-        f"Pada sisi capaian resmi, {topik_top_label} menjadi {topik_kind} yang paling banyak disentuh dengan {topik_top_n:,} berita. "
-        f"Di tahun terbaru pada rentang ini ({tahun_akhir}), tercatat {berita_tahun_ini:,} berita dampak — mencerminkan "
-        f"konsistensi UGM menjalankan tridarma yang memberi dampak nyata bagi masyarakat, ekonomi, dan lingkungan."
-    )
-
-    return {
-        "total_berita": total_berita,
-        "pilar_top": pilar_top,
-        "pilar_top_naik": pilar_top_naik,
-        "pilar_top_pct": pilar_top_pct,
-        "topik_top_label": topik_top_label,
-        "berita_tahun_ini": berita_tahun_ini,
-        "narasi": narasi,
+    /* Metric cards -- netral biar aman di light & dark theme */
+    div[data-testid="stMetric"] {
+        background: rgba(128,128,128,0.07);
+        border: 1px solid rgba(128,128,128,0.16);
+        border-radius: 12px;
+        padding: 14px 16px 10px;
     }
+    div[data-testid="stMetricValue"],
+    div[data-testid="stMetricValue"] * {
+        font-size: 1.25rem !important; font-weight: 700; line-height: 1.3 !important;
+        white-space: normal !important; overflow: visible !important;
+        text-overflow: unset !important; overflow-wrap: break-word !important;
+    }
+    div[data-testid="stMetricLabel"] { font-size: 0.8rem; opacity: 0.75; }
 
+    /* Narasi/insight box */
+    div[data-testid="stAlertContentInfo"] { font-size: 0.97rem; line-height: 1.6; }
+    div[data-testid="stNotification"] { border-radius: 12px; }
 
-st.set_page_config(page_title="Analisis Dampak Berita UGM", layout="wide")
-st.title("Analisis Dampak Berita UGM")
-st.caption("Sumber: berita ugm.ac.id (RSS + sitemap) — MySQL ugm_analytics")
+    /* Kartu pilar dampak */
+    .pilar-card {
+        border-radius: 14px;
+        padding: 18px 12px 14px;
+        text-align: center;
+        transition: box-shadow 0.15s ease;
+    }
+    .pilar-card-icon { font-size: 2.1rem; line-height: 1; margin-bottom: 2px; }
+    .pilar-card-name {
+        font-size: 0.95rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px;
+    }
+    .pilar-card-count { font-size: 2.4rem; font-weight: 800; line-height: 1.15; margin-top: 6px; }
+    .pilar-card-unit { font-size: 0.78rem; opacity: 0.65; margin-bottom: 10px; }
+    .pilar-card-theme {
+        font-size: 0.83rem; opacity: 0.85;
+        border-top: 1px solid rgba(128,128,128,0.22);
+        padding-top: 8px; margin-top: 2px; min-height: 3.4em;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+st.title("Analisis Dampak UGM")
+st.caption("Sumber: berita ugm.ac.id")
 
 
 @st.cache_resource
@@ -308,8 +180,26 @@ def load() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
     return berita, topik, ringkas, sitemap, bk, bs, rp, rpt, rsa, ss, rsg, rsgt
 
 
+@st.cache_data(ttl=300)
+def load_narasi_cache() -> dict:
+    """Narasi hasil rangkaian LLM (Gemini), digenerate mingguan lewat
+    scripts/generate_narasi_llm.py -> tabel berita_narasi_cache. Dipakai HANYA
+    saat filter sidebar masih posisi default (semua tahun/tema/sumber/pilar/
+    SDG) -- kalau tabel belum ada / kosong / gagal baca, fallback otomatis ke
+    narasi template (generate_executive_summary / generate_impact_insight),
+    dashboard tetap jalan normal tanpa LLM.
+    """
+    try:
+        engine = _get_engine()
+        df = pd.read_sql("SELECT cache_key, narasi FROM berita_narasi_cache", engine)
+        return dict(zip(df["cache_key"], df["narasi"]))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 try:
     berita, topik, ringkas, sitemap, bk, bs, rp, rpt, rsa, ss, rsg, rsgt = load()
+    NARASI_CACHE = load_narasi_cache()
 except KeyError as e:
     st.error(f"Variabel environment {e} belum diset. Isi file .env di root project "
              "(MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB).")
@@ -328,11 +218,11 @@ except Exception as e:
 st.sidebar.header("Filter")
 mode = st.sidebar.radio(
     "Mode analisis",
-    ["Berdampak", "Berdampak × SDGs", "SDGs saja"],
+    ["Berdampak", "Berdampak × SDGs", "SDGs"],
     index=1,
-    help="Berdampak: 3 pilar & 14 tema Kepmen (tanpa bagian SDG). "
+    help="Berdampak: 3 dampak & 14 tema Kepmen (tanpa bagian SDG). "
          "Berdampak × SDGs: tampilan sekarang (tema + SDG dari berita bertema). "
-         "SDGs saja: mapping langsung seluruh 32.130 URL berita ke SDG "
+         "SDGs: mapping langsung seluruh 32.130 URL berita ke SDG "
          "(tanpa tema dampak) — jangkauan lebih luas.",
 )
 tahun_opsi = sorted(
@@ -346,7 +236,7 @@ tahun_awal, tahun_akhir = st.sidebar.select_slider(
 topik_pilih: list = []
 sumber_pilih: list = []
 pilar_pilih: list = []
-if mode == "SDGs saja":
+if mode == "SDGs":
     # Mode SDG: filter berdasarkan SDG, bukan tema dampak.
     sdg_pilih = st.sidebar.multiselect(
         "SDG (17)",
@@ -366,10 +256,34 @@ else:
         "Sumber", options=["sitemap", "rss"], default=["sitemap", "rss"]
     )
     pilar_pilih = st.sidebar.multiselect(
-        "Pilar dampak (Kepmen)",
+        "Dampak (Kepmen)",
         options=["Lingkungan", "Ekonomi", "Sosial"],
         default=["Lingkungan", "Ekonomi", "Sosial"],
     )
+
+# Narasi LLM ter-cache (lihat load_narasi_cache di atas) cuma valid utk posisi
+# filter DEFAULT -- begitu user ganti tahun/tema/sumber/pilar/SDG, angka2
+# dalam narasi cache jadi gak sesuai lagi, jadi WAJIB balik ke template pandas
+# yang dihitung ulang dari data ter-filter (generate_executive_summary /
+# generate_impact_insight / narasi mode SDGs saja).
+FILTER_ADALAH_DEFAULT = (
+    tahun_awal == tahun_opsi[0]
+    and tahun_akhir == tahun_opsi[-1]
+    and set(topik_pilih) == set(LABEL_TOPIC.keys())
+    and set(sumber_pilih) == {"sitemap", "rss"}
+    and set(pilar_pilih) == {"Lingkungan", "Ekonomi", "Sosial"}
+    and set(sdg_pilih) == set(range(1, 18))
+)
+
+
+def narasi_llm_atau_fallback(cache_key: str, fallback: str) -> str:
+    """Pakai narasi hasil LLM (cache mingguan) kalau ada & filter default;
+    kalau tidak, pakai narasi template (fallback) yang selalu akurat untuk
+    filter apa pun."""
+    if FILTER_ADALAH_DEFAULT and cache_key in NARASI_CACHE:
+        return NARASI_CACHE[cache_key]
+    return fallback
+
 
 # ---------- Tombol update berita terbaru ----------
 # Pipeline (scripts/update_mingguan.py) menulis ke DuckDB lokal lalu sync ke
@@ -414,8 +328,8 @@ if st.sidebar.button("🔄 Update Berita Terbaru", use_container_width=True):
     )
     st.stop()
 
-# ---------- Mode "SDGs saja": mapping langsung seluruh 32.130 URL ke SDG ----------
-if mode == "SDGs saja":
+# ---------- Mode "SDGs": mapping langsung seluruh 32.130 URL ke SDG ----------
+if mode == "SDGs":
     st.subheader("Analisis SDGs — Seluruh Berita UGM (32.130 URL)")
     st.caption(
         "Mapping langsung url berita sitemap ke 17 SDG (tanpa tema dampak Kepmen): "
@@ -435,6 +349,15 @@ if mode == "SDGs saja":
     if not len(ss_f):
         st.warning("Tidak ada data SDG untuk rentang tahun ini.")
         st.stop()
+
+    # ---------- Ringkasan Eksekutif (mode SDGs saja) ----------
+    st.subheader("Ringkasan Eksekutif")
+    narasi_sdg_saja_fallback = generate_sdg_saja_summary(sm, ss_f, tahun_awal, tahun_akhir)
+    st.info(narasi_llm_atau_fallback("sdg_saja", narasi_sdg_saja_fallback))
+    penjelasan(
+        "Ringkasan ini dihitung ulang tiap dashboard dimuat dari data ter-filter saat itu — "
+        "sama seperti Ringkasan Eksekutif di mode Berdampak."
+    )
 
     # Distribusi per SDG
     st.subheader("Distribusi Berita per SDG")
@@ -591,7 +514,7 @@ bk_f = t[t["url"].isin(urls_t)].copy()
 bs_f = bs[bs["url"].isin(urls_t)].copy()
 
 # ---------- Ringkasan Eksekutif Dinamis ----------
-if mode != "SDGs saja":
+if mode != "SDGs":
     st.subheader("Ringkasan Eksekutif")
     ringkasan = generate_executive_summary(b, t, bs_f, mode, tahun_awal, tahun_akhir)
     rc1, rc2, rc3, rc4 = st.columns(4)
@@ -600,10 +523,11 @@ if mode != "SDGs saja":
         f"{ringkasan['pilar_top_pct']:+.1f}%" if ringkasan["pilar_top_pct"] is not None
         else (f"+{ringkasan['pilar_top_naik']} berita" if ringkasan["pilar_top_naik"] else None)
     )
-    rc2.metric("Pilar pertumbuhan tertinggi", ringkasan["pilar_top"], _pilar_delta_label)
+    rc2.metric("Dampak pertumbuhan tertinggi", ringkasan["pilar_top"], _pilar_delta_label)
     rc3.metric(f"Sorotan {tahun_akhir}", f"{ringkasan['berita_tahun_ini']:,} berita")
-    rc4.metric("Paling banyak disentuh", ringkasan["topik_top_label"])
-    st.info(ringkasan["narasi"])
+    rc4.metric(ringkasan["topik_top_kind_label"], ringkasan["topik_top_short"])
+    _exec_cache_key = "exec_berdampak_sdgs" if mode == "Berdampak × SDGs" else "exec_berdampak"
+    st.info(narasi_llm_atau_fallback(_exec_cache_key, ringkasan["narasi"]))
     penjelasan(
         "Ringkasan ini dihitung ulang tiap dashboard dimuat dari data ter-filter saat itu \u2014 "
         "otomatis ikut berubah begitu ada berita baru masuk lewat update mingguan, bukan teks statis."
@@ -611,11 +535,12 @@ if mode != "SDGs saja":
 
     # ---------- Overview: 3 pilar dampak, klik satu untuk drill-down ----------
     st.subheader("Overview Dampak UGM")
-    st.caption("Klik salah satu pilar di bawah untuk melihat detail tema, tren, dan insight otomatis.")
-    st.session_state.setdefault("selected_pilar", "Ekonomi")
+    st.caption("Klik salah satu dampak di bawah untuk melihat detail tema, tren, dan insight otomatis.")
+    st.session_state.setdefault("selected_pilar", None)
 
+    PILAR_ICON = {"Lingkungan": "🌳", "Ekonomi": "💼", "Sosial": "🤝"}
     pilar_order = ["Lingkungan", "Ekonomi", "Sosial"]
-    pilar_cards = st.columns(3)
+    pilar_cards = st.columns(3, gap="medium")
     for idx, pilar in enumerate(pilar_order):
         pilar_topik = t[t["dampak"] == pilar].copy()
         pilar_urls = set(pilar_topik["url"])
@@ -624,17 +549,41 @@ if mode != "SDGs saja":
         tema_terbanyak = (
             pilar_topik.groupby("topik")["url"].nunique().sort_values(ascending=False).head(1)
         )
-        top_theme_name = LABEL_TOPIC.get(tema_terbanyak.index[0], tema_terbanyak.index[0]) if not tema_terbanyak.empty else "-"
+        if not tema_terbanyak.empty:
+            top_theme_name = LABEL_TOPIC.get(tema_terbanyak.index[0], tema_terbanyak.index[0])
+            top_theme_n = int(tema_terbanyak.iloc[0])
+        else:
+            top_theme_name, top_theme_n = "-", 0
         with pilar_cards[idx]:
             is_active = st.session_state["selected_pilar"] == pilar
-            button_type = "primary" if is_active else "secondary"
+            warna = WARNA_PILAR[pilar]
+            border_w = "3px" if is_active else "1px"
+            shadow = f"0 6px 16px {warna}40" if is_active else "0 1px 3px rgba(0,0,0,0.08)"
+            st.markdown(
+                f"""
+                <div class="pilar-card" style="border:{border_w} solid {warna};
+                     background:{warna}14; box-shadow:{shadow};">
+                    <div class="pilar-card-icon">{PILAR_ICON[pilar]}</div>
+                    <div class="pilar-card-name" style="color:{warna};">{pilar}</div>
+                    <div class="pilar-card-count">{pilar_total:,}</div>
+                    <div class="pilar-card-unit">berita</div>
+                    <div class="pilar-card-theme">Tema terbanyak (subset dari total)<br>
+                        <b>{top_theme_name}</b> — {top_theme_n:,} berita</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
             if st.button(
-                f"{pilar}\n{pilar_total:,} berita\nTema utama: {top_theme_name}",
+                "✓ Sedang dilihat" if is_active else "Lihat detail →",
                 key=f"pilar_{pilar}",
                 use_container_width=True,
-                type=button_type,
+                type="primary" if is_active else "secondary",
             ):
                 st.session_state["selected_pilar"] = pilar
+
+    if st.session_state["selected_pilar"] is None:
+        st.info("👆 Klik salah satu dampak di atas untuk melihat detail tema, tren, dan insight.")
+        st.stop()
 
     selected_pilar = st.session_state["selected_pilar"]
     selected_t = t[t["dampak"] == selected_pilar].copy()
@@ -646,7 +595,7 @@ if mode != "SDGs saja":
     TOPIK_TAMPIL_PILAR = [k for k in TOPIK_TAMPIL if TOPIK_KEPMEN_ALL[k]["dampak"] == selected_pilar]
 
     st.markdown("---")
-    st.subheader(f"Detail Pilar: {selected_pilar}")
+    st.subheader(f"Detail Dampak: {selected_pilar}")
 
     tab_labels = ["Ringkasan & Insight", "Tema Resmi Kepmen"]
     if mode != "Berdampak":
@@ -657,9 +606,16 @@ if mode != "SDGs saja":
 
     # --- Tab: Ringkasan & Insight ---
     with next(tab_iter):
-        st.info(generate_impact_insight(
+        _insight_fallback = generate_impact_insight(
             selected_news, selected_pilar, tahun_awal, tahun_akhir, selected_t, mode, bs_f_pilar,
-        ))
+        )
+        # Cache LLM cuma digenerate utk mode "Berdampak x SDGs" (paling
+        # lengkap) -- mode lain otomatis fallback ke template (key gak match).
+        _pilar_key = (
+            f"pilar_{selected_pilar.lower()}" if mode == "Berdampak × SDGs"
+            else f"pilar_{selected_pilar.lower()}_{mode}"
+        )
+        st.info(narasi_llm_atau_fallback(_pilar_key, _insight_fallback))
 
         c1, c2, c3 = st.columns(3)
         c1.metric("Berita unik", f"{selected_news['url'].nunique():,}")
@@ -673,7 +629,7 @@ if mode != "SDGs saja":
         topik_counts["label"] = topik_counts["topik"].map(LABEL_TOPIC)
         fig_detail = px.bar(
             topik_counts, x="jumlah", y="label", orientation="h",
-            title=f"Distribusi tema dalam pilar {selected_pilar}",
+            title=f"Distribusi tema dalam dampak {selected_pilar}",
             labels={"label": "Tema", "jumlah": "Jumlah berita"},
             color="label", color_discrete_sequence=px.colors.qualitative.Bold,
         )
@@ -683,13 +639,13 @@ if mode != "SDGs saja":
         trend_detail = selected_news.groupby("tahun")["url"].nunique().reset_index(name="jumlah")
         fig_trend = px.line(
             trend_detail, x="tahun", y="jumlah", markers=True,
-            title=f"Tren berita per tahun untuk pilar {selected_pilar}",
+            title=f"Tren berita per tahun untuk dampak {selected_pilar}",
             labels={"tahun": "Tahun", "jumlah": "Jumlah berita"},
         )
         fig_trend.update_layout(height=360)
         st.plotly_chart(fig_trend, width="stretch")
 
-        st.markdown("**Daftar tema dalam pilar ini**")
+        st.markdown("**Daftar tema dalam dampak ini**")
         st.dataframe(
             topik_counts[["label", "jumlah"]].rename(columns={"label": "Tema", "jumlah": "Jumlah berita"}),
             width="stretch", hide_index=True,
@@ -710,17 +666,17 @@ if mode != "SDGs saja":
             )
             fig_k_p = px.bar(
                 dist_k_p, x="jumlah", y="topik_kepmen", orientation="h",
-                title=f"Berita per Tema Resmi Kepmen \u2014 pilar {selected_pilar}",
+                title=f"Berita per Tema Resmi Kepmen \u2014 dampak {selected_pilar}",
                 labels={"topik_kepmen": "Tema Resmi Kepmen", "jumlah": "Jumlah berita"},
                 color_discrete_sequence=[WARNA_PILAR[selected_pilar]],
             )
             fig_k_p.update_layout(height=340, showlegend=False)
-            hover_keterangan(fig_k_p, "Berita unik yang masuk Tema Resmi Kepmen ini pada pilar terpilih.")
+            hover_keterangan(fig_k_p, "Berita unik yang masuk Tema Resmi Kepmen ini pada dampak terpilih.")
             st.plotly_chart(fig_k_p, width="stretch")
         else:
-            st.info("Tidak ada data Kepmen untuk pilar ini pada filter saat ini.")
+            st.info("Tidak ada data Kepmen untuk dampak ini pada filter saat ini.")
 
-        st.markdown("**Indikator resmi Kepmen 361/M/KEP/2025 pada pilar ini**")
+        st.markdown("**Indikator resmi Kepmen 361/M/KEP/2025 pada dampak ini**")
         map_rows_p = [
             {
                 "Tema dampak berita": LABEL_TOPIC.get(k, k),
@@ -744,13 +700,13 @@ if mode != "SDGs saja":
                 dist_s_p["nama"] = dist_s_p["sdg"].apply(sdg_label)
                 fig_s_p = px.bar(
                     dist_s_p, x="label", y="jumlah", color="sdg",
-                    title=f"Berita per SDG \u2014 pilar {selected_pilar}",
+                    title=f"Berita per SDG \u2014 dampak {selected_pilar}",
                     labels={"label": "SDG", "jumlah": "Jumlah berita"},
                     hover_data={"nama": True, "sdg": False, "label": False},
                 )
                 fig_s_p.update_layout(height=380, showlegend=False,
                                       xaxis=dict(tickangle=-45, tickfont=dict(size=10), automargin=True))
-                hover_keterangan(fig_s_p, "Berita unik pilar ini pada klaster SDG tsb.")
+                hover_keterangan(fig_s_p, "Berita unik dampak ini pada klaster SDG tsb.")
                 st.plotly_chart(fig_s_p, width="stretch")
 
                 hm_p = (
@@ -768,7 +724,7 @@ if mode != "SDGs saja":
                     hm_piv_p2.columns = [f"SDG {c}" for c in hm_piv_p.columns]
                     fig_hm_p = px.imshow(
                         hm_piv_p2, text_auto=True, aspect="auto",
-                        title=f"Tema \u00d7 SDG \u2014 pilar {selected_pilar}",
+                        title=f"Tema \u00d7 SDG \u2014 dampak {selected_pilar}",
                         labels={"x": "SDG", "y": "Tema", "color": "Berita"},
                         color_continuous_scale="blues",
                     )
@@ -776,10 +732,10 @@ if mode != "SDGs saja":
                     fig_hm_p.update_yaxes(tickfont=dict(size=11), automargin=True)
                     fig_hm_p.update_traces(textfont=dict(size=8))
                     fig_hm_p.update_layout(height=360)
-                    hover_keterangan(fig_hm_p, "Berita unik yang masuk tema baris sekaligus SDG kolom, pilar ini.")
+                    hover_keterangan(fig_hm_p, "Berita unik yang masuk tema baris sekaligus SDG kolom, dampak ini.")
                     st.plotly_chart(fig_hm_p, width="stretch")
             else:
-                st.info("Tidak ada data SDG untuk pilar ini pada filter saat ini.")
+                st.info("Tidak ada data SDG untuk dampak ini pada filter saat ini.")
 
     # --- Tab: Tren & Musiman ---
     with next(tab_iter):
@@ -793,7 +749,7 @@ if mode != "SDGs saja":
             piv_p_ty2.index = [LABEL_TOPIC.get(i, i) for i in piv_p_ty.index]
             fig_h_p = px.imshow(
                 piv_p_ty2, text_auto=True, aspect="auto",
-                title=f"Tema \u00d7 Tahun \u2014 pilar {selected_pilar}",
+                title=f"Tema \u00d7 Tahun \u2014 dampak {selected_pilar}",
                 labels={"x": "Tahun", "y": "Tema", "color": "Berita"},
                 color_continuous_scale="greens",
             )
@@ -801,10 +757,10 @@ if mode != "SDGs saja":
             fig_h_p.update_yaxes(tickfont=dict(size=11), automargin=True)
             fig_h_p.update_traces(textfont=dict(size=8))
             fig_h_p.update_layout(height=340)
-            hover_keterangan(fig_h_p, "Berita unik tema ini pada tahun tsb, pilar terpilih.")
+            hover_keterangan(fig_h_p, "Berita unik tema ini pada tahun tsb, dampak terpilih.")
             st.plotly_chart(fig_h_p, width="stretch")
         else:
-            st.info("Tidak cukup data untuk heatmap pilar ini.")
+            st.info("Tidak cukup data untuk heatmap dampak ini.")
 
         b_t_pilar_bulan = b_t_pilar.copy()
         b_t_pilar_bulan["bulan"] = b_t_pilar_bulan["tanggal"].str[5:7]
@@ -813,12 +769,12 @@ if mode != "SDGs saja":
             musim_p["label"] = musim_p["topik"].map(LABEL_TOPIC)
             fig_m_p = px.bar(
                 musim_p, x="bulan", y="jumlah", color="label", barmode="stack",
-                title=f"Tren bulanan (musiman) \u2014 pilar {selected_pilar}",
+                title=f"Tren bulanan (musiman) \u2014 dampak {selected_pilar}",
                 labels={"bulan": "Bulan", "jumlah": "Jumlah berita", "label": "Tema"},
                 color_discrete_sequence=px.colors.qualitative.Bold,
             )
             fig_m_p.update_layout(height=340)
-            hover_keterangan(fig_m_p, "Berita bulan tsb, semua tahun digabung, pilar terpilih.")
+            hover_keterangan(fig_m_p, "Berita bulan tsb, semua tahun digabung, dampak terpilih.")
             st.plotly_chart(fig_m_p, width="stretch")
 
     # --- Tab: Kata Kunci & Berita ---
@@ -864,7 +820,7 @@ if mode != "SDGs saja":
                 fig_wf_p.update_layout(height=420, yaxis=dict(autorange="reversed"), showlegend=False)
                 st.plotly_chart(fig_wf_p, width="stretch")
 
-        st.markdown("**Daftar berita \u2014 pilar ini**")
+        st.markdown("**Daftar berita \u2014 dampak ini**")
         if len(bk_f_pilar):
             kepmen_by_url_p = (
                 bk_f_pilar.groupby("url")["topik_kepmen"]
@@ -888,11 +844,11 @@ if mode != "SDGs saja":
             tampil_p.columns = ["Tanggal", "Judul", "Tema Kepmen", "SDG", "Sumber"]
             st.dataframe(tampil_p, width="stretch", hide_index=True)
         else:
-            st.info("Tidak ada berita untuk pilar ini pada filter saat ini.")
+            st.info("Tidak ada berita untuk dampak ini pada filter saat ini.")
 
     st.markdown("---")
 
-with st.expander("📂 Analisis Lintas-Pilar (Lanjutan)", expanded=False):
+with st.expander("📂 Analisis Lintas-Dampak (Lanjutan)", expanded=False):
     st.subheader("Ringkasan")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Total berita (filter)", len(b))
@@ -932,8 +888,8 @@ with st.expander("📂 Analisis Lintas-Pilar (Lanjutan)", expanded=False):
     st.caption(
         "Pemetaan Kepmendikti Saintek 361/M/KEP/2025 (UGM Analytics.xlsx — "
         "sheet 'Konten UGM Berdampak' & '#Ref'): 14 tema resmi dampak "
-        "dipetakan ke Tema Resmi Kepmen, pilar "
-        "Sosial/Ekonomi/Lingkungan, dan klaster SDGs. Filter pilar di sidebar "
+        "dipetakan ke Tema Resmi Kepmen, dampak "
+        "Sosial/Ekonomi/Lingkungan, dan klaster SDGs. Filter dampak di sidebar "
         "berlaku untuk grafik di bawah."
     )
 
@@ -962,9 +918,9 @@ with st.expander("📂 Analisis Lintas-Pilar (Lanjutan)", expanded=False):
         )
         fig_k = px.bar(
             dist_k, x="jumlah", y="topik_kepmen", color="dampak", orientation="h",
-            title="Jumlah berita per Tema Resmi Kepmen (berdasarkan pilar dampak)",
+            title="Jumlah berita per Tema Resmi Kepmen (berdasarkan dampak)",
             labels={"topik_kepmen": "Tema Resmi Kepmen", "jumlah": "Jumlah berita",
-                    "dampak": "Pilar"},
+                    "dampak": "Dampak"},
             color_discrete_map={"Lingkungan": "#2e7d32", "Ekonomi": "#1565c0",
                                 "Sosial": "#e65100"},
         )
@@ -977,7 +933,7 @@ with st.expander("📂 Analisis Lintas-Pilar (Lanjutan)", expanded=False):
         st.plotly_chart(fig_k, width="stretch")
         penjelasan(
             "Distribusi berita ke Tema Resmi Kepmen 361/M/KEP/2025, diwarnai "
-            "per pilar. Angka = berita unik dari tema dampak yang dipetakan ke "
+            "per dampak. Angka = berita unik dari tema dampak yang dipetakan ke "
             "Tema Resmi ini (pemetaan resmi dari UGM Analytics.xlsx); beberapa "
             "tema dampak bisa memetakan ke Tema Resmi yang sama, jumlahnya "
             "digabung."
@@ -1077,7 +1033,7 @@ with st.expander("📂 Analisis Lintas-Pilar (Lanjutan)", expanded=False):
             )
 
         # Heatmap pilar x tahun (dari tema Kepmen)
-        st.markdown("**Heatmap Pilar Dampak × Tahun**")
+        st.markdown("**Heatmap Dampak × Tahun**")
         bk_tahun = (
             bk_f.merge(b[["url", "tahun"]], on="url", how="left")
             .drop_duplicates(subset=["url", "topik", "tahun"])
@@ -1093,23 +1049,23 @@ with st.expander("📂 Analisis Lintas-Pilar (Lanjutan)", expanded=False):
             )
             fig_p = px.imshow(
                 piv_p, text_auto=True, aspect="auto",
-                title="Jumlah berita per pilar dampak per tahun (14 tema Kepmen)",
-                labels={"x": "Tahun", "y": "Pilar", "color": "Berita"},
+                title="Jumlah berita per dampak per tahun (14 tema Kepmen)",
+                labels={"x": "Tahun", "y": "Dampak", "color": "Berita"},
                 color_continuous_scale="oranges",
             )
             fig_p.update_xaxes(tickangle=-45, tickfont=dict(size=10),
                                automargin=True)
             fig_p.update_traces(textfont=dict(size=8))
             fig_p.update_layout(height=320)
-            hover_keterangan(fig_p, "Berita unik pada pilar ini di tahun tsb.")
+            hover_keterangan(fig_p, "Berita unik pada dampak ini di tahun tsb.")
             st.plotly_chart(fig_p, width="stretch")
             penjelasan(
-                "Dominasi pilar Sosial/Ekonomi/Lingkungan per tahun. Angka = "
-                "berita unik dari semua tema yang memetakan ke pilar itu pada "
+                "Dominasi dampak Sosial/Ekonomi/Lingkungan per tahun. Angka = "
+                "berita unik dari semua tema yang memetakan ke dampak itu pada "
                 "tahun tsb (dari 14 tema resmi Kepmen)."
             )
 
-    st.markdown("**Ringkasan per pilar dampak (Sosial/Ekonomi/Lingkungan)**")
+    st.markdown("**Ringkasan per dampak (Sosial/Ekonomi/Lingkungan)**")
     with st.container(border=True):
         rp_f = rp[rp["dampak"].isin(pilar_pilih)] if pilar_pilih else rp
         if len(rp_f):
@@ -1120,19 +1076,19 @@ with st.expander("📂 Analisis Lintas-Pilar (Lanjutan)", expanded=False):
                     cols[i].metric(p, c.get(p, 0))
             fig_rp = px.bar(
                 rp_f, x="dampak", y="jumlah_berita", color="dampak",
-                title="Berita unik per pilar dampak (semua tema Kepmen)",
-                labels={"dampak": "Pilar", "jumlah_berita": "Jumlah berita"},
+                title="Berita unik per dampak (semua tema Kepmen)",
+                labels={"dampak": "Dampak", "jumlah_berita": "Jumlah berita"},
                 color_discrete_map=WARNA_PILAR,
             )
             fig_rp.update_layout(height=320, showlegend=False)
-            hover_keterangan(fig_rp, "Berita unik di semua tema dalam pilar ini.")
+            hover_keterangan(fig_rp, "Berita unik di semua tema dalam dampak ini.")
             st.plotly_chart(fig_rp, width="stretch")
             penjelasan(
-                "Total berita unik per pilar dampak (semua tema dalam pilar "
-                "digabung, URL dideduplikasi per pilar)."
+                "Total berita unik per dampak (semua tema dalam dampak "
+                "digabung, URL dideduplikasi per dampak)."
             )
         else:
-            st.info("Tidak ada data pilar untuk filter ini.")
+            st.info("Tidak ada data dampak untuk filter ini.")
 
     st.markdown("**Lihat tabel pemetaan resmi + indikator Kepmen (14 tema)**")
     with st.container(border=True):
@@ -1141,7 +1097,7 @@ with st.expander("📂 Analisis Lintas-Pilar (Lanjutan)", expanded=False):
             map_rows.append(
                 {
                     "Tema dampak berita": LABEL_TOPIC.get(topik_id, topik_id),
-                    "Pilar": meta["dampak"],
+                    "Dampak": meta["dampak"],
                     "Tema Resmi Kepmen": meta["topik_kepmen"],
                     "Klaster SDGs": ", ".join(sdg_label(s) for s in meta["sdg"]) or "—",
                     "Indikator Kepmen": meta["indikator"],

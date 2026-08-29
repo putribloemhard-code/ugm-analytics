@@ -6,9 +6,13 @@ Menjalankan seluruh pipeline berurutan:
   3. fetch_detail.py    — fetch detail URL sitemap yang belum ada di tabel berita
   4. normalisasi.py     — bersihkan teks + tanggal, dedup
   5. process_nlp.py     — tagging 4 topik inti (tabel berita_topik)
-  6. tag_kepmen_all.py  — tagging 14 tema Kepmen + SDG (tabel berita_kepmen_all)
-  7. sync_mysql.py      — replace tabel berita_* di MySQL dari DuckDB (dashboard baca MySQL)
-  8. laporan_static.py  — regenerate laporan HTML statis
+  6. tag_kepmen_all.py       — tagging 14 tema Kepmen + SDG (tabel berita_kepmen_all)
+  7. sync_mysql.py           — replace tabel berita_* di MySQL dari DuckDB (dashboard baca MySQL)
+  8. generate_narasi_llm.py  — rangkai narasi ringkasan/insight pakai Gemini API,
+                               cache ke MySQL (opsional -- skip aman kalau
+                               GEMINI_API_KEY belum diisi, dashboard fallback
+                               ke narasi template pandas)
+  9. laporan_static.py       — regenerate laporan HTML statis
 
 Semua script idempoten (INSERT OR IGNORE / CREATE OR REPLACE), aman dijalankan
 ulang. Jaringan dipakai untuk ugm.ac.id saja (bukan eLOK).
@@ -43,6 +47,7 @@ STEPS = [
     "process_nlp.py",
     "tag_kepmen_all.py",
     "sync_mysql.py",
+    "generate_narasi_llm.py",
     "laporan_static.py",
 ]
 
