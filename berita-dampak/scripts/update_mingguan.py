@@ -7,7 +7,8 @@ Menjalankan seluruh pipeline berurutan:
   4. normalisasi.py     — bersihkan teks + tanggal, dedup
   5. process_nlp.py     — tagging 4 topik inti (tabel berita_topik)
   6. tag_kepmen_all.py  — tagging 14 tema Kepmen + SDG (tabel berita_kepmen_all)
-  7. laporan_static.py  — regenerate laporan HTML statis
+  7. sync_mysql.py      — replace tabel berita_* di MySQL dari DuckDB (dashboard baca MySQL)
+  8. laporan_static.py  — regenerate laporan HTML statis
 
 Semua script idempoten (INSERT OR IGNORE / CREATE OR REPLACE), aman dijalankan
 ulang. Jaringan dipakai untuk ugm.ac.id saja (bukan eLOK).
@@ -16,7 +17,12 @@ Lock file `data/.update_lock` mencegah dua update berjalan bersamaan
 (tombol dashboard + cron). Kalau lock sudah ada, update dibatalkan.
 
 Jalankan:
-  ../venv/Scripts/python.exe scripts/update_mingguan.py
+  python scripts/update_mingguan.py
+
+Interpreter Python dipakai untuk tiap step diambil dari sys.executable
+(interpreter yang menjalankan script ini), atau dari env var
+UGM_ANALYTICS_PYTHON kalau di-set. Ini supaya pipeline jalan baik di
+Windows (venv/Scripts/python.exe) maupun di container Linux (venv/bin/python).
 """
 
 import os
@@ -26,7 +32,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PY = Path(__file__).resolve().parents[2] / "venv" / "Scripts" / "python.exe"
+PY = os.environ.get("UGM_ANALYTICS_PYTHON", sys.executable)
 LOCK = ROOT / "data" / ".update_lock"
 
 STEPS = [
@@ -36,6 +42,7 @@ STEPS = [
     "normalisasi.py",
     "process_nlp.py",
     "tag_kepmen_all.py",
+    "sync_mysql.py",
     "laporan_static.py",
 ]
 

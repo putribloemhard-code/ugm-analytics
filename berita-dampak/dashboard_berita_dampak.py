@@ -372,20 +372,47 @@ else:
     )
 
 # ---------- Tombol update berita terbaru ----------
-# TODO(migrasi MySQL): scripts/update_mingguan.py masih menulis hasil fetch-nya
-# ke DuckDB (data/ugm_news.duckdb), belum ke MySQL. Sampai script itu ikut
-# dimigrasi supaya menulis ke tabel berprefix "berita_" di MySQL, tombol ini
-# dinonaktifkan dulu -- kalau dijalankan sekarang, datanya akan masuk ke file
-# DuckDB lama yang sudah tidak dibaca dashboard ini, bukan ke MySQL.
+# Pipeline (scripts/update_mingguan.py) menulis ke DuckDB lokal lalu sync ke
+# MySQL di step terakhir (scripts/sync_mysql.py, prefix "berita_") -- dashboard
+# ini baca dari MySQL, jadi data baru muncul setelah sync selesai.
 st.sidebar.divider()
-st.sidebar.caption(
-    "🔧 Update otomatis belum tersedia: script fetch berita masih menulis ke "
-    "DuckDB, belum dimigrasi ke MySQL."
-)
-st.sidebar.button(
-    "🔄 Update Berita Terbaru", use_container_width=True, disabled=True,
-    help="Nonaktif sementara -- scripts/update_mingguan.py belum dimigrasi ke MySQL.",
-)
+update_log = Path(__file__).resolve().parent / "logs_update_dashboard.txt"
+if update_log.exists():
+    mtime = update_log.stat().st_mtime
+    import time as _time
+
+    st.sidebar.caption(f"Update terakhir: {_time.strftime('%Y-%m-%d %H:%M', _time.localtime(mtime))}")
+else:
+    st.sidebar.caption("Data terakhir diambil dari ugm.ac.id.")
+
+if st.sidebar.button("🔄 Update Berita Terbaru", use_container_width=True):
+    import subprocess
+
+    script = Path(__file__).resolve().parent / "scripts" / "update_mingguan.py"
+    py = os.environ.get("UGM_ANALYTICS_PYTHON", sys.executable)
+    lock = Path(__file__).resolve().parent / "data" / ".update_lock"
+    if lock.exists():
+        st.warning(
+            "Update lain sedang berjalan di background (dari tombol ini atau "
+            "cron mingguan). Tunggu sampai selesai (±10 menit), lalu muat "
+            "ulang halaman ini."
+        )
+        st.stop()
+    # Jalankan update sebagai proses terpisah; dashboard TIDAK diblokir.
+    log_f = open(update_log, "w", encoding="utf-8")
+    p = subprocess.Popen(
+        [str(py), str(script)],
+        cwd=str(Path(__file__).resolve().parent),
+        stdout=log_f, stderr=subprocess.STDOUT,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    st.success(
+        f"Update dimulai di background (PID {p.pid}). "
+        "Proses memakan waktu ±10 menit (fetch berita baru dari ugm.ac.id, "
+        "lalu sync ke MySQL). Setelah selesai, muat ulang halaman — data "
+        "baru otomatis tampil. Log: logs_update_dashboard.txt"
+    )
+    st.stop()
 
 # ---------- Mode "SDGs saja": mapping langsung seluruh 32.130 URL ke SDG ----------
 if mode == "SDGs saja":

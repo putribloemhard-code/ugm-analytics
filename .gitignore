@@ -23,3 +23,6 @@ Thumbs.db
 Desktop.ini
 push_log.txt
 push_log*.txt
+
+# Dump database - jangan commit
+ugm_analytics_dump.sql
