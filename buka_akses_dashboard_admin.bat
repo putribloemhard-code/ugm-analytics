@@ -23,6 +23,7 @@ netsh advfirewall firewall show rule name="Streamlit 8766"
 
 echo.
 echo Sekarang laptop lain di jaringan yang sama bisa buka:
-echo   http://10.73.1.179:8766
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do set IP=%%a
+echo   http://%IP: =%:8766
 echo.
 pause

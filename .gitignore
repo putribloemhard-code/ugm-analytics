@@ -1,5 +1,8 @@
 # Environment & artefak lokal — JANGAN di-commit
 
+# Kredensial (MySQL, dll.) — JANGAN di-commit
+.env
+
 # Python venv (besar, bisa dibuat ulang)
 venv/
 .venv/
