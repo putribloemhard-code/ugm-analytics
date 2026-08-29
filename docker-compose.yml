@@ -1,0 +1,28 @@
+# docker-compose.yml — service database untuk UGM Impact Analytics.
+#
+# Repo dev ini belum punya definisi service aplikasi (Streamlit) / Dockerfile
+# -- deployment container app dikelola terpisah oleh tim infra (lihat
+# deploy/README.md). File ini baru berisi service MySQL 8.0 (hasil migrasi
+# dari DuckDB, lihat migrasi_ke_mysql.py).
+#
+# Kalau service app digabung ke compose file ini (atau di-merge ke compose
+# file tim infra), pastikan dia ikut network "default" yang sama supaya bisa
+# connect ke database lewat host "mysql" (bukan "localhost") -- lihat
+# MYSQL_HOST di .env.example.
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DB}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - default
+
+volumes:
+  mysql_data:
