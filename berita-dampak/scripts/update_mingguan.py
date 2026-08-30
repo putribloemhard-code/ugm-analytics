@@ -1,21 +1,21 @@
 """Update berkala data berita-dampak (untuk cron mingguan / run manual).
 
-Menjalankan seluruh pipeline berurutan:
+Menjalankan seluruh pipeline berurutan, langsung baca/tulis MySQL (tabel
+berprefix "berita_", lihat scripts/db.py -- tidak ada lagi DuckDB perantara):
   1. backfill_sitemap.py — ambil URL baru dari sitemap ugm.ac.id
   2. ingest.py          — ambil berita terbaru dari RSS (id + en)
   3. fetch_detail.py    — fetch detail URL sitemap yang belum ada di tabel berita
   4. normalisasi.py     — bersihkan teks + tanggal, dedup
-  5. process_nlp.py     — tagging 4 topik inti (tabel berita_topik)
-  6. tag_kepmen_all.py       — tagging 14 tema Kepmen + SDG (tabel berita_kepmen_all)
-  7. sync_mysql.py           — replace tabel berita_* di MySQL dari DuckDB (dashboard baca MySQL)
-  8. generate_narasi_llm.py  — rangkai narasi ringkasan/insight pakai Gemini API,
+  5. process_nlp.py     — tagging 4 topik inti (tabel berita_berita_topik)
+  6. tag_kepmen_all.py       — tagging 14 tema Kepmen + SDG (tabel berita_berita_kepmen_all)
+  7. generate_narasi_llm.py  — rangkai narasi ringkasan/insight pakai Gemini API,
                                cache ke MySQL (opsional -- skip aman kalau
                                GEMINI_API_KEY belum diisi, dashboard fallback
                                ke narasi template pandas)
-  9. laporan_static.py       — regenerate laporan HTML statis
+  8. laporan_static.py       — regenerate laporan HTML statis
 
-Semua script idempoten (INSERT OR IGNORE / CREATE OR REPLACE), aman dijalankan
-ulang. Jaringan dipakai untuk ugm.ac.id saja (bukan eLOK).
+Semua script idempoten (INSERT IGNORE / replace tabel ringkasan), aman
+dijalankan ulang. Jaringan dipakai untuk ugm.ac.id saja (bukan eLOK).
 
 Lock file `data/.update_lock` mencegah dua update berjalan bersamaan
 (tombol dashboard + cron). Kalau lock sudah ada, update dibatalkan.
@@ -46,7 +46,6 @@ STEPS = [
     "normalisasi.py",
     "process_nlp.py",
     "tag_kepmen_all.py",
-    "sync_mysql.py",
     "generate_narasi_llm.py",
     "laporan_static.py",
 ]

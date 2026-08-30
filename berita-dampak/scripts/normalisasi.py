@@ -7,13 +7,14 @@
 """
 
 import re
-from datetime import datetime
+import sys
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
-import duckdb
+from sqlalchemy import text
 
-DB_PATH = Path(__file__).resolve().parents[1] / "data" / "ugm_news.duckdb"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from db import get_engine, t, with_retry  # noqa: E402
 
 
 def clean_text(s: str | None) -> str:
@@ -36,11 +37,23 @@ def parse_date(s: str | None) -> str | None:
         return None
 
 
+COLUMNS = ["url", "judul", "tanggal", "deskripsi", "kategori", "sumber"]
+
+
 def main() -> None:
-    con = duckdb.connect(str(DB_PATH))
-    rows = con.execute(
-        "SELECT url, judul, tanggal, deskripsi, kategori, sumber FROM berita"
-    ).fetchall()
+    engine = get_engine()
+    table = t("berita")
+
+    def _read_all():
+        with engine.connect() as conn:
+            return conn.exec_driver_sql(
+                f"SELECT url, judul, tanggal, deskripsi, kategori, sumber FROM `{table}`"
+            ).fetchall()
+
+    ok, rows = with_retry(_read_all, label="baca tabel berita")
+    if not ok:
+        print("GAGAL membaca tabel berita dari MySQL setelah 3 percobaan -- batal.")
+        return
     print(f"Sebelum normalisasi: {len(rows)} baris")
 
     cleaned = []
@@ -57,15 +70,40 @@ def main() -> None:
             continue  # baris tanpa judul tidak berguna
         cleaned.append((u, j, parse_date(tanggal), d, k, sumber))
 
-    con.execute("DELETE FROM berita")
-    con.executemany(
-        "INSERT INTO berita (url, judul, tanggal, deskripsi, kategori, sumber) VALUES (?,?,?,?,?,?)",
-        cleaned,
-    )
-    n = con.execute("SELECT COUNT(*) FROM berita").fetchone()[0]
-    n_date = con.execute("SELECT COUNT(*) FROM berita WHERE tanggal IS NOT NULL").fetchone()[0]
-    print(f"Sesudah normalisasi: {n} baris (dengan tanggal: {n_date})")
-    con.close()
+    # DELETE + INSERT dalam SATU transaksi: kalau proses berhenti di tengah
+    # (atau gagal), rollback otomatis mengembalikan tabel ke kondisi sebelum
+    # normalisasi -- bukan tabel kosong. `cleaned` dihitung di memori (murah,
+    # tanpa network), jadi aman diulang total kalau transaksi ini gagal.
+    def _replace_all():
+        with engine.begin() as conn:
+            conn.execute(text(f"DELETE FROM `{table}`"))
+            if cleaned:
+                cols_sql = ", ".join(f"`{c}`" for c in COLUMNS)
+                placeholders = ", ".join(f":{c}" for c in COLUMNS)
+                data = [dict(zip(COLUMNS, row)) for row in cleaned]
+                conn.execute(
+                    text(f"INSERT INTO `{table}` ({cols_sql}) VALUES ({placeholders})"),
+                    data,
+                )
+
+    ok, _ = with_retry(_replace_all, label="tulis ulang tabel berita (normalisasi)")
+    if not ok:
+        print("GAGAL menyimpan hasil normalisasi ke MySQL setelah 3 percobaan -- "
+              "tabel berita TIDAK berubah (transaksi di-rollback).")
+        return
+
+    def _count():
+        with engine.connect() as conn:
+            n_ = conn.exec_driver_sql(f"SELECT COUNT(*) FROM `{table}`").scalar()
+            n_date_ = conn.exec_driver_sql(
+                f"SELECT COUNT(*) FROM `{table}` WHERE tanggal IS NOT NULL"
+            ).scalar()
+        return n_, n_date_
+
+    ok, result = with_retry(_count, label="hitung ulang tabel berita")
+    if ok:
+        n, n_date = result
+        print(f"Sesudah normalisasi: {n} baris (dengan tanggal: {n_date})")
 
 
 if __name__ == "__main__":

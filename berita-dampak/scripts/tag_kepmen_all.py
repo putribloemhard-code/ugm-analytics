@@ -31,14 +31,12 @@ import re
 import sys
 from pathlib import Path
 
-import duckdb
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from db import get_engine, read_sql_retry, t, with_retry  # noqa: E402
 from kepmen_sdg import SDG_NAMA, TEMA_KEPMEN_LENGKAP, TOPIK_KEPMEN  # noqa: E402
 from keywords import KEYWORDS  # noqa: E402
-
-DB = Path(__file__).resolve().parents[1] / "data" / "ugm_news.duckdb"
 
 
 def main() -> None:
@@ -50,18 +48,21 @@ def main() -> None:
     for topik_id, m in TEMA_KEPMEN_LENGKAP.items():
         meta[topik_id] = dict(m)  # sudah punya keywords + sdg
 
-    con = duckdb.connect(str(DB))
-    berita = con.execute("SELECT url, judul, deskripsi, tanggal FROM berita").fetchdf()
+    engine = get_engine()
+    berita = read_sql_retry(engine, f"SELECT url, judul, deskripsi, tanggal FROM `{t('berita')}`",
+                             label="baca berita")
 
     rows = []
     for _, r in berita.iterrows():
-        t = f"{r['judul'] or ''} {r['deskripsi'] or ''}".lower()
+        # NB: nama variabel "teks" (bukan "t") -- "t" sudah dipakai sebagai
+        # helper prefix tabel (db.t), jangan di-shadow di sini.
+        teks = f"{r['judul'] or ''} {r['deskripsi'] or ''}".lower()
         for topik_id, m in meta.items():
             # Keyword <= 5 huruf rawan false positive substring (mis. "paten"
             # match "kabupaten", "esd" match kata lain) — pakai word boundary.
             if any(
                 re.search(
-                    rf"\b{re.escape(kw)}\b" if len(kw) <= 5 else re.escape(kw), t
+                    rf"\b{re.escape(kw)}\b" if len(kw) <= 5 else re.escape(kw), teks
                 )
                 for kw in m["keywords"]
             ):
@@ -74,32 +75,11 @@ def main() -> None:
                         "sdg": "|".join(str(s) for s in m["sdg"]) or None,
                     }
                 )
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(rows, columns=["url", "topik", "dampak", "topik_kepmen", "sdg"])
 
-    # -- berita_kepmen_all: url–topik (sdg sebagai string '13|14|15') --
-    con.execute("DROP TABLE IF EXISTS berita_kepmen_all")
-    con.execute("DROP TABLE IF EXISTS berita_sdg_all")
-    con.execute("DROP TABLE IF EXISTS ringkasan_topik_all")
-    con.execute("DROP TABLE IF EXISTS ringkasan_pilar")
-    con.execute("DROP TABLE IF EXISTS ringkasan_pilar_tahun")
-    con.execute("DROP TABLE IF EXISTS ringkasan_sdg_all")
-    con.execute("CREATE TABLE berita_kepmen_all (url VARCHAR, topik VARCHAR, "
-                "dampak VARCHAR, topik_kepmen VARCHAR, sdg VARCHAR)")
-    con.execute("CREATE TABLE berita_sdg_all (url VARCHAR, sdg INTEGER)")
-    con.execute("CREATE TABLE ringkasan_topik_all (topik VARCHAR, dampak VARCHAR, "
-                "topik_kepmen VARCHAR, sdg VARCHAR, jumlah_berita BIGINT)")
-    con.execute("CREATE TABLE ringkasan_pilar (dampak VARCHAR, jumlah_berita BIGINT)")
-    con.execute("CREATE TABLE ringkasan_pilar_tahun (dampak VARCHAR, tahun VARCHAR, "
-                "jumlah_berita BIGINT)")
-    con.execute("CREATE TABLE ringkasan_sdg_all (sdg INTEGER, nama_sdg VARCHAR, "
-                "jumlah_berita BIGINT)")
+    outputs: dict[str, pd.DataFrame] = {"berita_kepmen_all": df}
 
     if len(df):
-        con.executemany(
-            "INSERT INTO berita_kepmen_all VALUES (?, ?, ?, ?, ?)",
-            df.itertuples(index=False, name=None),
-        )
-
         # -- berita_sdg_all: url–sdg dedup (pakai info sdg per topik) --
         sdg_rows = []
         for _, r in df.iterrows():
@@ -107,10 +87,6 @@ def main() -> None:
                 if s:
                     sdg_rows.append((r["url"], int(s)))
         df_sdg = pd.DataFrame(sdg_rows, columns=["url", "sdg"]).drop_duplicates()
-        con.executemany(
-            "INSERT INTO berita_sdg_all VALUES (?, ?)",
-            df_sdg.itertuples(index=False, name=None),
-        )
 
         # -- ringkasan_topik_all (semua 14 tema; jumlah 0 untuk yang tak ada match,
         #    mis. pengajaran_pembelajaran — biar dashboard sinkron 14 topik) --
@@ -130,18 +106,10 @@ def main() -> None:
             pd.DataFrame(ring_topik_rows)
             .sort_values("jumlah_berita", ascending=False)
         )
-        con.executemany(
-            "INSERT INTO ringkasan_topik_all VALUES (?, ?, ?, ?, ?)",
-            ring_topik.itertuples(index=False, name=None),
-        )
 
         # -- ringkasan_pilar --
         ring_pilar = (
             df.groupby("dampak")["url"].nunique().reset_index(name="jumlah_berita")
-        )
-        con.executemany(
-            "INSERT INTO ringkasan_pilar VALUES (?, ?)",
-            ring_pilar.itertuples(index=False, name=None),
         )
 
         # -- ringkasan_pilar_tahun --
@@ -155,10 +123,6 @@ def main() -> None:
             .nunique()
             .reset_index(name="jumlah_berita")
         )
-        con.executemany(
-            "INSERT INTO ringkasan_pilar_tahun VALUES (?, ?, ?)",
-            ring_tahun.itertuples(index=False, name=None),
-        )
 
         # -- ringkasan_sdg_all --
         df_sdg["nama_sdg"] = df_sdg["sdg"].map(SDG_NAMA)
@@ -168,17 +132,35 @@ def main() -> None:
             .reset_index(name="jumlah_berita")
             .sort_values("jumlah_berita", ascending=False)
         )
-        con.executemany(
-            "INSERT INTO ringkasan_sdg_all VALUES (?, ?, ?)",
-            ring_sdg.itertuples(index=False, name=None),
+
+        outputs["berita_sdg_all"] = df_sdg[["url", "sdg"]]
+        outputs["ringkasan_topik_all"] = ring_topik
+        outputs["ringkasan_pilar"] = ring_pilar
+        outputs["ringkasan_pilar_tahun"] = ring_tahun
+        outputs["ringkasan_sdg_all"] = ring_sdg
+    else:
+        outputs["berita_sdg_all"] = pd.DataFrame(columns=["url", "sdg"])
+        outputs["ringkasan_topik_all"] = pd.DataFrame(
+            columns=["topik", "dampak", "topik_kepmen", "sdg", "jumlah_berita"])
+        outputs["ringkasan_pilar"] = pd.DataFrame(columns=["dampak", "jumlah_berita"])
+        outputs["ringkasan_pilar_tahun"] = pd.DataFrame(columns=["dampak", "tahun", "jumlah_berita"])
+        outputs["ringkasan_sdg_all"] = pd.DataFrame(columns=["sdg", "nama_sdg", "jumlah_berita"])
+
+    gagal_tabel = []
+    for name, out_df in outputs.items():
+        ok, _ = with_retry(
+            lambda out_df=out_df, name=name: out_df.to_sql(t(name), engine, if_exists="replace", index=False),
+            label=f"tulis {name}",
         )
+        if not ok:
+            gagal_tabel.append(name)
 
     n_berita = df["url"].nunique() if len(df) else 0
-    con.close()
     print(f"Baris url–tema: {len(df)}")
     print(f"Berita unik yang match ≥1 tema: {n_berita} / {len(berita)}")
-    print("Tabel baru: berita_kepmen_all, berita_sdg_all, ringkasan_topik_all, "
-          "ringkasan_pilar, ringkasan_pilar_tahun, ringkasan_sdg_all")
+    if gagal_tabel:
+        print(f"PERINGATAN: tabel gagal ditulis setelah retry: {', '.join(gagal_tabel)}")
+    print("Tabel: " + ", ".join(outputs.keys()))
 
 
 if __name__ == "__main__":

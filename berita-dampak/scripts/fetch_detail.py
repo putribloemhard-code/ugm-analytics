@@ -1,21 +1,23 @@
 """Fetch detail berita UGM dari sitemap yang relevan dampak.
 
-Baca daftar URL dari tabel `sitemap`, filter yang cocok dengan kata kunci
-topik dampak (di slug URL), lalu fetch halaman untuk mengambil judul (h1),
-deskripsi (meta description), dan tanggal terbit (datePublished).
-Hasil disimpan ke tabel `berita` (sumber='sitemap').
+Baca daftar URL dari tabel `berita_sitemap`, filter yang cocok dengan kata
+kunci topik dampak (di slug URL), lalu fetch halaman untuk mengambil judul
+(h1), deskripsi (meta description), dan tanggal terbit (datePublished).
+Hasil disimpan ke tabel `berita_berita` (sumber='sitemap').
 Fetch berjalan paralel (8 thread) dengan throttle ringan.
 """
 
 import re
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-import duckdb
 import requests
 
-DB_PATH = Path(__file__).resolve().parents[1] / "data" / "ugm_news.duckdb"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from db import ensure_url_primary_key, get_engine, t, upsert, with_retry  # noqa: E402
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
     "Accept-Language": "id-ID,id;q=0.9,en;q=0.8",
@@ -80,37 +82,74 @@ def fetch_detail(url: str, retries: int = 3) -> dict | None:
     return None
 
 
+BATCH_SIZE = 100
+COLUMNS = ["url", "judul", "tanggal", "deskripsi", "kategori", "sumber"]
+
+
 def main() -> None:
-    con = duckdb.connect(str(DB_PATH))
-    con.execute(
-        """
-        CREATE TABLE IF NOT EXISTS berita (
-            url VARCHAR PRIMARY KEY,
-            judul VARCHAR,
-            tanggal VARCHAR,
-            deskripsi VARCHAR,
-            kategori VARCHAR,
-            sumber VARCHAR
+    engine = get_engine()
+    sitemap_table = t("sitemap")
+    berita_table = t("berita")
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            f"""
+            CREATE TABLE IF NOT EXISTS `{berita_table}` (
+                url VARCHAR(500) PRIMARY KEY,
+                judul TEXT,
+                tanggal VARCHAR(40),
+                deskripsi TEXT,
+                kategori TEXT,
+                sumber VARCHAR(20)
+            )
+            """
         )
-        """
-    )
+    ensure_url_primary_key(engine, berita_table)
+
     pattern = build_slug_regex()
-    rows = con.execute(
-        f"SELECT url, lastmod FROM sitemap WHERE regexp_matches(lower(url), '{pattern}')"
-    ).fetchall()
-    # URL yang SUDAH ADA di tabel berita, dalam bentuk bersih (tanpa query
-    # string / trailing slash) — normalisasi.py menyimpan bentuk ini.
-    existing = set(
-        r[0]
-        for r in con.execute(
-            "SELECT DISTINCT rtrim(split_part(url, '?', 1), '/') FROM berita"
-        ).fetchall()
-    )
+
+    def _read_candidates():
+        with engine.connect() as conn:
+            rows_ = conn.exec_driver_sql(
+                f"SELECT url, lastmod FROM `{sitemap_table}` WHERE LOWER(url) REGEXP %s",
+                (pattern,),
+            ).fetchall()
+            # URL yang SUDAH ADA di tabel berita, dalam bentuk bersih (tanpa
+            # query string / trailing slash) — normalisasi.py menyimpan
+            # bentuk ini.
+            existing_ = set(
+                r[0]
+                for r in conn.exec_driver_sql(
+                    f"SELECT DISTINCT TRIM(TRAILING '/' FROM SUBSTRING_INDEX(url, '?', 1)) "
+                    f"FROM `{berita_table}`"
+                ).fetchall()
+            )
+        return rows_, existing_
+
+    ok, result = with_retry(_read_candidates, label="baca kandidat URL dari MySQL")
+    if not ok:
+        print("GAGAL membaca kandidat URL dari MySQL setelah 3 percobaan -- batal.")
+        return
+    rows, existing = result
     rows = [r for r in rows if r[0].split("?")[0].rstrip("/") not in existing]
     print(f"URL sitemap relevan yang BELUM ada di tabel berita: {len(rows)}")
 
     total = 0
     done = 0
+    buffer: list[tuple] = []
+
+    def flush() -> None:
+        nonlocal buffer
+        if buffer:
+            # Batch kecil (<=BATCH_SIZE baris/transaksi, retry otomatis di
+            # dalam upsert()) -- kalau proses berhenti di tengah (fetch bisa
+            # jalan berjam-jam), baris yang sudah di-flush tetap tersimpan.
+            upsert(
+                engine, berita_table, COLUMNS, buffer,
+                update_columns=["judul", "tanggal", "deskripsi", "kategori", "sumber"],
+                chunk_size=BATCH_SIZE,
+            )
+            buffer = []
+
     with ThreadPoolExecutor(max_workers=8) as pool:
         futures = {pool.submit(fetch_detail, url): (url, lastmod) for url, lastmod in rows}
         for fut in as_completed(futures):
@@ -121,18 +160,18 @@ def main() -> None:
                 if done % 500 == 0:
                     print(f"  ... {done}/{len(rows)} ({total} tersimpan)")
                 continue
-            con.execute(
-                "INSERT OR IGNORE INTO berita (url, judul, tanggal, deskripsi, kategori, sumber) VALUES (?,?,?,?,?,?)",
-                (url, detail["judul"], detail["tanggal"] or lastmod, detail["deskripsi"], "", "sitemap"),
-            )
+            buffer.append((url, detail["judul"], detail["tanggal"] or lastmod, detail["deskripsi"], "", "sitemap"))
             total += 1
+            if len(buffer) >= BATCH_SIZE:
+                flush()
             if done % 100 == 0:
                 print(f"  ... {done}/{len(rows)} ({total} tersimpan)")
             time.sleep(0.05)  # throttle ringan
+    flush()
 
-    n = con.execute("SELECT COUNT(*) FROM berita").fetchone()[0]
+    with engine.connect() as conn:
+        n = conn.exec_driver_sql(f"SELECT COUNT(*) FROM `{berita_table}`").scalar()
     print(f"SELESAI. {total} detail baru tersimpan. Total baris berita: {n}")
-    con.close()
 
 
 if __name__ == "__main__":

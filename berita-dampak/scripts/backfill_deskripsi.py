@@ -15,47 +15,68 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-import duckdb
+from sqlalchemy import text
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from db import get_engine, t, with_retry  # noqa: E402
 from fetch_detail import fetch_detail  # noqa: E402
-
-DB = Path(__file__).resolve().parents[1] / "data" / "ugm_news.duckdb"
 
 
 def main() -> None:
-    con = duckdb.connect(str(DB))
-    rows = con.execute(
-        "SELECT url FROM berita WHERE sumber='sitemap' "
-        "AND (deskripsi IS NULL OR deskripsi='')"
-    ).fetchall()
+    engine = get_engine()
+    table = t("berita")
+
+    def _read_kosong():
+        with engine.connect() as conn:
+            return conn.exec_driver_sql(
+                f"SELECT url FROM `{table}` WHERE sumber='sitemap' "
+                "AND (deskripsi IS NULL OR deskripsi='')"
+            ).fetchall()
+
+    ok, rows = with_retry(_read_kosong, label="baca berita tanpa deskripsi")
+    if not ok:
+        print("GAGAL membaca daftar berita dari MySQL setelah 3 percobaan -- batal.")
+        return
     print(f"Berita sitemap tanpa deskripsi: {len(rows)}")
     if not rows:
-        con.close()
         return
 
     total = 0
+    gagal = 0
     with ThreadPoolExecutor(max_workers=8) as pool:
         futures = {pool.submit(fetch_detail, url): url for (url,) in rows}
         for i, fut in enumerate(as_completed(futures), 1):
             url = futures[fut]
             detail = fut.result()
             if detail and detail["deskripsi"]:
-                con.execute(
-                    "UPDATE berita SET deskripsi=? WHERE url=?",
-                    (detail["deskripsi"], url),
-                )
-                total += 1
+                def _update():
+                    with engine.begin() as conn:
+                        conn.execute(
+                            text(f"UPDATE `{table}` SET deskripsi=:d WHERE url=:u"),
+                            {"d": detail["deskripsi"], "u": url},
+                        )
+
+                ok, _ = with_retry(_update, label=f"UPDATE deskripsi {url}")
+                if ok:
+                    total += 1
+                else:
+                    # Satu URL gagal setelah 3x retry -- dilog (oleh with_retry)
+                    # dan dilewati; TIDAK menghentikan sisa batch.
+                    gagal += 1
             if i % 200 == 0:
-                print(f"  ... {i}/{len(rows)} ({total} terisi)", flush=True)
+                print(f"  ... {i}/{len(rows)} ({total} terisi, {gagal} gagal)", flush=True)
             time.sleep(0.05)
 
-    sisa = con.execute(
-        "SELECT COUNT(*) FROM berita WHERE sumber='sitemap' "
-        "AND (deskripsi IS NULL OR deskripsi='')"
-    ).fetchone()[0]
-    print(f"SELESAI. {total} deskripsi terisi. Masih kosong: {sisa}")
-    con.close()
+    def _count_sisa():
+        with engine.connect() as conn:
+            return conn.exec_driver_sql(
+                f"SELECT COUNT(*) FROM `{table}` WHERE sumber='sitemap' "
+                "AND (deskripsi IS NULL OR deskripsi='')"
+            ).scalar()
+
+    ok, sisa = with_retry(_count_sisa, label="hitung sisa berita tanpa deskripsi")
+    print(f"SELESAI. {total} deskripsi terisi ({gagal} gagal setelah retry). "
+          f"Masih kosong: {sisa if ok else '?'}")
 
 
 if __name__ == "__main__":

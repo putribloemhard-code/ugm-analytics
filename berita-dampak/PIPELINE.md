@@ -6,27 +6,43 @@ Mengidentifikasi dan memetakan berita dampak UGM pada 4 tema:
 rehabilitasi lingkungan, kewirausahaan, kunjungan akademik, kolaborasi riset.
 Sumber data: situs publik ugm.ac.id (RSS + sitemap). Bukan eLOK.
 
+## Penyimpanan data
+
+**MySQL** (database `ugm_analytics`, semua tabel berprefix `berita_`) —
+migrasi penuh dari DuckDB selesai (2026-08-29); tidak ada lagi file
+`.duckdb` di pipeline ini. Koneksi lewat `scripts/db.py` (`get_engine()`,
+`pool_pre_ping=True`, `pool_recycle=3600`). Penulisan baris-per-item (sitemap,
+berita) pakai `upsert()` — INSERT ... ON DUPLICATE KEY UPDATE per batch
+~100 baris, dibungkus retry 3× — supaya proses panjang (`fetch_detail.py`
+bisa jalan berjam-jam untuk ribuan URL) tidak kehilangan data kalau berhenti
+di tengah jalan, dan running ulang tidak menghasilkan duplikat. Tabel
+ringkasan/agregat tetap full-replace (`to_sql(if_exists="replace")`) tiap run.
+
 ## Alur processing
 
 1. **Backfill sitemap** — `scripts/backfill_sitemap.py`
    Ambil seluruh `post-sitemapN.xml` dari `https://ugm.ac.id/wp-sitemap.xml`.
-   Simpan (url, lastmod) ke tabel `sitemap` di `data/ugm_news.duckdb`.
-   Idempoten (INSERT OR IGNORE), ada retry otomatis per sitemap.
+   Upsert (url, lastmod) ke tabel `berita_sitemap` di MySQL.
+   Idempoten (ON DUPLICATE KEY UPDATE lastmod), ada retry otomatis per sitemap.
    Hasil: ~32.000 URL berita (2007–2026).
 
 2. **Ingest RSS** — `scripts/ingest.py`
    Ambil feed `https://ugm.ac.id/id/feed/` dan `/en/feed/` (10 item masing-masing)
-   dengan judul, tanggal, kategori, deskripsi. Simpan ke tabel `berita` (sumber='rss').
+   dengan judul, tanggal, kategori, deskripsi. Upsert ke tabel `berita_berita` (sumber='rss').
 
 3. **Fetch detail** — `scripts/fetch_detail.py`
-   Filter URL sitemap yang slug-nya cocok kata kunci tema (ID+EN),
-   lalu fetch halaman untuk mengambil judul (h1), deskripsi (meta description),
-   tanggal (datePublished). Simpan ke tabel `berita` (sumber='sitemap').
-   ~4.700 URL relevan; throttle 0,3 detik + retry.
+   Filter URL sitemap yang slug-nya cocok kata kunci tema (ID+EN) lewat
+   `REGEXP` (MySQL), lalu fetch halaman untuk mengambil judul (h1), deskripsi
+   (meta description), tanggal (datePublished). Upsert ke tabel `berita_berita`
+   (sumber='sitemap') per batch 100 baris. ~4.700 URL relevan; throttle 0,3
+   detik + retry jaringan (request) + retry MySQL (batch upsert).
 
 4. **Normalisasi** — `scripts/normalisasi.py`
    Bersihkan teks, konversi tanggal (RFC 822 / ISO 8601 → YYYY-MM-DD),
-   buang duplikat URL dan baris tanpa judul.
+   buang duplikat URL dan baris tanpa judul. DELETE + INSERT ulang dalam
+   SATU transaksi MySQL (bukan dua langkah terpisah) — kalau gagal di
+   tengah, rollback otomatis mengembalikan tabel ke kondisi sebelumnya,
+   bukan tabel kosong.
 
 5. **Tagging tema** — `scripts/process_nlp.py`
    Substring match (case-insensitive) kamus `scripts/keywords.py`
@@ -51,7 +67,10 @@ Sumber data: situs publik ugm.ac.id (RSS + sitemap). Bukan eLOK.
    - `ringkasan_pilar_tahun` (dampak, tahun, jumlah_berita)
    - `ringkasan_sdg_all` (sdg, nama_sdg, jumlah_berita)
    Tabel lama (berita_kepmen, berita_sdg, berita_kepmen_lengkap,
-   ringkasan_kepmen_lengkap) tetap ada di DB tapi tidak dipakai dashboard.
+   ringkasan_kepmen_lengkap) tetap ada di MySQL (sisa sinkronisasi lama)
+   tapi sudah tidak ditulis ulang oleh script apa pun sejak tag_kepmen_berita.py
+   dan tag_kepmen_lengkap.py dihapus (2026-08-29, lihat migrasi MySQL di bawah)
+   -- aman diabaikan atau di-drop manual, dashboard tidak pernah membacanya.
 
 6b. **Tagging SDG LANGSUNG seluruh sitemap** — `scripts/tag_sdg_langsung.py`
    (mode dashboard "SDGs saja"). SEMUA 32.130 URL sitemap dipetakan ke 17 SDG
@@ -60,7 +79,13 @@ Sumber data: situs publik ugm.ac.id (RSS + sitemap). Bukan eLOK.
    (17 SDG, ID+EN, sumber nama resmi & target SDG; keyword ≤5 huruf pakai
    word-boundary). Output: `sitemap_sdg` (url, sdg), `ringkasan_sdg_sitemap`,
    `ringkasan_sdg_sitemap_tahun`. Hasil (2026-08-21): 22.499 pasangan,
-   15.688 / 32.130 URL (48,8%) bertanda ≥1 SDG.
+   15.688 / 32.130 URL (48,8%) bertanda >=1 SDG.
+
+6c. **Narasi LLM** — `scripts/generate_narasi_llm.py` (opsional, setelah
+   tagging selesai). Merangkai angka yang sudah dihitung pandas jadi narasi
+   Bahasa Indonesia via Gemini API, cache ke `berita_narasi_cache`. Skip
+   aman (exit 0) kalau `GEMINI_API_KEY` belum diisi atau API gagal --
+   dashboard fallback ke narasi template.
 
 7. **Output**
    - `dashboard_berita_dampak.py` — Streamlit interaktif dengan filter global
@@ -82,11 +107,14 @@ Sumber data: situs publik ugm.ac.id (RSS + sitemap). Bukan eLOK.
 ../venv/Scripts/python.exe scripts/normalisasi.py
 ../venv/Scripts/python.exe scripts/process_nlp.py
 ../venv/Scripts/python.exe scripts/tag_kepmen_all.py   # 14 tema + SDG (utama)
-../venv/Scripts/python.exe scripts/tag_kepmen_berita.py   # legacy: 4 tema inti saja
-../venv/Scripts/python.exe scripts/tag_kepmen_lengkap.py  # legacy: 9 tema eksplorasi
+../venv/Scripts/python.exe scripts/tag_sdg_langsung.py  # mode "SDGs saja"
+../venv/Scripts/python.exe scripts/generate_narasi_llm.py  # opsional, butuh GEMINI_API_KEY
 ../venv/Scripts/python.exe scripts/laporan_static.py
 streamlit run dashboard_berita_dampak.py
 ```
+
+Atau jalankan semuanya sekaligus (urutan sudah benar, dengan lock file):
+`../venv/Scripts/python.exe scripts/update_mingguan.py`
 
 ## Hasil (terakhir dijalankan: 2026-08-20)
 
@@ -171,6 +199,48 @@ Hasil re-tag (DuckDB, 2026-08-21): 3.084 baris url–tema / 2.369 berita unik
 bertema (49,5%); pilar Lingkungan 1.105, Sosial 1.009, Ekonomi 700; tema
 terbesar rehabilitasi_lingkungan 638, pengabdian_masyarakat 635, limbah 392,
 kewirausahaan 303; SDG terbesar SDG 8 (1.050), 17 (1.021), 1 (838), 13 (759).
+
+## Migrasi penuh DuckDB -> MySQL (2026-08-29)
+
+`data/ugm_news.duckdb` dihapus dari alur kerja sepenuhnya. Sebelumnya
+(03deb4b-43d2cda) pipeline masih menulis ke DuckDB lokal dengan `sync_mysql.py`
+sebagai step sinkronisasi terakhir ke MySQL (dashboard sudah baca MySQL sejak
+migrasi awal, tapi pipeline-nya sendiri masih DuckDB-first). Sekarang seluruh
+9 script pipeline (`backfill_sitemap.py`, `ingest.py`, `fetch_detail.py`,
+`normalisasi.py`, `process_nlp.py`, `tag_kepmen_all.py`, `tag_sdg_langsung.py`,
+`backfill_deskripsi.py`, `laporan_static.py`) baca/tulis langsung ke MySQL
+lewat `scripts/db.py`; `sync_mysql.py` dan dua script legacy yang sudah
+superseded (`tag_kepmen_berita.py`, `tag_kepmen_lengkap.py`) dihapus.
+
+Perubahan desain:
+- Tabel dasar (`berita_sitemap`, `berita_berita`) diberi PRIMARY KEY pada
+  `url` (sebelumnya TEXT tanpa PK, hasil `to_sql` awal) lewat
+  `ensure_url_primary_key()` -- sekali jalan, idempoten.
+- Penulisan baris-per-item pakai `upsert()` (INSERT ... ON DUPLICATE KEY
+  UPDATE) per batch ~100 baris, bukan satu transaksi besar -- proses
+  `fetch_detail.py` yang bisa jalan berjam-jam tidak kehilangan data kalau
+  berhenti di tengah jalan.
+- `normalisasi.py` (DELETE + INSERT ulang seluruh tabel) dibungkus SATU
+  transaksi, bukan dua commit terpisah -- kalau gagal di tengah, rollback
+  mengembalikan tabel ke kondisi sebelumnya, bukan tabel kosong.
+- Semua baca/tulis MySQL dibungkus retry 3x (jeda 5 detik) via
+  `with_retry()`; satu item/batch yang gagal total di-log dan dilewati,
+  tidak menghentikan seluruh pipeline.
+- Engine SQLAlchemy pakai `pool_pre_ping=True` + `pool_recycle=3600` di
+  semua titik koneksi (pipeline, dashboard, generate_narasi_llm.py).
+
+Diverifikasi (2026-08-29): seluruh step dijalankan satu per satu terhadap
+MySQL produksi (`backfill_sitemap.py`, `ingest.py`, `fetch_detail.py` --
+0 URL baru, sudah tercakup run sebelumnya --, `normalisasi.py`,
+`process_nlp.py`, `tag_kepmen_all.py`, `tag_sdg_langsung.py`,
+`backfill_deskripsi.py`, `laporan_static.py`) plus `update_mingguan.py`
+end-to-end; semua exit 0, angka hasil konsisten dengan sebelum migrasi
+(mis. tag_sdg_langsung.py: 48,8% URL bertanda SDG, sama seperti catatan
+2026-08-21 di atas). Dua bug ditemukan & diperbaiki selama migrasi: (1)
+variabel lokal bernama `t` di `tag_kepmen_all.py`/`tag_sdg_langsung.py`
+men-shadow helper `db.t()` (UnboundLocalError); (2) `print()` karakter
+non-ASCII (`>=`, dll.) crash di konsol Windows cp1252 -- di-fix global
+lewat `sys.stdout.reconfigure(encoding="utf-8")` di `scripts/db.py`.
 
 ## Pengembangan dashboard (2026-08-20 — 14 tema / 3 pilar lengkap)
 

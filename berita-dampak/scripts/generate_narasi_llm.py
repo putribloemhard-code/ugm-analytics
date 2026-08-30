@@ -27,9 +27,10 @@ from pathlib import Path
 
 import pandas as pd
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from db import get_engine  # noqa: E402
 from narasi_logic import (  # noqa: E402
     generate_executive_summary,
     generate_impact_insight,
@@ -93,11 +94,7 @@ def main() -> None:
         print("[SKIP] Package google-genai belum terinstall (`pip install google-genai`).")
         return
 
-    mysql_url = (
-        f"mysql+pymysql://{os.environ['MYSQL_USER']}:{os.environ['MYSQL_PASSWORD']}"
-        f"@{os.environ['MYSQL_HOST']}:{os.environ['MYSQL_PORT']}/{os.environ['MYSQL_DB']}"
-    )
-    engine = create_engine(mysql_url)
+    engine = get_engine()  # pool_pre_ping + pool_recycle, lihat scripts/db.py
 
     try:
         berita = pd.read_sql("SELECT * FROM berita_berita", engine)

@@ -1,17 +1,19 @@
-"""Ingest berita UGM dari RSS ke DuckDB.
+"""Ingest berita UGM dari RSS ke MySQL.
 
 Mengambil feed RSS terbaru (id + en) dan menyimpan judul, tautan,
-tanggal terbit, dan deskripsi ke tabel `berita` di data/ugm_news.duckdb.
+tanggal terbit, dan deskripsi ke tabel `berita_berita` di MySQL.
 """
 
 import html
 import re
+import sys
 from pathlib import Path
 
-import duckdb
 import requests
 
-DB_PATH = Path(__file__).resolve().parents[1] / "data" / "ugm_news.duckdb"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from db import ensure_url_primary_key, get_engine, t, upsert  # noqa: E402
+
 FEEDS = [
     "https://ugm.ac.id/id/feed/",
     "https://ugm.ac.id/en/feed/",
@@ -45,20 +47,27 @@ def parse_feed(xml: str) -> list[dict]:
     return out
 
 
+COLUMNS = ["url", "judul", "tanggal", "deskripsi", "kategori", "sumber"]
+
+
 def main() -> None:
-    con = duckdb.connect(str(DB_PATH))
-    con.execute(
-        """
-        CREATE TABLE IF NOT EXISTS berita (
-            url VARCHAR PRIMARY KEY,
-            judul VARCHAR,
-            tanggal VARCHAR,
-            deskripsi VARCHAR,
-            kategori VARCHAR,
-            sumber VARCHAR
+    engine = get_engine()
+    table = t("berita")
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            f"""
+            CREATE TABLE IF NOT EXISTS `{table}` (
+                url VARCHAR(500) PRIMARY KEY,
+                judul TEXT,
+                tanggal VARCHAR(40),
+                deskripsi TEXT,
+                kategori TEXT,
+                sumber VARCHAR(20)
+            )
+            """
         )
-        """
-    )
+    ensure_url_primary_key(engine, table)
+
     total = 0
     for feed in FEEDS:
         try:
@@ -68,15 +77,16 @@ def main() -> None:
         except Exception as e:  # noqa: BLE001
             print(f"GAGAL {feed}: {e}")
             continue
-        con.executemany(
-            "INSERT OR IGNORE INTO berita (url, judul, tanggal, deskripsi, kategori, sumber) VALUES (?,?,?,?,?,?)",
+        saved = upsert(
+            engine, table, COLUMNS,
             [(i["url"], i["judul"], i["tanggal"], i["deskripsi"], i["kategori"], i["sumber"]) for i in items],
+            update_columns=["judul", "tanggal", "deskripsi", "kategori", "sumber"],
         )
-        total += len(items)
-        print(f"{feed}: {len(items)} item")
-    n = con.execute("SELECT COUNT(*) FROM berita").fetchone()[0]
+        total += saved
+        print(f"{feed}: {len(items)} item ({saved} tersimpan)")
+    with engine.connect() as conn:
+        n = conn.exec_driver_sql(f"SELECT COUNT(*) FROM `{table}`").scalar()
     print(f"SELESAI. Total baris berita (dari RSS): {n}")
-    con.close()
 
 
 if __name__ == "__main__":

@@ -5,26 +5,37 @@ Identifikasi dan pemetaan berita dampak UGM pada 4 topik:
 
 ## Isi folder
 
+Database: **MySQL** (bukan DuckDB lagi — migrasi penuh selesai; lihat
+"Penyimpanan data" di bawah). Semua tabel berprefix `berita_` (mis.
+`berita_sitemap`, `berita_berita`, `berita_berita_kepmen_all`, `berita_ringkasan_*`).
+
 | File / folder | Isi |
 |---|---|
-| `data/ugm_news.duckdb` | Database utama (tabel: sitemap, berita, berita_topik, berita_kepmen_all, berita_sdg_all, ringkasan_* ) |
-| `scripts/backfill_sitemap.py` | Ambil daftar URL berita dari sitemap ugm.ac.id |
-| `scripts/ingest.py` | Ambil berita terbaru dari RSS (id + en) |
-| `scripts/fetch_detail.py` | Filter URL relevan + ambil detail halaman (judul, deskripsi, tanggal) |
-| `scripts/normalisasi.py` | Bersihkan teks + tanggal, dedup |
+| `scripts/db.py` | Koneksi MySQL bersama (engine, retry, upsert) dipakai semua script pipeline |
+| `scripts/backfill_sitemap.py` | Ambil daftar URL berita dari sitemap ugm.ac.id → `berita_sitemap` |
+| `scripts/ingest.py` | Ambil berita terbaru dari RSS (id + en) → `berita_berita` |
+| `scripts/fetch_detail.py` | Filter URL relevan + ambil detail halaman (judul, deskripsi, tanggal) → `berita_berita` |
+| `scripts/normalisasi.py` | Bersihkan teks + tanggal, dedup (dalam satu transaksi MySQL) |
 | `scripts/keywords.py` | Kamus kata kunci 4 topik inti dampak |
 | `scripts/kepmen_sdg.py` | Pemetaan 14 tema → pilar → Topik Resmi Kepmen 361/M/KEP/2025 → klaster SDGs (dari UGM Analytics.xlsx) |
 | `scripts/process_nlp.py` | Tagging 4 topik inti + ringkasan per tahun |
 | `scripts/tag_kepmen_all.py` | **Utama**: tagging SEMUA berita ke 14 tema Kepmen + SDG (tabel berita_kepmen_all, berita_sdg_all, ringkasan_pilar, ringkasan_sdg_all) |
-| `scripts/tag_kepmen_berita.py` | Legacy: tagging 4 topik inti saja (tabel berita_kepmen, berita_sdg) |
-| `scripts/tag_kepmen_lengkap.py` | Legacy: eksplorasi 9 tema Kepmen lain (tabel berita_kepmen_lengkap) |
+| `scripts/tag_sdg_langsung.py` | Mode "SDGs saja": mapping langsung seluruh sitemap → 17 SDG |
+| `scripts/backfill_deskripsi.py` | Isi ulang deskripsi berita sitemap yang kosong (fallback og:description) |
+| `scripts/generate_narasi_llm.py` | Rangkai narasi ringkasan/insight via Gemini API, cache ke `berita_narasi_cache` |
 | `scripts/laporan_static.py` | Cetak `laporan_berita_dampak.html` (11 chart + tabel 14 tema, JS inline) |
-| `scripts/update_mingguan.py` | Update berkala: jalankan pipeline lengkap (sitemap → RSS → fetch → normalisasi → tagging → laporan) |
+| `scripts/update_mingguan.py` | Update berkala: jalankan pipeline lengkap (sitemap → RSS → fetch → normalisasi → tagging → narasi → laporan) |
+| `scripts/count_berita.py` | Helper kecil: cetak jumlah baris `berita_berita` (dipakai `update_mingguan.sh`) |
 | `scripts/ocr_kepmen.py` | OCR PDF Kepmen 361 (scan) → `../docs/kepmen_361_ocr.txt` |
 | `dashboard_berita_dampak.py` | Dashboard Streamlit interaktif (filter sidebar: tahun, 14 tema, sumber, pilar) |
 | `laporan_berita_dampak.html` | Laporan statis — buka di browser, render tanpa internet |
 | `DASHBOARD.md` | Penjelasan isi dashboard + cara membaca hasil |
 | `PIPELINE.md` | Dokumentasi alur + perintah run |
+
+`tag_kepmen_berita.py` dan `tag_kepmen_lengkap.py` (legacy, sudah digantikan
+`tag_kepmen_all.py` sejak 2026-08-20) serta `sync_mysql.py` (sinkronisasi
+DuckDB→MySQL, sudah tidak relevan setelah migrasi penuh) sudah **dihapus** dari
+folder ini.
 
 ## Mengubah tampilan dashboard
 
@@ -99,8 +110,31 @@ Data diambil dari ugm.ac.id (RSS + sitemap). Dua cara update:
    ..\venv\Scripts\python.exe scripts\update_mingguan.py
    ```
 
-Update bersifat incremental: URL yang sudah ada di tabel `berita` di-skip
-(INSERT OR IGNORE), jadi hanya berita baru yang di-fetch. Log: `logs_update.txt`.
+Update bersifat incremental: URL yang sudah ada di-upsert (INSERT ... ON
+DUPLICATE KEY UPDATE, bukan dilewati begitu saja — baris lama ikut diperbarui
+kalau datanya berubah), jadi proses tetap murah walau tidak ada berita baru.
+Log: `logs_update.txt`.
+
+## Penyimpanan data
+
+**MySQL** (database `ugm_analytics`, tabel berprefix `berita_`) — bukan
+DuckDB lagi. Kredensial dibaca dari `.env` di root project (`MYSQL_HOST`,
+`MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DB`; lihat `.env.example`).
+Koneksi dibuat lewat `scripts/db.py` (`get_engine()`), dengan:
+
+- `pool_pre_ping=True` + `pool_recycle=3600` — koneksi idle/putus otomatis
+  di-reconnect (penting untuk `fetch_detail.py` yang bisa jalan berjam-jam).
+- Semua penulisan baris-per-berita pakai `upsert()` (INSERT ... ON DUPLICATE
+  KEY UPDATE) dalam batch kecil (~100 baris/transaksi), bukan satu transaksi
+  raksasa — kalau proses berhenti di tengah jalan, baris yang sudah masuk
+  tetap tersimpan, dan running ulang tidak menghasilkan duplikat.
+- Setiap baca/tulis dibungkus retry (`with_retry()`, 3×, jeda 5 detik); satu
+  item yang gagal total di-log dan dilewati, tidak menghentikan seluruh
+  pipeline.
+
+Tabel ringkasan/agregat (`berita_ringkasan_*`, `berita_berita_kepmen_all`, dst.)
+tetap full-replace tiap run (`to_sql(if_exists="replace")`) karena memang
+hasil hitung ulang dari nol setiap kali, bukan data yang diakumulasi.
 
 ## Sumber data
 

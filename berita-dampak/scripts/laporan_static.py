@@ -10,13 +10,13 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-import duckdb
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts.db import get_engine, read_sql_retry, t  # noqa: E402
 from scripts.keywords import KEYWORDS  # noqa: E402
 from scripts.kepmen_sdg import (  # noqa: E402
     TOPIK_KEPMEN,
@@ -27,7 +27,6 @@ from scripts.kepmen_sdg import (  # noqa: E402
 )
 from scripts.kepmen_sdg import LABEL_TOPIC_ALL as LABEL_TOPIC  # noqa: E402
 
-DB_PATH = Path(__file__).resolve().parents[1] / "data" / "ugm_news.duckdb"
 OUT = Path(__file__).resolve().parents[1] / "laporan_berita_dampak.html"
 
 KEYWORDS_ALL = dict(KEYWORDS)
@@ -57,15 +56,14 @@ def token_freq(df: pd.DataFrame) -> Counter:
 
 
 def main() -> None:
-    con = duckdb.connect(str(DB_PATH), read_only=True)
-    berita = con.execute("SELECT * FROM berita").fetchdf()
-    topik = con.execute("SELECT * FROM berita_topik").fetchdf()
-    sitemap = con.execute("SELECT url, lastmod FROM sitemap").fetchdf()
-    bk = con.execute("SELECT * FROM berita_kepmen_all").fetchdf()
-    bs = con.execute("SELECT * FROM berita_sdg_all").fetchdf()
-    rp = con.execute("SELECT * FROM ringkasan_pilar").fetchdf()
-    rsa = con.execute("SELECT * FROM ringkasan_sdg_all").fetchdf()
-    con.close()
+    engine = get_engine()
+    berita = read_sql_retry(engine, f"SELECT * FROM `{t('berita')}`", label="baca berita")
+    topik = read_sql_retry(engine, f"SELECT * FROM `{t('berita_topik')}`", label="baca berita_topik")
+    sitemap = read_sql_retry(engine, f"SELECT url, lastmod FROM `{t('sitemap')}`", label="baca sitemap")
+    bk = read_sql_retry(engine, f"SELECT * FROM `{t('berita_kepmen_all')}`", label="baca berita_kepmen_all")
+    bs = read_sql_retry(engine, f"SELECT * FROM `{t('berita_sdg_all')}`", label="baca berita_sdg_all")
+    rp = read_sql_retry(engine, f"SELECT * FROM `{t('ringkasan_pilar')}`", label="baca ringkasan_pilar")
+    rsa = read_sql_retry(engine, f"SELECT * FROM `{t('ringkasan_sdg_all')}`", label="baca ringkasan_sdg_all")
 
     berita["tahun"] = berita["tanggal"].str[:4]
     berita["bulan"] = berita["tanggal"].str[5:7]

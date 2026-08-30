@@ -8,12 +8,11 @@ import re
 import sys
 from pathlib import Path
 
-import duckdb
+import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from db import get_engine, read_sql_retry, t, with_retry  # noqa: E402
 from keywords import KEYWORDS  # noqa: E402
-
-DB_PATH = Path(__file__).resolve().parents[1] / "data" / "ugm_news.duckdb"
 
 
 def tag(text: str) -> list[str]:
@@ -28,33 +27,43 @@ def tag(text: str) -> list[str]:
 
 
 def main() -> None:
-    con = duckdb.connect(str(DB_PATH))
-    rows = con.execute("SELECT url, judul, deskripsi FROM berita").fetchall()
-    tagged = [(url, topik) for url, judul, deskripsi in rows for topik in tag(f"{judul} {deskripsi}")]
+    engine = get_engine()
+    berita = read_sql_retry(engine, f"SELECT url, judul, deskripsi, tanggal FROM `{t('berita')}`",
+                             label="baca berita")
+    tagged = [
+        (r["url"], topik)
+        for _, r in berita.iterrows()
+        for topik in tag(f"{r['judul']} {r['deskripsi']}")
+    ]
+    df_topik = pd.DataFrame(tagged, columns=["url", "topik"])
 
-    con.execute("CREATE OR REPLACE TABLE berita_topik (url VARCHAR, topik VARCHAR)")
-    con.executemany("INSERT INTO berita_topik VALUES (?, ?)", tagged)
-
-    con.execute(
-        """
-        CREATE OR REPLACE TABLE ringkasan_topik_tahun AS
-        SELECT b.topik,
-               strftime(CAST(bt.tanggal AS DATE), '%Y') AS tahun,
-               COUNT(*) AS jumlah
-        FROM berita_topik b
-        JOIN berita bt ON bt.url = b.url
-        WHERE bt.tanggal IS NOT NULL
-        GROUP BY b.topik, tahun
-        ORDER BY b.topik, tahun
-        """
+    df_ring = (
+        df_topik.merge(berita[["url", "tanggal"]], on="url", how="left")
+        .dropna(subset=["tanggal"])
     )
+    df_ring["tahun"] = df_ring["tanggal"].str[:4]
+    ringkasan = (
+        df_ring.groupby(["topik", "tahun"])
+        .size()
+        .reset_index(name="jumlah")
+        .sort_values(["topik", "tahun"])
+    )
+
+    ok1, _ = with_retry(
+        lambda: df_topik.to_sql(t("berita_topik"), engine, if_exists="replace", index=False),
+        label="tulis berita_topik",
+    )
+    ok2, _ = with_retry(
+        lambda: ringkasan.to_sql(t("ringkasan_topik_tahun"), engine, if_exists="replace", index=False),
+        label="tulis ringkasan_topik_tahun",
+    )
+    if not (ok1 and ok2):
+        print("PERINGATAN: sebagian tabel gagal ditulis ke MySQL setelah retry -- cek log di atas.")
+
     print("Per topik:")
-    for topik, n in con.execute(
-        "SELECT topik, COUNT(*) FROM berita_topik GROUP BY topik ORDER BY COUNT(*) DESC"
-    ).fetchall():
+    for topik, n in df_topik.groupby("topik").size().sort_values(ascending=False).items():
         print(f"  {topik}: {n} berita")
     print(f"Total pasangan topik: {len(tagged)}")
-    con.close()
 
 
 if __name__ == "__main__":

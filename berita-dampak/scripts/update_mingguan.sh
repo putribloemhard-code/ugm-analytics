@@ -23,5 +23,5 @@ if [ $RC -ne 0 ]; then
   exit $RC
 fi
 # Ringkasan untuk delivery
-N=$("$PY" -c "import duckdb; c=duckdb.connect('data/ugm_news.duckdb', read_only=True); print(c.execute('SELECT COUNT(*) FROM berita').fetchone()[0]); c.close()" 2>/dev/null)
+N=$("$PY" scripts/count_berita.py 2>/dev/null)
 echo "Update berita-dampak selesai. Total berita di DB: $N"

@@ -23,14 +23,12 @@ import re
 import sys
 from pathlib import Path
 
-import duckdb
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from db import get_engine, read_sql_retry, t, with_retry  # noqa: E402
 from kepmen_sdg import SDG_NAMA  # noqa: E402
 from sdg_keywords import SDG_KEYWORDS  # noqa: E402
-
-DB = Path(__file__).resolve().parents[1] / "data" / "ugm_news.duckdb"
 
 LANG = ("id", "en")
 
@@ -71,9 +69,9 @@ def compile_sdg():
 
 
 def main() -> None:
-    con = duckdb.connect(str(DB))
-    sitemap = con.execute("SELECT url, lastmod FROM sitemap").fetchdf()
-    berita = con.execute("SELECT url, judul, deskripsi FROM berita").fetchdf()
+    engine = get_engine()
+    sitemap = read_sql_retry(engine, f"SELECT url, lastmod FROM `{t('sitemap')}`", label="baca sitemap")
+    berita = read_sql_retry(engine, f"SELECT url, judul, deskripsi FROM `{t('berita')}`", label="baca berita")
 
     # teks tambahan dari tabel berita (url bersih -> judul + deskripsi)
     berita["url_b"] = berita["url"].map(url_bersih)
@@ -89,28 +87,19 @@ def main() -> None:
         u = r["url"]
         teks = " ".join(slug_words(u))
         teks_ber = teks_berita.get(url_bersih(u), "")
-        t = f"{teks} {teks_ber}".lower()
+        # NB: nama variabel "teks_gab" (bukan "t") -- "t" sudah dipakai
+        # sebagai helper prefix tabel (db.t), jangan di-shadow di sini.
+        teks_gab = f"{teks} {teks_ber}".lower()
         for sdg, rx in compiled.items():
-            if any(p.search(t) for p in rx):
+            if any(p.search(teks_gab) for p in rx):
                 rows.append({"url": u, "sdg": sdg})
 
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(rows, columns=["url", "sdg"])
     n_tertag = df["url"].nunique() if len(df) else 0
 
-    # ---- tabel output ----
-    con.execute("DROP TABLE IF EXISTS sitemap_sdg")
-    con.execute("DROP TABLE IF EXISTS ringkasan_sdg_sitemap")
-    con.execute("DROP TABLE IF EXISTS ringkasan_sdg_sitemap_tahun")
-    con.execute("CREATE TABLE sitemap_sdg (url VARCHAR, sdg INTEGER)")
-    con.execute("CREATE TABLE ringkasan_sdg_sitemap (sdg INTEGER, nama_sdg VARCHAR, "
-                "jumlah_berita BIGINT)")
-    con.execute("CREATE TABLE ringkasan_sdg_sitemap_tahun (sdg INTEGER, nama_sdg VARCHAR, "
-                "tahun VARCHAR, jumlah_berita BIGINT)")
+    outputs: dict[str, pd.DataFrame] = {"sitemap_sdg": df}
 
     if len(df):
-        con.executemany("INSERT INTO sitemap_sdg VALUES (?, ?)",
-                        df.itertuples(index=False, name=None))
-
         # ringkasan per SDG (url unik)
         ring = (
             df.groupby("sdg")["url"].nunique().reset_index(name="jumlah_berita")
@@ -119,8 +108,7 @@ def main() -> None:
         ring = ring[["sdg", "nama_sdg", "jumlah_berita"]].sort_values(
             "jumlah_berita", ascending=False
         )
-        con.executemany("INSERT INTO ringkasan_sdg_sitemap VALUES (?, ?, ?)",
-                        ring.itertuples(index=False, name=None))
+        outputs["ringkasan_sdg_sitemap"] = ring
 
         # ringkasan per SDG per tahun (lastmod sitemap)
         df_t = df.merge(sitemap[["url", "lastmod"]], on="url", how="left")
@@ -133,14 +121,27 @@ def main() -> None:
         )
         ring_t["nama_sdg"] = ring_t["sdg"].map(SDG_NAMA)
         ring_t = ring_t[["sdg", "nama_sdg", "tahun", "jumlah_berita"]]
-        con.executemany("INSERT INTO ringkasan_sdg_sitemap_tahun VALUES (?, ?, ?, ?)",
-                        ring_t.itertuples(index=False, name=None))
+        outputs["ringkasan_sdg_sitemap_tahun"] = ring_t
+    else:
+        outputs["ringkasan_sdg_sitemap"] = pd.DataFrame(columns=["sdg", "nama_sdg", "jumlah_berita"])
+        outputs["ringkasan_sdg_sitemap_tahun"] = pd.DataFrame(
+            columns=["sdg", "nama_sdg", "tahun", "jumlah_berita"])
 
-    con.close()
+    gagal_tabel = []
+    for name, out_df in outputs.items():
+        ok, _ = with_retry(
+            lambda out_df=out_df, name=name: out_df.to_sql(t(name), engine, if_exists="replace", index=False),
+            label=f"tulis {name}",
+        )
+        if not ok:
+            gagal_tabel.append(name)
+
     print(f"Pasangan url-sdg: {len(df)}")
     print(f"URL bertanda >=1 SDG: {n_tertag} / {len(sitemap)} "
           f"({100 * n_tertag / len(sitemap):.1f}%)")
-    print("Tabel baru: sitemap_sdg, ringkasan_sdg_sitemap, ringkasan_sdg_sitemap_tahun")
+    if gagal_tabel:
+        print(f"PERINGATAN: tabel gagal ditulis setelah retry: {', '.join(gagal_tabel)}")
+    print("Tabel: " + ", ".join(outputs.keys()))
 
 
 if __name__ == "__main__":

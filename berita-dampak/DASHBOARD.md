@@ -13,9 +13,10 @@ lain di jaringan yang sama; port 8766 harus dibuka di firewall — lihat
 
 ## Sumber data
 
-`data/ugm_news.duckdb` (database DuckDB lokal, tanpa internet):
+MySQL (database `ugm_analytics`, kredensial dari `.env` root project) —
+bukan DuckDB lagi (migrasi penuh 2026-08-29). Tabel berprefix `berita_`:
 
-| Tabel | Isi |
+| Tabel (tanpa prefix `berita_`) | Isi |
 |---|---|
 | `sitemap` | 32.120 URL berita ugm.ac.id (2005–2026) — baseline volume |
 | `berita` | 4.777 berita: judul, tanggal, deskripsi, sumber (RSS/sitemap) |
@@ -30,10 +31,13 @@ lain di jaringan yang sama; port 8766 harus dibuka di firewall — lihat
 | `sitemap_sdg` | pasangan url–SDG mapping LANGSUNG seluruh 32.130 URL sitemap (mode "SDGs saja"; slug + judul/deskripsi) |
 | `ringkasan_sdg_sitemap` | jumlah berita unik per SDG (17 SDG) dari sitemap_sdg |
 | `ringkasan_sdg_sitemap_tahun` | jumlah berita per SDG per tahun (lastmod sitemap) |
-| `berita_kepmen`, `berita_sdg`, `ringkasan_sdg` | legacy: 4 tema inti saja (masih ada, tidak dipakai dashboard) |
-| `berita_kepmen_lengkap`, `ringkasan_kepmen_lengkap` | legacy: eksplorasi 9 tema (tidak dipakai dashboard) |
+| `narasi_cache` | narasi LLM (Gemini) hasil `generate_narasi_llm.py`, cache_key → narasi |
+| `berita_kepmen`, `berita_sdg`, `ringkasan_sdg` | orphan: dari script legacy yang sudah dihapus (tag_kepmen_berita.py) — tidak dipakai dashboard, tidak diperbarui lagi |
+| `berita_kepmen_lengkap`, `ringkasan_kepmen_lengkap` | orphan: dari script legacy yang sudah dihapus (tag_kepmen_lengkap.py) — tidak dipakai dashboard, tidak diperbarui lagi |
 
-Data dimuat dengan cache Streamlit (`@st.cache_data`, TTL 300 detik).
+Data dimuat dengan cache Streamlit (`@st.cache_data`, TTL 300 detik). Koneksi
+MySQL pakai `pool_pre_ping=True` + `pool_recycle=3600` (lihat `_get_engine()`
+di `dashboard_berita_dampak.py`).
 
 ## Sidebar: Filter Global
 
@@ -202,18 +206,26 @@ perlu server, tidak perlu firewall.
 
 ## Alur Data
 
+Semua tabel di MySQL (prefix `berita_`, lihat "Sumber data" di atas) —
+tidak ada lagi file `.duckdb` perantara.
+
 ```
-sitemap ugm.ac.id (32.120 URL) ── backfill_sitemap.py ──┐
+sitemap ugm.ac.id (32.180 URL) ── backfill_sitemap.py ──┐
 RSS id/en (10+10 item) ──────── ingest.py ──────────────┤
                                                         ▼
-                                    data/ugm_news.duckdb
-    fetch_detail.py (filter slug + fetch 4.761 halaman) → berita
-    normalisasi.py (bersihkan, dedup)                    → berita
-    process_nlp.py (keyword 4 topik)                     → berita_topik
-    tag_kepmen_berita.py (peta Kepmen + SDG dari xlsx)   → berita_kepmen, berita_sdg
-    tag_kepmen_lengkap.py (eksplorasi 9 tema lain)       → berita_kepmen_lengkap
-    laporan_static.py                                    → laporan_berita_dampak.html
+                                MySQL: berita_sitemap, berita_berita
+    fetch_detail.py (filter slug + fetch ~4.700 halaman) → berita
+    normalisasi.py (bersihkan, dedup; 1 transaksi)        → berita
+    process_nlp.py (keyword 4 topik inti)                 → berita_topik
+    tag_kepmen_all.py (14 tema Kepmen + SDG dari xlsx)     → berita_kepmen_all, berita_sdg_all,
+                                                             ringkasan_pilar(_tahun), ringkasan_sdg_all
+    tag_sdg_langsung.py (mode "SDGs saja", 17 SDG)         → sitemap_sdg, ringkasan_sdg_sitemap(_tahun)
+    generate_narasi_llm.py (opsional, Gemini API)          → narasi_cache
+    laporan_static.py                                      → laporan_berita_dampak.html
 ```
+
+Penulisan baris-per-item (sitemap, berita) pakai upsert (ON DUPLICATE KEY
+UPDATE) per batch kecil + retry — lihat `scripts/db.py` dan `PIPELINE.md`.
 
 ## Cara Membaca Hasil (caveat)
 

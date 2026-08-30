@@ -1,17 +1,19 @@
-"""Backfill berita UGM dari sitemap ke DuckDB.
+"""Backfill berita UGM dari sitemap ke MySQL.
 
 Mengambil seluruh post-sitemapN.xml dari ugm.ac.id dan menyimpan
-URL + lastmod ke tabel `sitemap` di data/ugm_news.duckdb.
+URL + lastmod ke tabel `berita_sitemap` di MySQL.
 """
 
 import re
+import sys
 import time
 from pathlib import Path
 
-import duckdb
 import requests
 
-DB_PATH = Path(__file__).resolve().parents[1] / "data" / "ugm_news.duckdb"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from db import ensure_url_primary_key, get_engine, t, upsert  # noqa: E402
+
 SITEMAP_INDEX = "https://ugm.ac.id/wp-sitemap.xml"
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0 Safari/537.36"}
 
@@ -46,29 +48,34 @@ def parse_entries(xml: str) -> list[tuple[str, str]]:
 
 
 def main() -> None:
-    con = duckdb.connect(str(DB_PATH))
-    con.execute(
-        """
-        CREATE TABLE IF NOT EXISTS sitemap (
-            url VARCHAR PRIMARY KEY,
-            lastmod VARCHAR,
-            diambil TIMESTAMP DEFAULT current_timestamp
+    engine = get_engine()
+    table = t("sitemap")
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            f"""
+            CREATE TABLE IF NOT EXISTS `{table}` (
+                url VARCHAR(500) PRIMARY KEY,
+                lastmod VARCHAR(40),
+                diambil TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
         )
-        """
-    )
+    ensure_url_primary_key(engine, table)
+
     total_new = 0
-    for i, sm in enumerate(sitemap_urls(), 1):
+    sms = sitemap_urls()
+    for i, sm in enumerate(sms, 1):
         try:
             entries = parse_entries(get(sm))
         except Exception as e:  # noqa: BLE001
-            print(f"[{i}/{len(sitemap_urls())}] GAGAL {sm}: {e}")
+            print(f"[{i}/{len(sms)}] GAGAL {sm}: {e}")
             continue
-        con.executemany("INSERT OR IGNORE INTO sitemap (url, lastmod) VALUES (?, ?)", entries)
-        total_new += len(entries)
-        print(f"[{i}/{len(sitemap_urls())}] {sm}: {len(entries)} URL (total {total_new})")
-    n = con.execute("SELECT COUNT(*) FROM sitemap").fetchone()[0]
+        saved = upsert(engine, table, ["url", "lastmod"], entries, update_columns=["lastmod"])
+        total_new += saved
+        print(f"[{i}/{len(sms)}] {sm}: {len(entries)} URL ({saved} tersimpan, total {total_new})")
+    with engine.connect() as conn:
+        n = conn.exec_driver_sql(f"SELECT COUNT(*) FROM `{table}`").scalar()
     print(f"SELESAI. Total baris sitemap: {n}")
-    con.close()
 
 
 if __name__ == "__main__":

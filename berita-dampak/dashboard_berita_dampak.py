@@ -1,8 +1,10 @@
 """Dashboard Streamlit analisis dampak berita UGM.
 
 Sumber: MySQL ugm_analytics (tabel berita_berita, berita_berita_topik,
-berita_ringkasan_topik_tahun, berita_sitemap, dst. — prefix "berita_" hasil
-migrasi dari data/ugm_news.duckdb, lihat migrasi_ke_mysql.py).
+berita_ringkasan_topik_tahun, berita_sitemap, dst. — prefix "berita_", nama
+tabel diwarisi dari migrasi awal DuckDB->MySQL; sejak 2026-08-29 seluruh
+pipeline (scripts/update_mingguan.py) baca/tulis MySQL langsung, tidak ada
+lagi DuckDB perantara -- lihat scripts/db.py dan PIPELINE.md).
 Jalankan: streamlit run dashboard_berita_dampak.py
 """
 
@@ -157,7 +159,9 @@ def _get_engine():
     password = os.environ["MYSQL_PASSWORD"]
     db = os.environ["MYSQL_DB"]
     url = f"mysql+pymysql://{user}:{password}@{host}:{port}/{db}"
-    return create_engine(url, pool_pre_ping=True)
+    # pool_recycle: buang koneksi setelah 1 jam idle (server Streamlit long-lived
+    # bisa idle lama antar rerun -- hindari "MySQL server has gone away").
+    return create_engine(url, pool_pre_ping=True, pool_recycle=3600)
 
 
 @st.cache_data(ttl=300)
@@ -286,9 +290,9 @@ def narasi_llm_atau_fallback(cache_key: str, fallback: str) -> str:
 
 
 # ---------- Tombol update berita terbaru ----------
-# Pipeline (scripts/update_mingguan.py) menulis ke DuckDB lokal lalu sync ke
-# MySQL di step terakhir (scripts/sync_mysql.py, prefix "berita_") -- dashboard
-# ini baca dari MySQL, jadi data baru muncul setelah sync selesai.
+# Pipeline (scripts/update_mingguan.py) menulis langsung ke MySQL di setiap
+# step (prefix "berita_", lihat scripts/db.py) -- dashboard ini baca dari
+# MySQL yang sama, jadi data baru muncul begitu pipeline selesai.
 st.sidebar.divider()
 update_log = Path(__file__).resolve().parent / "logs_update_dashboard.txt"
 if update_log.exists():
@@ -323,8 +327,8 @@ if st.sidebar.button("🔄 Update Berita Terbaru", use_container_width=True):
     st.success(
         f"Update dimulai di background (PID {p.pid}). "
         "Proses memakan waktu ±10 menit (fetch berita baru dari ugm.ac.id, "
-        "lalu sync ke MySQL). Setelah selesai, muat ulang halaman — data "
-        "baru otomatis tampil. Log: logs_update_dashboard.txt"
+        "langsung ditulis ke MySQL). Setelah selesai, muat ulang halaman — "
+        "data baru otomatis tampil. Log: logs_update_dashboard.txt"
     )
     st.stop()
 
