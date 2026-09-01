@@ -21,7 +21,29 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from kepmen_sdg import LABEL_TOPIC_ALL as LABEL_TOPIC
-from kepmen_sdg import SDG_NAMA, TOPIK_KEPMEN_ALL, sdg_label
+from kepmen_sdg import TOPIK_KEPMEN_ALL, sdg_label
+
+
+def _top_tied(counts: pd.Series) -> tuple[list, int]:
+    """Semua index yang nilainya = nilai maksimum -- kalau ada seri/tie
+    (mis. dua SDG sama-sama jadi yang terbanyak), JANGAN cuma ambil satu
+    secara sembarang (bekas bug: .sort_values().index[0] diam-diam
+    membuang tema/SDG lain yang sama tingginya). Return ([], 0) kalau
+    `counts` kosong."""
+    if not len(counts):
+        return [], 0
+    max_val = int(counts.max())
+    tied = [idx for idx, v in counts.items() if v == max_val]
+    return tied, max_val
+
+
+def _join_labels(labels: list[str]) -> str:
+    """Gabung label jadi kalimat Indonesia wajar: 'A', 'A dan B', 'A, B, dan C'."""
+    if len(labels) == 1:
+        return labels[0]
+    if len(labels) == 2:
+        return f"{labels[0]} dan {labels[1]}"
+    return f"{', '.join(labels[:-1])}, dan {labels[-1]}"
 
 
 def hitung_stats_pilar(
@@ -57,20 +79,25 @@ def hitung_stats_pilar(
     else:
         trend_text = "dengan konsistensi volume yang stabil di rentang waktu tersebut"
 
-    tema_df = (
-        selected_t.groupby("topik")["url"].nunique().reset_index(name="jumlah")
-        .sort_values("jumlah", ascending=False)
-    )
-    if not tema_df.empty:
-        topik_teratas = tema_df.iloc[0]["topik"]
-        tema_jumlah = int(tema_df.iloc[0]["jumlah"])
-        label_teratas = LABEL_TOPIC.get(topik_teratas, topik_teratas)
-        meta_teratas = TOPIK_KEPMEN_ALL.get(topik_teratas, {})
-        nama_resmi = meta_teratas.get("topik_kepmen", label_teratas)
-        indikator_resmi = meta_teratas.get("indikator", "")
-        tema_display = f"{nama_resmi} ({label_teratas})" if nama_resmi != label_teratas else label_teratas
+    tema_counts = selected_t.groupby("topik")["url"].nunique()
+    tied_topik, tema_jumlah = _top_tied(tema_counts)
+    tema_jamak = len(tied_topik) > 1
+    if tied_topik:
+        tema_labels = []
+        for topik_id in tied_topik:
+            label_x = LABEL_TOPIC.get(topik_id, topik_id)
+            meta_x = TOPIK_KEPMEN_ALL.get(topik_id, {})
+            nama_x = meta_x.get("topik_kepmen", label_x)
+            tema_labels.append(f"{nama_x} ({label_x})" if nama_x != label_x else label_x)
+        tema_display = _join_labels(tema_labels)
+        # Indikator resmi cuma ditampilkan kalau satu tema teratas (jelas
+        # tunggal) -- ambigu kalau ada beberapa tema seri, masing-masing
+        # punya indikator resmi sendiri, jangan cuma tampilkan salah satu.
+        indikator_resmi = (
+            TOPIK_KEPMEN_ALL.get(tied_topik[0], {}).get("indikator", "") if len(tied_topik) == 1 else ""
+        )
     else:
-        tema_display, tema_jumlah, indikator_resmi = "tema utama", 0, ""
+        tema_display, indikator_resmi = "tema utama", ""
 
     indikator_text = (
         f" Tema ini searah dengan indikator resmi Kepmen 361/M/KEP/2025: “{indikator_resmi}”."
@@ -88,11 +115,12 @@ def hitung_stats_pilar(
     sdg_text = ""
     if mode != "Berdampak" and sdg_df is not None and len(sdg_df):
         n_sdg = int(sdg_df["sdg"].nunique())
-        top_sdg = int(sdg_df.groupby("sdg")["url"].nunique().sort_values(ascending=False).index[0])
-        top_sdg_label = sdg_label(top_sdg)
+        tied_sdg, _sdg_top_n = _top_tied(sdg_df.groupby("sdg")["url"].nunique())
+        top_sdg_label = _join_labels([sdg_label(int(s)) for s in tied_sdg])
+        kata_kerja_sdg = "sebagai yang paling banyak disentuh" if len(tied_sdg) == 1 else "sama-sama sebagai yang paling banyak disentuh"
         sdg_text = (
             f" Aktivitas pada dampak ini turut menyentuh {n_sdg} klaster SDG, dengan {top_sdg_label} "
-            f"sebagai yang paling banyak disentuh."
+            f"{kata_kerja_sdg}."
         )
 
     return {
@@ -101,6 +129,7 @@ def hitung_stats_pilar(
         "trend_text": trend_text,
         "tema_display": tema_display,
         "tema_jumlah": tema_jumlah,
+        "tema_jamak": tema_jamak,
         "indikator_resmi": indikator_resmi,
         "indikator_text": indikator_text,
         "total_tema_pilar": total_tema_pilar,
@@ -150,9 +179,10 @@ def generate_impact_insight(
     if s is None:
         return f"Belum ada data untuk dampak {pilar} pada rentang {tahun_awal}–{tahun_akhir}."
 
+    kata_tema = "menjadi tema-tema paling dominan" if s["tema_jamak"] else "menjadi tema paling dominan"
     return (
         f"{PILAR_LEAD[pilar]} pada dampak {pilar}. Dalam rentang {tahun_awal}–{tahun_akhir}, terdapat {s['total_berita']:,} berita unik yang mencerminkan "
-        f"{PILAR_INTRO[pilar]}. {s['tema_display']} menjadi tema paling dominan dengan {s['tema_jumlah']:,} berita, {s['trend_text']}.{s['indikator_text']} "
+        f"{PILAR_INTRO[pilar]}. {s['tema_display']} {kata_tema} dengan {s['tema_jumlah']:,} berita, {s['trend_text']}.{s['indikator_text']} "
         f"{s['cakupan_text']}{s['sdg_text']} Kondisi ini menunjukkan bahwa fokus narasi media dan program akademik UGM secara konsisten "
         f"bergerak pada isu yang memberi dampak nyata, di mana {PILAR_PENUTUP[pilar]}."
     )
@@ -205,20 +235,18 @@ def generate_executive_summary(
     pilar_top_naik = pilar_top_naik or 0
 
     if mode != "Berdampak" and len(bs_f):
-        sdg_counts = bs_f.groupby("sdg")["url"].nunique().sort_values(ascending=False)
-        sdg_top = int(sdg_counts.index[0])
-        topik_top_label = sdg_label(sdg_top)
-        topik_top_short = f"SDG {sdg_top}"
+        tied_sdg, topik_top_n = _top_tied(bs_f.groupby("sdg")["url"].nunique())
+        tied_sdg = [int(s) for s in tied_sdg]
+        topik_top_label = _join_labels([sdg_label(s) for s in tied_sdg]) if tied_sdg else "-"
+        topik_top_short = " & ".join(f"SDG {s}" for s in tied_sdg) if tied_sdg else "-"
         topik_top_kind_label = "SDG terbanyak"
-        topik_top_n = int(sdg_counts.iloc[0])
-        topik_kind = "SDG"
+        topik_kind = "SDG" if len(tied_sdg) == 1 else "SDG (seri)"
     else:
-        tema_counts = t.groupby("topik_kepmen")["url"].nunique().sort_values(ascending=False)
-        topik_top_label = tema_counts.index[0] if len(tema_counts) else "-"
-        topik_top_short = topik_top_label
+        tied_tema, topik_top_n = _top_tied(t.groupby("topik_kepmen")["url"].nunique())
+        topik_top_label = _join_labels(tied_tema) if tied_tema else "-"
+        topik_top_short = " & ".join(tied_tema) if tied_tema else "-"
         topik_top_kind_label = "Tema Kepmen terbanyak"
-        topik_top_n = int(tema_counts.iloc[0]) if len(tema_counts) else 0
-        topik_kind = "tema resmi Kepmen"
+        topik_kind = "tema resmi Kepmen" if len(tied_tema) == 1 else "tema resmi Kepmen (seri)"
 
     berita_tahun_ini = int(bt[bt["tahun"] == tahun_akhir]["url"].nunique())
     if pilar_top_pct is not None:
@@ -262,13 +290,15 @@ def hitung_stats_sdg_saja(
     if not n_url or not n_tag:
         return None
 
-    sdg_counts = ss_f.groupby("sdg")["url"].nunique().sort_values(ascending=False)
-    top_sdg = int(sdg_counts.index[0])
-    top_sdg_n = int(sdg_counts.iloc[0])
-    top_sdg_nama = SDG_NAMA.get(top_sdg, top_sdg)
+    tied_sdg, top_sdg_n = _top_tied(ss_f.groupby("sdg")["url"].nunique())
+    tied_sdg = [int(s) for s in tied_sdg]
+    # Label lengkap sudah termasuk "SDG n — Nama" per SDG, digabung "dan"/koma
+    # kalau ada beberapa yang seri di angka tertinggi -- JANGAN cuma tampilkan
+    # satu secara sembarang.
+    top_sdg_label = _join_labels([sdg_label(s) for s in tied_sdg]) if tied_sdg else "-"
 
     tren_top = (
-        ss_f[ss_f["sdg"] == top_sdg]
+        ss_f[ss_f["sdg"].isin(tied_sdg)]
         .merge(sm[["url", "tahun"]], on="url", how="left")
         .drop_duplicates(subset=["url"])
         .groupby("tahun")["url"].nunique().sort_index()
@@ -282,9 +312,9 @@ def hitung_stats_sdg_saja(
     return {
         "n_url": n_url,
         "n_tag": n_tag,
-        "top_sdg": top_sdg,
+        "top_sdg": tied_sdg,
         "top_sdg_n": top_sdg_n,
-        "top_sdg_nama": top_sdg_nama,
+        "top_sdg_label": top_sdg_label,
         "delta_text": delta_text,
     }
 
@@ -302,9 +332,10 @@ def generate_sdg_saja_summary(
     if s is None:
         return f"Belum ada data SDG pada rentang {tahun_awal}–{tahun_akhir} untuk filter ini."
 
+    kata_sdg = "SDG paling banyak disentuh adalah" if len(s["top_sdg"]) == 1 else "SDG paling banyak disentuh (sama tinggi) adalah"
     return (
         f"Sepanjang {tahun_awal}–{tahun_akhir}, dari {s['n_url']:,} URL berita UGM (seluruh sitemap), "
         f"{s['n_tag']:,} ({100 * s['n_tag'] / s['n_url']:.1f}%) teridentifikasi menyentuh minimal satu SDG "
-        f"(bisa lebih dari satu SDG sekaligus). SDG paling banyak disentuh adalah SDG {s['top_sdg']} — "
-        f"{s['top_sdg_nama']} dengan {s['top_sdg_n']:,} berita, {s['delta_text']}."
+        f"(bisa lebih dari satu SDG sekaligus). {kata_sdg} {s['top_sdg_label']} "
+        f"dengan {s['top_sdg_n']:,} berita, {s['delta_text']}."
     )

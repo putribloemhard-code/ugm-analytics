@@ -535,6 +535,13 @@ if mode == "SDGs":
 b = berita.copy()
 b["tahun"] = b["tanggal"].str[:4]
 b = b[b["tahun"].between(tahun_awal, tahun_akhir) & b["sumber"].isin(sumber_pilih)]
+# b_tanpa_filter_unit = tahun+sumber saja, TANPA filter "Fakultas / Unit Kerja"
+# -- dipakai KHUSUS tab "Fakultas/Unit Kerja" (lihat bawah) supaya chart
+# ranking unit tetap independen & adil dibandingkan, tidak bias ke unit yang
+# sedang dipilih di sidebar (co-occurrence di dalam subset yang sudah
+# dipersempit filter unit itu sendiri akan selalu membuat unit itu jadi
+# bar terpanjang -- bukan bug data, tapi menyesatkan secara UX).
+b_tanpa_filter_unit = b.copy()
 if unit_pilih:
     # Filter fakultas/unit kerja berlaku AND dengan filter lain -- persempit
     # ke berita yang menyebut salah satu unit terpilih (berita_unit_kerja).
@@ -645,6 +652,12 @@ if mode != "SDGs":
     selected_t = t[t["dampak"] == selected_pilar].copy()
     selected_news = b[b["url"].isin(set(selected_t["url"]))].copy()
     selected_news["tahun"] = selected_news["tanggal"].str[:4]
+    # Versi TANPA filter "Fakultas / Unit Kerja" (tahun/sumber/tema/pilar
+    # tetap berlaku) -- khusus untuk tab "Fakultas/Unit Kerja" di bawah,
+    # lihat catatan di b_tanpa_filter_unit.
+    selected_news_tanpa_filter_unit = b_tanpa_filter_unit[
+        b_tanpa_filter_unit["url"].isin(set(selected_t["url"]))
+    ].copy()
     bk_f_pilar = bk_f[bk_f["dampak"] == selected_pilar].copy()
     bs_f_pilar = bs_f[bs_f["url"].isin(set(bk_f_pilar["url"]))].copy()
     b_t_pilar = b_t[b_t["url"].isin(set(bk_f_pilar["url"]))].copy()
@@ -904,7 +917,12 @@ if mode != "SDGs":
 
     # --- Tab: Fakultas/Unit Kerja ---
     with next(tab_iter):
-        uk_pilar = uk[uk["url"].isin(set(selected_news["url"]))].copy()
+        # SENGAJA pakai selected_news_tanpa_filter_unit (bukan selected_news)
+        # -- kalau pakai selected_news yang sudah dipersempit filter "Fakultas
+        # / Unit Kerja" sendiri, unit yang lagi dipilih di sidebar otomatis
+        # jadi bar terpanjang (co-occurrence di dalam subset dirinya sendiri),
+        # bukan ranking independen yang adil dibandingkan.
+        uk_pilar = uk[uk["url"].isin(set(selected_news_tanpa_filter_unit["url"]))].copy()
         if len(uk_pilar):
             dist_uk = (
                 uk_pilar.groupby(["unit_kerja", "kategori"])["url"]
@@ -932,9 +950,16 @@ if mode != "SDGs":
             st.info("Tidak ada fakultas/unit kerja teridentifikasi untuk dampak ini pada filter saat ini.")
 
         with st.expander("Berita tanpa unit teridentifikasi (cek manual)"):
+            # Sama seperti chart di atas -- basis-nya selected_news_tanpa_filter_unit,
+            # bukan selected_news, supaya daftar ini tidak selalu kosong begitu
+            # saja saat filter "Fakultas / Unit Kerja" aktif (semua berita di
+            # selected_news pasti sudah punya unit kalau filter itu aktif).
             tagged_uk = set(uk_pilar["url"]) if len(uk_pilar) else set()
-            belum_uk = selected_news[~selected_news["url"].isin(tagged_uk)]
-            st.write(f"{len(belum_uk)} berita (dampak ini, dalam filter) tidak menyebut "
+            belum_uk = selected_news_tanpa_filter_unit[
+                ~selected_news_tanpa_filter_unit["url"].isin(tagged_uk)
+            ]
+            st.write(f"{len(belum_uk)} berita (dampak ini, dalam filter tahun/tema/sumber -- "
+                     "TIDAK termasuk filter Fakultas/Unit Kerja) tidak menyebut "
                      "fakultas/unit kerja mana pun.")
             if len(belum_uk):
                 st.dataframe(
@@ -946,7 +971,11 @@ if mode != "SDGs":
             "Hasil keyword matching nama resmi 44 fakultas/sekolah/unit kerja UGM pada "
             "judul + deskripsi berita -- bersifat lower-bound (banyak berita tidak "
             "eksplisit menyebut nama unit meski relevan), bukan angka final jumlah "
-            "kontribusi tiap unit."
+            "kontribusi tiap unit. Chart & metrik di tab ini SENGAJA mengabaikan filter "
+            "\"Fakultas / Unit Kerja\" di sidebar (filter tahun/tema/sumber/pilar tetap "
+            "berlaku) supaya rankingnya tetap adil dibandingkan antar unit -- kalau ikut "
+            "filter itu, unit yang sedang dipilih akan selalu tampak sebagai bar "
+            "terpanjang secara semu."
         )
 
     st.markdown("---")

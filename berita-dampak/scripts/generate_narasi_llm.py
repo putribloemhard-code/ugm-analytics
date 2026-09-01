@@ -200,7 +200,7 @@ def main() -> None:
         data_ringkas = (
             f"- Total URL sitemap dalam rentang tahun: {sdg_stats['n_url']:,}\n"
             f"- Berita bertanda minimal 1 SDG: {sdg_stats['n_tag']:,} ({cakupan_pct:.1f}% dari total URL)\n"
-            f"- SDG paling banyak disentuh: SDG {sdg_stats['top_sdg']} — {sdg_stats['top_sdg_nama']} "
+            f"- SDG paling banyak disentuh: {sdg_stats['top_sdg_label']} "
             f"dengan {sdg_stats['top_sdg_n']:,} berita\n"
             f"- Tren SDG teratas itu: {sdg_stats['delta_text']}\n"
             f"- Rentang tahun: {tahun_awal}–{tahun_akhir}"
