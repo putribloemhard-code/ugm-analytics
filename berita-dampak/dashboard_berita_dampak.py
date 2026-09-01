@@ -548,11 +548,24 @@ if unit_pilih:
     b = b[b["url"].isin(set(uk.loc[uk["unit_kerja"].isin(unit_pilih), "url"]))]
 # t = semua tema Kepmen (14 tema resmi) dari tabel gabungan.
 # Kalau filter tema/pilar kosong, fallback ke 4 tema inti (tema berita).
-t = bk[bk["topik"].isin(topik_pilih)] if topik_pilih else bk
-if pilar_pilih:
-    t = t[t["dampak"].isin(pilar_pilih)]
-if len(b) and len(t):
-    t = t[t["url"].isin(set(b["url"]))]
+def _build_t(b_df: pd.DataFrame) -> pd.DataFrame:
+    t_ = bk[bk["topik"].isin(topik_pilih)] if topik_pilih else bk
+    if pilar_pilih:
+        t_ = t_[t_["dampak"].isin(pilar_pilih)]
+    if len(b_df) and len(t_):
+        t_ = t_[t_["url"].isin(set(b_df["url"]))]
+    return t_
+
+
+t = _build_t(b)
+# t_tanpa_filter_unit = versi t yang diturunkan dari b_tanpa_filter_unit (BUKAN
+# b) -- WAJIB, karena t sendiri di-intersect ke url yang ada di b (baris di
+# atas), jadi kalau langsung dipakai buat selected_t di tab "Fakultas/Unit
+# Kerja", ikut "tercemar" filter unit walau sudah ganti dasar berita-nya ke
+# b_tanpa_filter_unit -- ini akar bug nyata: sebelumnya cuma benerin di titik
+# pemakaian (selected_news_tanpa_filter_unit), tapi selected_t yang jadi
+# rujukan filter url-nya sendiri sudah kepersempit dari sini.
+t_tanpa_filter_unit = _build_t(b_tanpa_filter_unit)
 
 # Tema yang harus tampil penuh di chart (sinkron 14 tema): semua tema yang
 # dipilih di sidebar DAN masuk pilar terpilih — tema tanpa match (mis.
@@ -653,10 +666,14 @@ if mode != "SDGs":
     selected_news = b[b["url"].isin(set(selected_t["url"]))].copy()
     selected_news["tahun"] = selected_news["tanggal"].str[:4]
     # Versi TANPA filter "Fakultas / Unit Kerja" (tahun/sumber/tema/pilar
-    # tetap berlaku) -- khusus untuk tab "Fakultas/Unit Kerja" di bawah,
-    # lihat catatan di b_tanpa_filter_unit.
+    # tetap berlaku) -- khusus untuk tab "Fakultas/Unit Kerja" di bawah. WAJIB
+    # pakai selected_t_tanpa_filter_unit (dari t_tanpa_filter_unit), BUKAN
+    # selected_t biasa -- selected_t sendiri sudah ke-intersect ke url di b
+    # (yang sudah unit-filtered), jadi kalau dipakai di sini filter unit tetap
+    # bocor lewat daftar url tema-nya walau basis beritanya sudah diganti.
+    selected_t_tanpa_filter_unit = t_tanpa_filter_unit[t_tanpa_filter_unit["dampak"] == selected_pilar]
     selected_news_tanpa_filter_unit = b_tanpa_filter_unit[
-        b_tanpa_filter_unit["url"].isin(set(selected_t["url"]))
+        b_tanpa_filter_unit["url"].isin(set(selected_t_tanpa_filter_unit["url"]))
     ].copy()
     bk_f_pilar = bk_f[bk_f["dampak"] == selected_pilar].copy()
     bs_f_pilar = bs_f[bs_f["url"].isin(set(bk_f_pilar["url"]))].copy()
