@@ -87,6 +87,20 @@ ringkasan/agregat tetap full-replace (`to_sql(if_exists="replace")`) tiap run.
    aman (exit 0) kalau `GEMINI_API_KEY` belum diisi atau API gagal --
    dashboard fallback ke narasi template.
 
+6d. **Tagging Fakultas/Unit Kerja** — `scripts/tag_unit_kerja.py` (independen
+   dari tagging Kepmen/SDG di atas -- lapisan terpisah, tidak mengubah tabel
+   manapun yang sudah ada). Substring match nama resmi 44 fakultas/sekolah/
+   unit kerja UGM (`scripts/unit_kerja.py`) terhadap judul + deskripsi;
+   sengaja TIDAK memakai singkatan (FEB/FT/FH/dst), cuma nama resmi penuh --
+   lihat catatan false-positive-prone di docstring script. Guard leakage
+   lintas-universitas: occurrence yang langsung diikuti "Universitas <nama
+   lain>" (bukan Gadjah Mada) di-skip, mis. "Fakultas Pertanian Universitas
+   Negeri Gorontalo" TIDAK dihitung sebagai Fakultas Pertanian UGM (lihat
+   `_match_valid()`). Output: `berita_unit_kerja` (url, unit_kerja,
+   kategori). Hasil backfill (2026-09-01, setelah guard leakage): 785
+   pasangan url-unit; 748 / 4.806 berita (15,6%) match >=1 unit (sebelum
+   guard: 789 pasangan, 751 berita).
+
 7. **Output**
    - `dashboard_berita_dampak.py` — Streamlit interaktif dengan filter global
      (tahun, tema, sumber). Bagian: ringkasan, distribusi per tema,
@@ -107,6 +121,7 @@ ringkasan/agregat tetap full-replace (`to_sql(if_exists="replace")`) tiap run.
 ../venv/Scripts/python.exe scripts/normalisasi.py
 ../venv/Scripts/python.exe scripts/process_nlp.py
 ../venv/Scripts/python.exe scripts/tag_kepmen_all.py   # 14 tema + SDG (utama)
+../venv/Scripts/python.exe scripts/tag_unit_kerja.py    # 44 fakultas/sekolah/unit kerja
 ../venv/Scripts/python.exe scripts/tag_sdg_langsung.py  # mode "SDGs saja"
 ../venv/Scripts/python.exe scripts/generate_narasi_llm.py  # opsional, butuh GEMINI_API_KEY
 ../venv/Scripts/python.exe scripts/laporan_static.py

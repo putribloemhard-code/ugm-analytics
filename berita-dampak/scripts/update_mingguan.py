@@ -8,11 +8,13 @@ berprefix "berita_", lihat scripts/db.py -- tidak ada lagi DuckDB perantara):
   4. normalisasi.py     — bersihkan teks + tanggal, dedup
   5. process_nlp.py     — tagging 4 topik inti (tabel berita_berita_topik)
   6. tag_kepmen_all.py       — tagging 14 tema Kepmen + SDG (tabel berita_berita_kepmen_all)
-  7. generate_narasi_llm.py  — rangkai narasi ringkasan/insight pakai Gemini API,
+  7. tag_unit_kerja.py       — tagging 44 fakultas/sekolah/unit kerja UGM
+                               (tabel berita_unit_kerja), independen dari tagging Kepmen
+  8. generate_narasi_llm.py  — rangkai narasi ringkasan/insight pakai Gemini API,
                                cache ke MySQL (opsional -- skip aman kalau
                                GEMINI_API_KEY belum diisi, dashboard fallback
                                ke narasi template pandas)
-  8. laporan_static.py       — regenerate laporan HTML statis
+  9. laporan_static.py       — regenerate laporan HTML statis
 
 Semua script idempoten (INSERT IGNORE / replace tabel ringkasan), aman
 dijalankan ulang. Jaringan dipakai untuk ugm.ac.id saja (bukan eLOK).
@@ -46,6 +48,7 @@ STEPS = [
     "normalisasi.py",
     "process_nlp.py",
     "tag_kepmen_all.py",
+    "tag_unit_kerja.py",
     "generate_narasi_llm.py",
     "laporan_static.py",
 ]

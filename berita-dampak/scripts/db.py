@@ -108,6 +108,25 @@ def with_retry(
     return False, None
 
 
+def column_exists(engine: Engine, table: str, column: str) -> bool:
+    """True kalau `column` ada di `table`. Dipakai script tagging (mis.
+    tag_kepmen_all.py) supaya bisa jalan aman baik sebelum maupun sesudah
+    scripts/fetch_backlog.py pernah dijalankan (kolom `isi`/`kredit` cuma
+    ada setelah itu) -- fallback ke judul+deskripsi kalau kolom belum ada,
+    bukan error "Unknown column"."""
+    def _check() -> bool:
+        with engine.connect() as conn:
+            row = conn.exec_driver_sql(
+                "SELECT COUNT(*) FROM information_schema.columns "
+                "WHERE table_schema = DATABASE() AND table_name = %s AND column_name = %s",
+                (table, column),
+            ).scalar()
+            return bool(row)
+
+    ok, result = with_retry(_check, label=f"cek kolom {table}.{column}")
+    return bool(ok and result)
+
+
 def ensure_url_primary_key(engine: Engine, table: str, varchar_len: int = 500) -> None:
     """Pastikan tabel `table` (kolom `url`) punya PRIMARY KEY.
 

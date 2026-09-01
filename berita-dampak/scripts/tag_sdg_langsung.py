@@ -3,8 +3,9 @@
 Mode dashboard "SDGs saja": SEMUA 32.130 URL berita (sitemap baseline) ditandai
 ke 17 SDG. Teks yang dicocokkan:
   - kata-kata slug URL (path setelah /id/berita/ atau /en/news/, dipisah '-'),
-    untuk URL yang BELUM di-fetch (27.343) — kualitas kasar;
-  - + judul & deskripsi dari tabel `berita` (4.787 URL yang sudah di-fetch).
+    untuk URL yang BELUM di-fetch — kualitas kasar;
+  - + judul & deskripsi dari tabel `berita` (URL yang sudah di-fetch) + isi
+    lengkap artikel kalau kolom `isi` sudah ada (scripts/fetch_backlog.py).
 
 Konvensi keyword: <= 5 huruf -> word-boundary (\\b..\\b); lebih panjang ->
 substring match (sama dengan tag_kepmen_all.py). Satu URL bisa masuk beberapa
@@ -26,7 +27,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from db import get_engine, read_sql_retry, t, with_retry  # noqa: E402
+from db import column_exists, get_engine, read_sql_retry, t, with_retry  # noqa: E402
 from kepmen_sdg import SDG_NAMA  # noqa: E402
 from sdg_keywords import SDG_KEYWORDS  # noqa: E402
 
@@ -71,14 +72,20 @@ def compile_sdg():
 def main() -> None:
     engine = get_engine()
     sitemap = read_sql_retry(engine, f"SELECT url, lastmod FROM `{t('sitemap')}`", label="baca sitemap")
-    berita = read_sql_retry(engine, f"SELECT url, judul, deskripsi FROM `{t('berita')}`", label="baca berita")
+    # isi lengkap (scripts/fetch_backlog.py) baru ada setelah backlog itu
+    # pernah dijalankan -- cek dulu, fallback ke judul+deskripsi kalau belum.
+    has_isi = column_exists(engine, t("berita"), "isi")
+    kolom = "url, judul, deskripsi" + (", isi" if has_isi else "")
+    berita = read_sql_retry(engine, f"SELECT {kolom} FROM `{t('berita')}`", label="baca berita")
 
-    # teks tambahan dari tabel berita (url bersih -> judul + deskripsi)
+    # teks tambahan dari tabel berita (url bersih -> judul + deskripsi + isi)
     berita["url_b"] = berita["url"].map(url_bersih)
-    teks_berita = {
-        r["url_b"]: f"{r['judul'] or ''} {r['deskripsi'] or ''}".lower()
-        for _, r in berita.iterrows()
-    }
+
+    def teks_row(r) -> str:
+        dasar = f"{r['judul'] or ''} {r['deskripsi'] or ''}"
+        return f"{dasar} {r['isi'] or ''}" if has_isi else dasar
+
+    teks_berita = {r["url_b"]: teks_row(r).lower() for _, r in berita.iterrows()}
 
     compiled = compile_sdg()
 

@@ -1,4 +1,5 @@
-"""Tagging topik dampak pada berita UGM (substring match pada judul + deskripsi).
+"""Tagging topik dampak pada berita UGM (substring match pada judul +
+deskripsi + isi lengkap artikel kalau sudah ada -- lihat scripts/fetch_backlog.py).
 
 Menggunakan kamus keywords.py. Satu berita bisa masuk lebih dari satu topik.
 Hasil: tabel `berita_topik` (url, topik) dan tabel `ringkasan_topik_tahun`.
@@ -11,7 +12,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from db import get_engine, read_sql_retry, t, with_retry  # noqa: E402
+from db import column_exists, get_engine, read_sql_retry, t, with_retry  # noqa: E402
 from keywords import KEYWORDS  # noqa: E402
 
 
@@ -28,12 +29,22 @@ def tag(text: str) -> list[str]:
 
 def main() -> None:
     engine = get_engine()
-    berita = read_sql_retry(engine, f"SELECT url, judul, deskripsi, tanggal FROM `{t('berita')}`",
+    # isi lengkap (kolom `isi`, dari scripts/fetch_backlog.py) baru ada
+    # setelah backlog itu pernah dijalankan -- cek dulu, jangan asumsikan
+    # ada, biar script ini tetap jalan di DB sebelum/sesudahnya.
+    has_isi = column_exists(engine, t("berita"), "isi")
+    kolom = "url, judul, deskripsi, tanggal" + (", isi" if has_isi else "")
+    berita = read_sql_retry(engine, f"SELECT {kolom} FROM `{t('berita')}`",
                              label="baca berita")
+
+    def teks_berita(r) -> str:
+        dasar = f"{r['judul']} {r['deskripsi']}"
+        return f"{dasar} {r['isi'] or ''}" if has_isi else dasar
+
     tagged = [
         (r["url"], topik)
         for _, r in berita.iterrows()
-        for topik in tag(f"{r['judul']} {r['deskripsi']}")
+        for topik in tag(teks_berita(r))
     ]
     df_topik = pd.DataFrame(tagged, columns=["url", "topik"])
 

@@ -37,28 +37,50 @@ def parse_date(s: str | None) -> str | None:
         return None
 
 
-COLUMNS = ["url", "judul", "tanggal", "deskripsi", "kategori", "sumber"]
+COLUMNS = ["url", "judul", "tanggal", "deskripsi", "kategori", "sumber", "isi", "kredit"]
 
 
 def main() -> None:
     engine = get_engine()
     table = t("berita")
 
+    # isi/kredit (scripts/fetch_backlog.py) dibaca & ditulis balik APA ADANYA
+    # (bukan lewat clean_text) -- kalau kolomnya belum ada (belum pernah
+    # jalanin fetch_backlog.py), SELECT * otomatis tidak menyertakannya dan
+    # kita treat sebagai kosong; JANGAN ganti ke SELECT eksplisit 6 kolom
+    # lama, itu pernah jadi bug nyata: DELETE+INSERT ulang tabel ini cuma
+    # bawa 6 kolom lama akan diam-diam menghapus isi/kredit semua baris di
+    # setiap update mingguan.
     def _read_all():
         with engine.connect() as conn:
-            return conn.exec_driver_sql(
-                f"SELECT url, judul, tanggal, deskripsi, kategori, sumber FROM `{table}`"
-            ).fetchall()
+            cols = {
+                r[0] for r in conn.exec_driver_sql(f"SHOW COLUMNS FROM `{table}`").fetchall()
+            }
+            has_isi = "isi" in cols and "kredit" in cols
+            select_cols = (
+                "url, judul, tanggal, deskripsi, kategori, sumber, isi, kredit"
+                if has_isi else
+                "url, judul, tanggal, deskripsi, kategori, sumber"
+            )
+            rows_ = conn.exec_driver_sql(f"SELECT {select_cols} FROM `{table}`").fetchall()
+            return rows_, has_isi
 
-    ok, rows = with_retry(_read_all, label="baca tabel berita")
+    ok, result = with_retry(_read_all, label="baca tabel berita")
     if not ok:
         print("GAGAL membaca tabel berita dari MySQL setelah 3 percobaan -- batal.")
         return
-    print(f"Sebelum normalisasi: {len(rows)} baris")
+    rows, has_isi = result
+    print(f"Sebelum normalisasi: {len(rows)} baris "
+          f"(kolom isi/kredit: {'ada' if has_isi else 'belum ada'})")
 
     cleaned = []
     seen = set()
-    for url, judul, tanggal, deskripsi, kategori, sumber in rows:
+    for row in rows:
+        if has_isi:
+            url, judul, tanggal, deskripsi, kategori, sumber, isi, kredit = row
+        else:
+            url, judul, tanggal, deskripsi, kategori, sumber = row
+            isi, kredit = None, None
         u = url.split("?")[0].strip().rstrip("/")
         if not u or u in seen:
             continue  # duplikat URL (bentuk mentah vs bersih) — baris kedua dibuang
@@ -68,7 +90,12 @@ def main() -> None:
         k = clean_text(kategori)
         if not j:
             continue  # baris tanpa judul tidak berguna
-        cleaned.append((u, j, parse_date(tanggal), d, k, sumber))
+        cleaned.append((u, j, parse_date(tanggal), d, k, sumber, isi, kredit))
+
+    # Kolom aktual dipakai sesuai has_isi (kalau isi/kredit belum ada di
+    # tabel -- mis. sebelum fetch_backlog.py pernah jalan sekalipun -- jangan
+    # sisipkan kolom yang tidak ada, INSERT akan gagal).
+    insert_cols = COLUMNS if has_isi else COLUMNS[:-2]
 
     # DELETE + INSERT dalam SATU transaksi: kalau proses berhenti di tengah
     # (atau gagal), rollback otomatis mengembalikan tabel ke kondisi sebelum
@@ -78,9 +105,9 @@ def main() -> None:
         with engine.begin() as conn:
             conn.execute(text(f"DELETE FROM `{table}`"))
             if cleaned:
-                cols_sql = ", ".join(f"`{c}`" for c in COLUMNS)
-                placeholders = ", ".join(f":{c}" for c in COLUMNS)
-                data = [dict(zip(COLUMNS, row)) for row in cleaned]
+                cols_sql = ", ".join(f"`{c}`" for c in insert_cols)
+                placeholders = ", ".join(f":{c}" for c in insert_cols)
+                data = [dict(zip(insert_cols, row[: len(insert_cols)])) for row in cleaned]
                 conn.execute(
                     text(f"INSERT INTO `{table}` ({cols_sql}) VALUES ({placeholders})"),
                     data,

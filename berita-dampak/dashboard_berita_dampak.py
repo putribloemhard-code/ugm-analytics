@@ -39,6 +39,16 @@ from scripts.narasi_logic import (  # noqa: E402
     generate_impact_insight,
     generate_sdg_saja_summary,
 )
+from scripts.unit_kerja import UNIT_KERJA  # noqa: E402
+
+# 44 fakultas/sekolah/unit kerja, diurutkan Fakultas -> Sekolah -> Unit Kerja
+# (lalu alfabetis per kategori) supaya gampang di-scan/cari di multiselect.
+_URUTAN_KATEGORI = {"Fakultas": 0, "Sekolah": 1, "Unit Kerja": 2}
+UNIT_KERJA_OPSI = sorted(
+    UNIT_KERJA.keys(),
+    key=lambda k: (_URUTAN_KATEGORI[UNIT_KERJA[k]["kategori"]], UNIT_KERJA[k]["nama"]),
+)
+WARNA_KATEGORI = {"Fakultas": "#3949ab", "Sekolah": "#00897b", "Unit Kerja": "#8e24aa"}
 
 # Kredensial MySQL dibaca dari .env di root project (JANGAN di-commit; lihat .gitignore).
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -167,7 +177,8 @@ def _get_engine():
 @st.cache_data(ttl=300)
 def load() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
                     pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
-                    pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+                    pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
+                    pd.DataFrame]:
     engine = _get_engine()
     berita = pd.read_sql("SELECT * FROM berita_berita", engine)
     topik = pd.read_sql("SELECT * FROM berita_berita_topik", engine)
@@ -181,7 +192,8 @@ def load() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
     ss = pd.read_sql("SELECT * FROM berita_sitemap_sdg", engine)
     rsg = pd.read_sql("SELECT * FROM berita_ringkasan_sdg_sitemap", engine)
     rsgt = pd.read_sql("SELECT * FROM berita_ringkasan_sdg_sitemap_tahun", engine)
-    return berita, topik, ringkas, sitemap, bk, bs, rp, rpt, rsa, ss, rsg, rsgt
+    uk = pd.read_sql("SELECT * FROM berita_unit_kerja", engine)
+    return berita, topik, ringkas, sitemap, bk, bs, rp, rpt, rsa, ss, rsg, rsgt, uk
 
 
 @st.cache_data(ttl=300)
@@ -202,7 +214,7 @@ def load_narasi_cache() -> dict:
 
 
 try:
-    berita, topik, ringkas, sitemap, bk, bs, rp, rpt, rsa, ss, rsg, rsgt = load()
+    berita, topik, ringkas, sitemap, bk, bs, rp, rpt, rsa, ss, rsg, rsgt, uk = load()
     NARASI_CACHE = load_narasi_cache()
 except KeyError as e:
     st.error(f"Variabel environment {e} belum diset. Isi file .env di root project "
@@ -237,9 +249,22 @@ tahun_awal, tahun_akhir = st.sidebar.select_slider(
     options=tahun_opsi,
     value=(tahun_opsi[0], tahun_opsi[-1]),
 )
+# Semua berita (RSS + sitemap) selalu ikut dihitung -- bukan pilihan yang
+# perlu diputuskan user, cuma dua cara pengambilan data yang saling melengkapi
+# (RSS = berita terbaru, sitemap = arsip). Tidak ada lagi filter "Sumber" di UI.
+sumber_pilih = ["sitemap", "rss"]
+
+# 14 tema dikelompokkan per pilar (urutan sesuai LABEL_TOPIC) -- dipakai untuk
+# pecah dropdown tema jadi 1 per pilar, bukan 1 dropdown raksasa isi 14 tema.
+TOPIK_PER_PILAR = {
+    p: [k for k in LABEL_TOPIC if TOPIK_KEPMEN_ALL[k]["dampak"] == p]
+    for p in ["Lingkungan", "Ekonomi", "Sosial"]
+}
+PILAR_ICON_SIDEBAR = {"Lingkungan": "🌳", "Ekonomi": "💼", "Sosial": "🤝"}
+
 topik_pilih: list = []
-sumber_pilih: list = []
 pilar_pilih: list = []
+unit_pilih: list = []
 if mode == "SDGs":
     # Mode SDG: filter berdasarkan SDG, bukan tema dampak.
     sdg_pilih = st.sidebar.multiselect(
@@ -250,33 +275,56 @@ if mode == "SDGs":
     )
 else:
     sdg_pilih = list(range(1, 18))
-    topik_pilih = st.sidebar.multiselect(
-        "Tema dampak",
-        options=list(LABEL_TOPIC.keys()),
-        format_func=lambda k: LABEL_TOPIC[k],
-        default=list(LABEL_TOPIC.keys()),
-    )
-    sumber_pilih = st.sidebar.multiselect(
-        "Sumber", options=["sitemap", "rss"], default=["sitemap", "rss"]
-    )
+    # 1) Pilih dampak (pilar) dulu ...
     pilar_pilih = st.sidebar.multiselect(
-        "Dampak (Kepmen)",
+        "Dampak",
         options=["Lingkungan", "Ekonomi", "Sosial"],
         default=["Lingkungan", "Ekonomi", "Sosial"],
+        format_func=lambda p: f"{PILAR_ICON_SIDEBAR[p]} {p}",
+    )
+    # 2) ... baru tema Kepmen-nya, satu dropdown TERPISAH per dampak terpilih
+    #    (bukan 1 dropdown gabungan isi 14 tema sekaligus).
+    if pilar_pilih:
+        st.sidebar.caption("Tema resmi Kepmen per dampak:")
+        for p in ["Lingkungan", "Ekonomi", "Sosial"]:
+            if p not in pilar_pilih:
+                continue
+            opsi_tema_p = TOPIK_PER_PILAR[p]
+            pilih_p = st.sidebar.multiselect(
+                f"{PILAR_ICON_SIDEBAR[p]} {p}",
+                options=opsi_tema_p,
+                default=opsi_tema_p,
+                format_func=lambda k: LABEL_TOPIC[k],
+                key=f"tema_pilar_{p}",
+            )
+            topik_pilih.extend(pilih_p)
+    else:
+        st.sidebar.caption("⚠️ Pilih minimal satu dampak untuk melihat tema.")
+
+    # Filter fakultas/unit kerja (independen dari tema/pilar Kepmen) --
+    # default kosong = tidak memfilter apa pun sampai user pilih (lihat
+    # berita_unit_kerja, tabel dari scripts/tag_unit_kerja.py).
+    unit_pilih = st.sidebar.multiselect(
+        "Fakultas / Unit Kerja",
+        options=UNIT_KERJA_OPSI,
+        default=[],
+        format_func=lambda k: UNIT_KERJA[k]["nama"],
+        help="Filter berita yang menyebut fakultas/sekolah/unit kerja ini "
+             "(nama resmi, hasil keyword matching). Kosong = tidak memfilter.",
     )
 
 # Narasi LLM ter-cache (lihat load_narasi_cache di atas) cuma valid utk posisi
-# filter DEFAULT -- begitu user ganti tahun/tema/sumber/pilar/SDG, angka2
-# dalam narasi cache jadi gak sesuai lagi, jadi WAJIB balik ke template pandas
+# filter DEFAULT -- begitu user ganti tahun/tema/pilar/SDG, angka2 dalam
+# narasi cache jadi gak sesuai lagi, jadi WAJIB balik ke template pandas
 # yang dihitung ulang dari data ter-filter (generate_executive_summary /
 # generate_impact_insight / narasi mode SDGs saja).
 FILTER_ADALAH_DEFAULT = (
     tahun_awal == tahun_opsi[0]
     and tahun_akhir == tahun_opsi[-1]
     and set(topik_pilih) == set(LABEL_TOPIC.keys())
-    and set(sumber_pilih) == {"sitemap", "rss"}
     and set(pilar_pilih) == {"Lingkungan", "Ekonomi", "Sosial"}
     and set(sdg_pilih) == set(range(1, 18))
+    and not unit_pilih
 )
 
 
@@ -487,6 +535,10 @@ if mode == "SDGs":
 b = berita.copy()
 b["tahun"] = b["tanggal"].str[:4]
 b = b[b["tahun"].between(tahun_awal, tahun_akhir) & b["sumber"].isin(sumber_pilih)]
+if unit_pilih:
+    # Filter fakultas/unit kerja berlaku AND dengan filter lain -- persempit
+    # ke berita yang menyebut salah satu unit terpilih (berita_unit_kerja).
+    b = b[b["url"].isin(set(uk.loc[uk["unit_kerja"].isin(unit_pilih), "url"]))]
 # t = semua tema Kepmen (14 tema resmi) dari tabel gabungan.
 # Kalau filter tema/pilar kosong, fallback ke 4 tema inti (tema berita).
 t = bk[bk["topik"].isin(topik_pilih)] if topik_pilih else bk
@@ -604,7 +656,7 @@ if mode != "SDGs":
     tab_labels = ["Ringkasan & Insight", "Tema Resmi Kepmen"]
     if mode != "Berdampak":
         tab_labels.append("SDGs Terkait")
-    tab_labels += ["Tren & Musiman", "Kata Kunci & Berita"]
+    tab_labels += ["Tren & Musiman", "Kata Kunci & Berita", "Fakultas/Unit Kerja"]
     tabs = st.tabs(tab_labels)
     tab_iter = iter(tabs)
 
@@ -850,6 +902,53 @@ if mode != "SDGs":
         else:
             st.info("Tidak ada berita untuk dampak ini pada filter saat ini.")
 
+    # --- Tab: Fakultas/Unit Kerja ---
+    with next(tab_iter):
+        uk_pilar = uk[uk["url"].isin(set(selected_news["url"]))].copy()
+        if len(uk_pilar):
+            dist_uk = (
+                uk_pilar.groupby(["unit_kerja", "kategori"])["url"]
+                .nunique().reset_index(name="jumlah")
+            )
+            dist_uk["nama"] = dist_uk["unit_kerja"].map(lambda k: UNIT_KERJA[k]["nama"])
+            dist_uk = dist_uk.sort_values("jumlah")
+            fig_uk = px.bar(
+                dist_uk, x="jumlah", y="nama", orientation="h", color="kategori",
+                title=f"Berita per Fakultas/Unit Kerja — dampak {selected_pilar}",
+                labels={"nama": "Fakultas/Unit Kerja", "jumlah": "Jumlah berita",
+                        "kategori": "Kategori"},
+                color_discrete_map=WARNA_KATEGORI,
+            )
+            fig_uk.update_layout(
+                height=max(340, 28 * len(dist_uk) + 90),
+                yaxis=dict(autorange="reversed"),
+            )
+            hover_keterangan(fig_uk, "Berita unik dampak ini yang menyebut nama unit ini.")
+            st.plotly_chart(fig_uk, width="stretch")
+
+            n_unit_unik = uk_pilar["unit_kerja"].nunique()
+            st.metric("Unit teridentifikasi", f"{n_unit_unik} / {len(UNIT_KERJA)}")
+        else:
+            st.info("Tidak ada fakultas/unit kerja teridentifikasi untuk dampak ini pada filter saat ini.")
+
+        with st.expander("Berita tanpa unit teridentifikasi (cek manual)"):
+            tagged_uk = set(uk_pilar["url"]) if len(uk_pilar) else set()
+            belum_uk = selected_news[~selected_news["url"].isin(tagged_uk)]
+            st.write(f"{len(belum_uk)} berita (dampak ini, dalam filter) tidak menyebut "
+                     "fakultas/unit kerja mana pun.")
+            if len(belum_uk):
+                st.dataframe(
+                    belum_uk[["tanggal", "judul", "url"]].sort_values("tanggal", ascending=False).head(200),
+                    width="stretch", hide_index=True,
+                )
+
+        penjelasan(
+            "Hasil keyword matching nama resmi 44 fakultas/sekolah/unit kerja UGM pada "
+            "judul + deskripsi berita -- bersifat lower-bound (banyak berita tidak "
+            "eksplisit menyebut nama unit meski relevan), bukan angka final jumlah "
+            "kontribusi tiap unit."
+        )
+
     st.markdown("---")
 
 with st.expander("📂 Analisis Lintas-Dampak (Lanjutan)", expanded=False):
@@ -859,33 +958,6 @@ with st.expander("📂 Analisis Lintas-Dampak (Lanjutan)", expanded=False):
     c2.metric("Berita bertema dampak", t["url"].nunique() if len(t) else 0)
     c3.metric("Tema terpilih", len(topik_pilih))
     c4.metric("Rentang tahun", f"{tahun_awal}–{tahun_akhir}")
-
-    # ---------- Distribusi per tema ----------
-    st.subheader("Distribusi per Tema Dampak")
-    dist = t.groupby("topik")["url"].nunique().reset_index(name="jumlah")
-    # Sinkron 14 tema: tema tanpa match (mis. Pengajaran & Pembelajaran) tetap
-    # tampil dengan jumlah 0, bukan hilang dari chart.
-    dist = dist.set_index("topik").reindex(TOPIK_TAMPIL, fill_value=0).reset_index()
-    dist["label"] = dist["topik"].map(LABEL_TOPIC)
-    fig = px.bar(
-        dist.sort_values("jumlah"),
-        x="jumlah", y="label", orientation="h",
-        title="Jumlah berita per tema dampak",
-        labels={"label": "Tema", "jumlah": "Jumlah berita"},
-        color="label", color_discrete_sequence=px.colors.qualitative.Bold,
-    )
-    fig.update_layout(showlegend=False, height=380)
-    hover_keterangan(
-        fig,
-        "Berita unik yang match keyword tema ini; satu URL dihitung sekali per tema.",
-    )
-    st.plotly_chart(fig, width="stretch")
-    penjelasan(
-        "Tujuan: melihat tema dampak mana yang paling banyak diberitakan. "
-        "Angka = jumlah berita unik (URL) yang judul/deskripsinya mengandung "
-        "keyword tema; satu berita dihitung sekali per tema. Tema tanpa match "
-        "tetap tampil dengan 0."
-    )
 
     # ---------- Peta Kepmen & SDGs ----------
     st.subheader("Peta Tema Resmi Kepmen & Klaster SDGs")

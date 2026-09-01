@@ -34,7 +34,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from db import get_engine, read_sql_retry, t, with_retry  # noqa: E402
+from db import column_exists, get_engine, read_sql_retry, t, with_retry  # noqa: E402
 from kepmen_sdg import SDG_NAMA, TEMA_KEPMEN_LENGKAP, TOPIK_KEPMEN  # noqa: E402
 from keywords import KEYWORDS  # noqa: E402
 
@@ -49,14 +49,21 @@ def main() -> None:
         meta[topik_id] = dict(m)  # sudah punya keywords + sdg
 
     engine = get_engine()
-    berita = read_sql_retry(engine, f"SELECT url, judul, deskripsi, tanggal FROM `{t('berita')}`",
+    # isi lengkap (scripts/fetch_backlog.py) baru ada setelah backlog itu
+    # pernah dijalankan -- cek dulu, fallback ke judul+deskripsi kalau belum.
+    has_isi = column_exists(engine, t("berita"), "isi")
+    kolom = "url, judul, deskripsi, tanggal" + (", isi" if has_isi else "")
+    berita = read_sql_retry(engine, f"SELECT {kolom} FROM `{t('berita')}`",
                              label="baca berita")
 
     rows = []
     for _, r in berita.iterrows():
         # NB: nama variabel "teks" (bukan "t") -- "t" sudah dipakai sebagai
         # helper prefix tabel (db.t), jangan di-shadow di sini.
-        teks = f"{r['judul'] or ''} {r['deskripsi'] or ''}".lower()
+        teks = f"{r['judul'] or ''} {r['deskripsi'] or ''}"
+        if has_isi:
+            teks += f" {r['isi'] or ''}"
+        teks = teks.lower()
         for topik_id, m in meta.items():
             # Keyword <= 5 huruf rawan false positive substring (mis. "paten"
             # match "kabupaten", "esd" match kata lain) — pakai word boundary.

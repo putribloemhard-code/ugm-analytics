@@ -32,6 +32,7 @@ bukan DuckDB lagi (migrasi penuh 2026-08-29). Tabel berprefix `berita_`:
 | `ringkasan_sdg_sitemap` | jumlah berita unik per SDG (17 SDG) dari sitemap_sdg |
 | `ringkasan_sdg_sitemap_tahun` | jumlah berita per SDG per tahun (lastmod sitemap) |
 | `narasi_cache` | narasi LLM (Gemini) hasil `generate_narasi_llm.py`, cache_key → narasi |
+| `unit_kerja` | pasangan url–unit_kerja–kategori (44 fakultas/sekolah/unit kerja UGM, `tag_unit_kerja.py`) — lapisan independen dari tagging Kepmen/SDG |
 | `berita_kepmen`, `berita_sdg`, `ringkasan_sdg` | orphan: dari script legacy yang sudah dihapus (tag_kepmen_berita.py) — tidak dipakai dashboard, tidak diperbarui lagi |
 | `berita_kepmen_lengkap`, `ringkasan_kepmen_lengkap` | orphan: dari script legacy yang sudah dihapus (tag_kepmen_lengkap.py) — tidak dipakai dashboard, tidak diperbarui lagi |
 
