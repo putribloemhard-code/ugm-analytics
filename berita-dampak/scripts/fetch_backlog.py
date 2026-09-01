@@ -23,12 +23,30 @@ lama seperti "...ujarnya. (Humas UGM/Nama)" yang menyatu di kalimat
 terakhir TIDAK coba dipisah, karena bukan paragraf tersendiri).
 
 Kolom baru di `berita_berita` (ditambah otomatis sekali kalau belum ada):
-  - isi     TEXT       -- isi artikel bersih, TANPA baris kredit
-  - kredit  TEXT NULL  -- baris kredit yang terdeteksi & dipisahkan
+  - isi                 TEXT             -- isi artikel bersih, TANPA baris kredit
+  - kredit              TEXT NULL        -- baris kredit yang terdeteksi & dipisahkan
+  - fetch_gagal_count   INT DEFAULT 0    -- lihat MAX_GAGAL di bawah
+
+Retry cap (2026-09-01): kalau isi masih kosong sesudah fetch (request gagal
+ATAU halaman tidak punya konten yang bisa diekstrak sama sekali), URL itu
+TIDAK otomatis di-retry selamanya -- `fetch_gagal_count` naik tiap kali
+gagal (lihat `bump_fail_counts()`), dan begitu mencapai MAX_GAGAL (3),
+`_read_candidates()` berhenti memasukkannya sebagai kandidat. Baris yang
+belum pernah ada sama sekali TIDAK kena counter ini (bump_fail_counts()
+no-op untuk baris yang belum ada) -- supaya artikel benar-benar baru yang
+kebetulan gagal di percobaan pertama tetap dicoba lagi minggu depan, bukan
+langsung dianggap gagal permanen.
 
 WAJIB baca juga: scripts/normalisasi.py sudah diupdate untuk ikut membawa
 isi/kredit saat DELETE+INSERT ulang tabel berita -- JANGAN jalankan versi
 lama normalisasi.py setelah backlog ini terisi, nanti isi/kredit hilang.
+
+Modul ini juga jadi SUMBER TUNGGAL fungsi ekstraksi isi/kredit: `fetch_full()`,
+`clean_url()`, dan `ensure_isi_columns()` di-import langsung oleh
+fetch_detail.py (langkah pipeline mingguan yang fetch detail artikel BARU)
+supaya artikel baru otomatis dapat isi/kredit juga tanpa perlu backfill
+manual berulang -- JANGAN duplikat logika ekstraksi ini di script lain,
+import dari sini.
 
 Konvensi mengikuti fetch_detail.py: requests + ThreadPoolExecutor (8
 thread), throttle ringan, upsert per batch (idempoten, resumable). Lock
@@ -54,6 +72,7 @@ from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
+from sqlalchemy import text as sql_text
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from db import ensure_url_primary_key, get_engine, t, upsert, with_retry  # noqa: E402
@@ -96,18 +115,33 @@ def clean_url(u: str) -> str:
     return u.strip().split("?")[0].rstrip("/")
 
 
-def _extract_isi_kredit(soup: BeautifulSoup) -> tuple[str, str | None]:
-    """Ambil isi artikel bersih + kredit terpisah dari div.inner-content
-    (lihat validasi selector di docstring modul)."""
-    container = soup.find("div", class_="inner-content")
-    if container is None:
-        return "", None
+def _paragraphs_from(tags) -> list[str]:
     parts = []
-    for p in container.find_all(["p", "li"]):
+    for p in tags:
         txt = p.get_text(" ", strip=True)
         if not txt or BOILERPLATE_HINTS.search(txt):
             continue
         parts.append(re.sub(r"[ \t]+", " ", txt))
+    return parts
+
+
+def _extract_isi_kredit(soup: BeautifulSoup) -> tuple[str, str | None]:
+    """Ambil isi artikel bersih + kredit terpisah dari div.inner-content
+    (lihat validasi selector di docstring modul).
+
+    Template artikel LAMA (ditemukan 2026-09-01 saat menyelidiki ~265 baris
+    yang isi-nya kosong setelah backfill penuh, mis. artikel 2010-2016an)
+    tidak pakai <p> sama sekali untuk tiap paragraf -- teksnya langsung jadi
+    child <div> polos di dalam div.inner-content (kadang berlapis, sisa
+    tempel dari email/Word). Kalau <p>/<li> tidak ditemukan, fallback ambil
+    <div> child langsung dari container sebagai "paragraf".
+    """
+    container = soup.find("div", class_="inner-content")
+    if container is None:
+        return "", None
+    parts = _paragraphs_from(container.find_all(["p", "li"]))
+    if not parts:
+        parts = _paragraphs_from(container.find_all("div", recursive=False))
     if not parts:
         return "", None
     kredit_parts: list[str] = []
@@ -157,7 +191,12 @@ def fetch_full(url: str, retries: int = 3) -> dict | None:
     return None
 
 
-def _ensure_columns(engine) -> None:
+MAX_GAGAL = 3  # setelah 3x isi tetap kosong, berhenti coba lagi otomatis tiap minggu
+
+
+def ensure_fetch_columns(engine) -> None:
+    """Pastikan isi/kredit/fetch_gagal_count ada di berita_berita (no-op
+    kalau sudah ada -- aman dipanggil berkali-kali)."""
     def _check_and_add() -> None:
         with engine.begin() as conn:
             existing = {
@@ -169,15 +208,50 @@ def _ensure_columns(engine) -> None:
                 conn.exec_driver_sql(f"ALTER TABLE `{t('berita')}` ADD COLUMN `isi` TEXT")
             if "kredit" not in existing:
                 conn.exec_driver_sql(f"ALTER TABLE `{t('berita')}` ADD COLUMN `kredit` TEXT")
+            if "fetch_gagal_count" not in existing:
+                conn.exec_driver_sql(
+                    f"ALTER TABLE `{t('berita')}` ADD COLUMN `fetch_gagal_count` "
+                    f"INT NOT NULL DEFAULT 0"
+                )
 
-    ok, _ = with_retry(_check_and_add, label="pastikan kolom isi/kredit ada")
+    ok, _ = with_retry(_check_and_add, label="pastikan kolom isi/kredit/fetch_gagal_count ada")
     if not ok:
-        raise RuntimeError("Gagal memastikan kolom isi/kredit ada di berita_berita.")
+        raise RuntimeError("Gagal memastikan kolom isi/kredit/fetch_gagal_count ada di berita_berita.")
+
+
+def bump_fail_counts(engine, urls: list[str]) -> None:
+    """Naikkan `fetch_gagal_count` +1 untuk URL yang isi-nya masih kosong
+    setelah fetch (gagal request ATAU halaman tidak punya konten yang bisa
+    diekstrak). HANYA meng-UPDATE baris yang SUDAH ADA (no-op kalau baris
+    belum ada sama sekali) -- SENGAJA, supaya artikel BENAR-BENAR BARU yang
+    gagal di percobaan pertama tetap dicoba lagi minggu depan (bukan
+    langsung dianggap gagal permanen); baru mulai dihitung setelah baris
+    itu sendiri sudah pernah tersimpan (mis. dari ingest.py/RSS)."""
+    if not urls:
+        return
+    cleaned = [clean_url(u) for u in urls]
+
+    def _run() -> None:
+        with engine.begin() as conn:
+            for i in range(0, len(cleaned), 500):
+                batch = cleaned[i : i + 500]
+                conn.execute(
+                    sql_text(
+                        f"UPDATE `{t('berita')}` SET fetch_gagal_count = fetch_gagal_count + 1 "
+                        f"WHERE url = :url"
+                    ),
+                    [{"url": u} for u in batch],
+                )
+
+    ok, _ = with_retry(_run, label="update fetch_gagal_count")
+    if not ok:
+        _log(f"PERINGATAN: gagal update fetch_gagal_count untuk {len(cleaned)} URL.")
 
 
 def _read_candidates(engine, limit: int | None) -> list[tuple[str, str]]:
     """URL sitemap yang kolom isi-nya di berita_berita masih NULL/kosong,
-    ATAU belum ada baris berita sama sekali untuk URL itu."""
+    ATAU belum ada baris berita sama sekali untuk URL itu -- KECUALI yang
+    sudah gagal >=MAX_GAGAL kali berturut-turut (lihat bump_fail_counts)."""
     def _query():
         with engine.connect() as conn:
             sql = f"""
@@ -185,7 +259,8 @@ def _read_candidates(engine, limit: int | None) -> list[tuple[str, str]]:
                 FROM `{t('sitemap')}` sm
                 LEFT JOIN `{t('berita')}` b
                   ON TRIM(TRAILING '/' FROM SUBSTRING_INDEX(sm.url, '?', 1)) = b.url
-                WHERE b.url IS NULL OR b.isi IS NULL OR b.isi = ''
+                WHERE (b.url IS NULL OR b.isi IS NULL OR b.isi = '')
+                  AND (b.fetch_gagal_count IS NULL OR b.fetch_gagal_count < {MAX_GAGAL})
             """
             return conn.exec_driver_sql(sql).fetchall()
 
@@ -220,7 +295,7 @@ def main() -> None:
     try:
         engine = get_engine()
         ensure_url_primary_key(engine, t("berita"))
-        _ensure_columns(engine)
+        ensure_fetch_columns(engine)
 
         if args.urls_file:
             urls = [
@@ -241,6 +316,7 @@ def main() -> None:
         ok_count = 0
         fail_count = 0
         buffer: list[tuple] = []
+        empty_urls: list[str] = []  # isi masih kosong sesudah fetch -- lihat bump_fail_counts
         t0 = time.time()
 
         def flush() -> None:
@@ -262,8 +338,11 @@ def main() -> None:
                 done += 1
                 if not detail:
                     fail_count += 1
+                    empty_urls.append(url)
                 else:
                     ok_count += 1
+                    if not detail["isi"]:
+                        empty_urls.append(url)
                     buffer.append((
                         clean_url(url), detail["judul"], detail["tanggal"] or lastmod,
                         detail["deskripsi"], "", "sitemap", detail["isi"], detail["kredit"],
@@ -280,13 +359,18 @@ def main() -> None:
                          f"-- estimasi sisa waktu: {sisa/60:.1f} menit")
                 time.sleep(0.05)  # throttle ringan, sama seperti fetch_detail.py
         flush()
+        bump_fail_counts(engine, empty_urls)
 
         with engine.connect() as conn:
             n_isi = conn.exec_driver_sql(
                 f"SELECT COUNT(*) FROM `{t('berita')}` WHERE isi IS NOT NULL AND isi != ''"
             ).scalar()
+            n_menyerah = conn.exec_driver_sql(
+                f"SELECT COUNT(*) FROM `{t('berita')}` WHERE fetch_gagal_count >= {MAX_GAGAL}"
+            ).scalar()
         _log(f"=== SELESAI. {ok_count} berhasil, {fail_count} gagal dari {total} URL. "
-             f"Total baris dengan isi terisi: {n_isi}. Waktu: {(time.time()-t0)/60:.1f} menit ===")
+             f"Total baris dengan isi terisi: {n_isi}. {n_menyerah} URL sudah >={MAX_GAGAL}x "
+             f"gagal (tidak dicoba lagi otomatis). Waktu: {(time.time()-t0)/60:.1f} menit ===")
     finally:
         try:
             LOCK.unlink()

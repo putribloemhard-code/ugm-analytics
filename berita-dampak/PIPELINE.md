@@ -33,9 +33,19 @@ ringkasan/agregat tetap full-replace (`to_sql(if_exists="replace")`) tiap run.
 3. **Fetch detail** — `scripts/fetch_detail.py`
    Filter URL sitemap yang slug-nya cocok kata kunci tema (ID+EN) lewat
    `REGEXP` (MySQL), lalu fetch halaman untuk mengambil judul (h1), deskripsi
-   (meta description), tanggal (datePublished). Upsert ke tabel `berita_berita`
-   (sumber='sitemap') per batch 100 baris. ~4.700 URL relevan; throttle 0,3
-   detik + retry jaringan (request) + retry MySQL (batch upsert).
+   (meta description), tanggal (datePublished), DAN isi lengkap artikel +
+   kredit redaksional lewat `fetch_full()` yang di-IMPORT dari
+   `scripts/fetch_backlog.py` (sumber tunggal logika ekstraksi isi/kredit --
+   JANGAN duplikat). Upsert ke tabel `berita_berita` (sumber='sitemap') per
+   batch 100 baris; throttle ringan + retry jaringan (request) + retry MySQL
+   (batch upsert). Kandidat = slug cocok kata kunci tema DAN `isi` masih
+   kosong (bukan sekadar "baris belum ada") -- supaya artikel yang baru
+   masuk lewat ingest.py (RSS, cuma judul+deskripsi pendek) ikut ke-refetch
+   dan otomatis dapat isi/kredit juga, tanpa backfill manual (bug diperbaiki
+   2026-09-01 -- sebelumnya fetch_detail.py TIDAK mengisi isi/kredit sama
+   sekali, cuma judul+deskripsi, sampai backlog 32.130 URL penuh dijalankan
+   manual lewat `fetch_backlog.py`; lihat bagian "Isi lengkap artikel" di
+   bawah).
 
 4. **Normalisasi** — `scripts/normalisasi.py`
    Bersihkan teks, konversi tanggal (RFC 822 / ISO 8601 → YYYY-MM-DD),
@@ -100,6 +110,47 @@ ringkasan/agregat tetap full-replace (`to_sql(if_exists="replace")`) tiap run.
    kategori). Hasil backfill (2026-09-01, setelah guard leakage): 785
    pasangan url-unit; 748 / 4.806 berita (15,6%) match >=1 unit (sebelum
    guard: 789 pasangan, 751 berita).
+
+6e. **Isi lengkap artikel** — `scripts/fetch_backlog.py` (backfill besar,
+   dijalankan manual/background, BUKAN bagian STEPS update_mingguan.py --
+   fetch_detail.py di atas yang menjaga cakupan tetap penuh utk artikel baru
+   tiap minggu). Ekstraksi 2 tingkat dari `div.inner-content` (tervalidasi
+   manual 17 sampel lintas 2008-2026, kedua pola URL id/berita + en/news):
+   (1) `<p>`/`<li>` -- mayoritas artikel; (2) fallback child `<div>` polos
+   langsung kalau tidak ada `<p>` sama sekali -- template lama (~2010-2016an)
+   yang taruh tiap paragraf di `<div>` tanpa `<p>` (ditemukan 2026-09-01,
+   sempat bikin 265/274 baris isi-nya kosong padahal kontennya ADA, bukan
+   soal jaringan). Baris kredit trailing ("Penulis:"/"Reportase:"/"Author:"/
+   "Editor:"/"Post-editor:"/"Foto:"/dst.) dipisah ke kolom `kredit` (nullable;
+   default aman: kalau pola tidak jelas, semua tetap masuk `isi`). `kredit`
+   SENGAJA TIDAK ikut di keyword matching (tag_kepmen_all.py/tag_sdg_langsung.py/
+   tag_unit_kerja.py/process_nlp.py, lewat `db.column_exists()` fallback aman
+   kalau kolom belum ada) -- byline redaksional bisa salah men-tag unit yang
+   cuma menerbitkan, bukan yang dibahas.
+
+   Retry cap: kolom `fetch_gagal_count` (INT, default 0) naik tiap kali isi
+   masih kosong sesudah fetch (request gagal ATAU halaman genuinely tanpa
+   konten yang bisa diekstrak, mis. artikel yang paragrafnya di `<h3>` --
+   kasus langka, 1 dari 274); begitu >=3x, URL itu berhenti otomatis
+   dicoba lagi tiap minggu (lihat `MAX_GAGAL`/`bump_fail_counts()` di
+   fetch_backlog.py). Baris yang belum pernah ada sama sekali TIDAK kena
+   counter -- artikel benar-benar baru yang gagal di percobaan pertama
+   tetap dicoba lagi minggu depan.
+
+   Hasil backfill (2026-09-01): 32.160 URL awal -> 31.900 isi terisi (369
+   kosong: 265 karena template `<div>` di atas + 8 timeout + sisanya
+   perbedaan hitung race sitemap yang terus bertambah). Setelah fallback
+   `<div>` + backfill_sitemap.py susulan (menangkap sitemap terbaru):
+   32.192 baris, **32.190 isi terisi (99,99%)**, cuma 2 baris tersisa
+   (masing-masing baru gagal 1x, belum kena cap).
+
+   `normalisasi.py` digeneralisasi (2026-09-01): DELETE+INSERT ulangnya
+   sekarang otomatis passthrough SEMUA kolom di luar 6 kolom inti
+   (url/judul/tanggal/deskripsi/kategori/sumber) apa adanya -- bukan
+   hardcode daftar isi/kredit lagi. Ini investasi ke depan: kolom baru
+   apapun yang ditambah script lain nanti otomatis aman dari DELETE+INSERT
+   ini, tidak perlu tambal manual lagi (sudah 2x jadi bug nyata: isi/kredit,
+   lalu fetch_gagal_count).
 
 7. **Output**
    - `dashboard_berita_dampak.py` — Streamlit interaktif dengan filter global

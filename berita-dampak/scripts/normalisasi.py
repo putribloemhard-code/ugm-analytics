@@ -37,50 +37,48 @@ def parse_date(s: str | None) -> str | None:
         return None
 
 
-COLUMNS = ["url", "judul", "tanggal", "deskripsi", "kategori", "sumber", "isi", "kredit"]
+# Kolom yang dibersihkan/diproses manual di bawah (url dinormalisasi,
+# judul/deskripsi/kategori lewat clean_text, tanggal lewat parse_date).
+# Kolom LAIN yang ada di tabel (isi, kredit, fetch_gagal_count, dan
+# apapun yang ditambah script lain di masa depan) OTOMATIS dibawa APA
+# ADANYA lewat PASSTHROUGH_COLS di bawah -- JANGAN hardcode daftar kolom
+# tambahan di sini lagi, itu sumber bug nyata 2x: DELETE+INSERT ulang
+# tabel ini yang cuma bawa kolom inti akan diam-diam menghapus kolom lain
+# (isi/kredit lalu fetch_gagal_count) di setiap update mingguan.
+CORE_COLS = ["url", "judul", "tanggal", "deskripsi", "kategori", "sumber"]
 
 
 def main() -> None:
     engine = get_engine()
     table = t("berita")
 
-    # isi/kredit (scripts/fetch_backlog.py) dibaca & ditulis balik APA ADANYA
-    # (bukan lewat clean_text) -- kalau kolomnya belum ada (belum pernah
-    # jalanin fetch_backlog.py), SELECT * otomatis tidak menyertakannya dan
-    # kita treat sebagai kosong; JANGAN ganti ke SELECT eksplisit 6 kolom
-    # lama, itu pernah jadi bug nyata: DELETE+INSERT ulang tabel ini cuma
-    # bawa 6 kolom lama akan diam-diam menghapus isi/kredit semua baris di
-    # setiap update mingguan.
     def _read_all():
         with engine.connect() as conn:
-            cols = {
+            all_cols = [
                 r[0] for r in conn.exec_driver_sql(f"SHOW COLUMNS FROM `{table}`").fetchall()
-            }
-            has_isi = "isi" in cols and "kredit" in cols
-            select_cols = (
-                "url, judul, tanggal, deskripsi, kategori, sumber, isi, kredit"
-                if has_isi else
-                "url, judul, tanggal, deskripsi, kategori, sumber"
-            )
-            rows_ = conn.exec_driver_sql(f"SELECT {select_cols} FROM `{table}`").fetchall()
-            return rows_, has_isi
+            ]
+            passthrough_cols = [c for c in all_cols if c not in CORE_COLS]
+            select_cols = CORE_COLS + passthrough_cols
+            rows_ = conn.exec_driver_sql(
+                f"SELECT {', '.join(f'`{c}`' for c in select_cols)} FROM `{table}`"
+            ).fetchall()
+            return rows_, passthrough_cols
 
     ok, result = with_retry(_read_all, label="baca tabel berita")
     if not ok:
         print("GAGAL membaca tabel berita dari MySQL setelah 3 percobaan -- batal.")
         return
-    rows, has_isi = result
+    rows, passthrough_cols = result
+    insert_cols = CORE_COLS + passthrough_cols
     print(f"Sebelum normalisasi: {len(rows)} baris "
-          f"(kolom isi/kredit: {'ada' if has_isi else 'belum ada'})")
+          f"(kolom passthrough: {', '.join(passthrough_cols) or '(tidak ada)'})")
 
+    n_core = len(CORE_COLS)
     cleaned = []
     seen = set()
     for row in rows:
-        if has_isi:
-            url, judul, tanggal, deskripsi, kategori, sumber, isi, kredit = row
-        else:
-            url, judul, tanggal, deskripsi, kategori, sumber = row
-            isi, kredit = None, None
+        url, judul, tanggal, deskripsi, kategori, sumber = row[:n_core]
+        extra = row[n_core:]  # isi/kredit/fetch_gagal_count/dst -- dibawa apa adanya
         u = url.split("?")[0].strip().rstrip("/")
         if not u or u in seen:
             continue  # duplikat URL (bentuk mentah vs bersih) — baris kedua dibuang
@@ -90,12 +88,7 @@ def main() -> None:
         k = clean_text(kategori)
         if not j:
             continue  # baris tanpa judul tidak berguna
-        cleaned.append((u, j, parse_date(tanggal), d, k, sumber, isi, kredit))
-
-    # Kolom aktual dipakai sesuai has_isi (kalau isi/kredit belum ada di
-    # tabel -- mis. sebelum fetch_backlog.py pernah jalan sekalipun -- jangan
-    # sisipkan kolom yang tidak ada, INSERT akan gagal).
-    insert_cols = COLUMNS if has_isi else COLUMNS[:-2]
+        cleaned.append((u, j, parse_date(tanggal), d, k, sumber, *extra))
 
     # DELETE + INSERT dalam SATU transaksi: kalau proses berhenti di tengah
     # (atau gagal), rollback otomatis mengembalikan tabel ke kondisi sebelum
@@ -107,7 +100,7 @@ def main() -> None:
             if cleaned:
                 cols_sql = ", ".join(f"`{c}`" for c in insert_cols)
                 placeholders = ", ".join(f":{c}" for c in insert_cols)
-                data = [dict(zip(insert_cols, row[: len(insert_cols)])) for row in cleaned]
+                data = [dict(zip(insert_cols, row)) for row in cleaned]
                 conn.execute(
                     text(f"INSERT INTO `{table}` ({cols_sql}) VALUES ({placeholders})"),
                     data,

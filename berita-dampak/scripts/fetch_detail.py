@@ -2,9 +2,23 @@
 
 Baca daftar URL dari tabel `berita_sitemap`, filter yang cocok dengan kata
 kunci topik dampak (di slug URL), lalu fetch halaman untuk mengambil judul
-(h1), deskripsi (meta description), dan tanggal terbit (datePublished).
+(h1), deskripsi (meta description), tanggal terbit (datePublished), DAN isi
+lengkap artikel + kredit redaksional (lewat `fetch_full()` dari
+scripts/fetch_backlog.py -- SUMBER TUNGGAL logika ekstraksi isi/kredit,
+JANGAN duplikat di sini, lihat docstring fetch_backlog.py).
 Hasil disimpan ke tabel `berita_berita` (sumber='sitemap').
 Fetch berjalan paralel (8 thread) dengan throttle ringan.
+
+Kandidat = URL sitemap yang cocok kata kunci topik dampak DAN belum punya
+`isi` terisi di berita_berita (bukan sekadar "belum ada baris sama sekali")
+-- supaya artikel yang sudah masuk lewat ingest.py (RSS, sumber='rss', cuma
+judul+deskripsi pendek) atau fetch pra-fitur isi/kredit ikut ke-refetch dan
+otomatis dapat isi/kredit tanpa backfill manual (bug yang diperbaiki
+2026-09-01, lihat PIPELINE.md) -- KECUALI yang sudah gagal >=3x berturut-turut
+(kolom `fetch_gagal_count`, lihat MAX_GAGAL & bump_fail_counts() di
+fetch_backlog.py) supaya URL yang memang bermasalah (timeout permanen,
+halaman tanpa konten yang bisa diekstrak) tidak dicoba ulang setiap minggu
+selamanya dan buang-buang request.
 """
 
 import re
@@ -13,15 +27,15 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-import requests
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from db import ensure_url_primary_key, get_engine, t, upsert, with_retry  # noqa: E402
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-    "Accept-Language": "id-ID,id;q=0.9,en;q=0.8",
-}
+from fetch_backlog import (  # noqa: E402
+    MAX_GAGAL,
+    bump_fail_counts,
+    clean_url,
+    ensure_fetch_columns,
+    fetch_full,
+)
 
 # Kata kunci slug URL (ID + EN) per topik dampak — filter awal sebelum fetch.
 SLUG_TOPICS = {
@@ -50,40 +64,8 @@ def build_slug_regex() -> str:
     return "|".join(re.escape(w) for w in sorted(kws, key=len, reverse=True))
 
 
-def fetch_detail(url: str, retries: int = 3) -> dict | None:
-    for attempt in range(retries):
-        try:
-            r = requests.get(url, timeout=45, headers=HEADERS)
-            if r.status_code != 200:
-                return None
-            t = r.text
-            h1 = re.findall(r"<h1[^>]*>(.*?)</h1>", t, re.S)
-            desc = re.search(r'<meta name="description" content="(.*?)"', t, re.S)
-            date = re.search(r'"datePublished"\s*:\s*"([^"]+)"', t)
-            judul = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", h1[0])).strip() if h1 else ""
-            if not judul:
-                og = re.search(r'property="og:title" content="(.*?)"', t, re.S)
-                if og:
-                    judul = og.group(1).split(" - ")[0].strip()
-            if desc:
-                deskripsi = re.sub(r"\s+", " ", desc.group(1)).strip()
-            else:
-                # Banyak halaman tidak punya meta name=description tapi punya
-                # og:description — pakai itu sebagai fallback (2026-08-20).
-                ogd = re.search(r'property="og:description" content="(.*?)"', t, re.S)
-                deskripsi = re.sub(r"\s+", " ", ogd.group(1)).strip() if ogd else ""
-            return {
-                "judul": judul,
-                "tanggal": date.group(1) if date else None,
-                "deskripsi": deskripsi,
-            }
-        except Exception:  # noqa: BLE001
-            time.sleep(2 * (attempt + 1))
-    return None
-
-
 BATCH_SIZE = 100
-COLUMNS = ["url", "judul", "tanggal", "deskripsi", "kategori", "sumber"]
+COLUMNS = ["url", "judul", "tanggal", "deskripsi", "kategori", "sumber", "isi", "kredit"]
 
 
 def main() -> None:
@@ -99,11 +81,15 @@ def main() -> None:
                 tanggal VARCHAR(40),
                 deskripsi TEXT,
                 kategori TEXT,
-                sumber VARCHAR(20)
+                sumber VARCHAR(20),
+                isi TEXT,
+                kredit TEXT,
+                fetch_gagal_count INT NOT NULL DEFAULT 0
             )
             """
         )
     ensure_url_primary_key(engine, berita_table)
+    ensure_fetch_columns(engine)  # no-op kalau tabel di atas baru dibuat (sudah ada kolomnya)
 
     pattern = build_slug_regex()
 
@@ -113,14 +99,19 @@ def main() -> None:
                 f"SELECT url, lastmod FROM `{sitemap_table}` WHERE LOWER(url) REGEXP %s",
                 (pattern,),
             ).fetchall()
-            # URL yang SUDAH ADA di tabel berita, dalam bentuk bersih (tanpa
-            # query string / trailing slash) — normalisasi.py menyimpan
-            # bentuk ini.
+            # URL yang SUDAH punya `isi` terisi, ATAU sudah gagal >=MAX_GAGAL
+            # kali berturut-turut (lihat fetch_backlog.bump_fail_counts) --
+            # dalam bentuk bersih (tanpa query string / trailing slash),
+            # normalisasi.py menyimpan bentuk ini. SENGAJA "isi terisi",
+            # bukan "baris ada", supaya artikel yang baru masuk lewat
+            # ingest.py (RSS, cuma judul+deskripsi pendek) ikut di-refetch
+            # untuk dapat isi/kredit.
             existing_ = set(
                 r[0]
                 for r in conn.exec_driver_sql(
                     f"SELECT DISTINCT TRIM(TRAILING '/' FROM SUBSTRING_INDEX(url, '?', 1)) "
-                    f"FROM `{berita_table}`"
+                    f"FROM `{berita_table}` WHERE (isi IS NOT NULL AND isi != '') "
+                    f"OR fetch_gagal_count >= {MAX_GAGAL}"
                 ).fetchall()
             )
         return rows_, existing_
@@ -131,11 +122,12 @@ def main() -> None:
         return
     rows, existing = result
     rows = [r for r in rows if r[0].split("?")[0].rstrip("/") not in existing]
-    print(f"URL sitemap relevan yang BELUM ada di tabel berita: {len(rows)}")
+    print(f"URL sitemap relevan yang BELUM punya isi di tabel berita: {len(rows)}")
 
     total = 0
     done = 0
     buffer: list[tuple] = []
+    empty_urls: list[str] = []  # isi masih kosong sesudah fetch -- lihat bump_fail_counts
 
     def flush() -> None:
         nonlocal buffer
@@ -145,22 +137,28 @@ def main() -> None:
             # jalan berjam-jam), baris yang sudah di-flush tetap tersimpan.
             upsert(
                 engine, berita_table, COLUMNS, buffer,
-                update_columns=["judul", "tanggal", "deskripsi", "kategori", "sumber"],
+                update_columns=["judul", "tanggal", "deskripsi", "kategori", "sumber", "isi", "kredit"],
                 chunk_size=BATCH_SIZE,
             )
             buffer = []
 
     with ThreadPoolExecutor(max_workers=8) as pool:
-        futures = {pool.submit(fetch_detail, url): (url, lastmod) for url, lastmod in rows}
+        futures = {pool.submit(fetch_full, url): (url, lastmod) for url, lastmod in rows}
         for fut in as_completed(futures):
             url, lastmod = futures[fut]
             detail = fut.result()
             done += 1
             if not detail:
+                empty_urls.append(url)
                 if done % 500 == 0:
                     print(f"  ... {done}/{len(rows)} ({total} tersimpan)")
                 continue
-            buffer.append((url, detail["judul"], detail["tanggal"] or lastmod, detail["deskripsi"], "", "sitemap"))
+            if not detail["isi"]:
+                empty_urls.append(url)
+            buffer.append((
+                clean_url(url), detail["judul"], detail["tanggal"] or lastmod,
+                detail["deskripsi"], "", "sitemap", detail["isi"], detail["kredit"],
+            ))
             total += 1
             if len(buffer) >= BATCH_SIZE:
                 flush()
@@ -168,6 +166,7 @@ def main() -> None:
                 print(f"  ... {done}/{len(rows)} ({total} tersimpan)")
             time.sleep(0.05)  # throttle ringan
     flush()
+    bump_fail_counts(engine, empty_urls)
 
     with engine.connect() as conn:
         n = conn.exec_driver_sql(f"SELECT COUNT(*) FROM `{berita_table}`").scalar()
