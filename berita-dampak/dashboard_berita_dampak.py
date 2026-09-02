@@ -301,17 +301,20 @@ else:
     else:
         st.sidebar.caption("⚠️ Pilih minimal satu dampak untuk melihat tema.")
 
-    # Filter fakultas/unit kerja (independen dari tema/pilar Kepmen) --
-    # default kosong = tidak memfilter apa pun sampai user pilih (lihat
-    # berita_unit_kerja, tabel dari scripts/tag_unit_kerja.py).
-    unit_pilih = st.sidebar.multiselect(
-        "Fakultas / Unit Kerja",
-        options=UNIT_KERJA_OPSI,
-        default=[],
-        format_func=lambda k: UNIT_KERJA[k]["nama"],
-        help="Filter berita yang menyebut fakultas/sekolah/unit kerja ini "
-             "(nama resmi, hasil keyword matching). Kosong = tidak memfilter.",
-    )
+# Filter fakultas/unit kerja (independen dari tema/pilar Kepmen DAN dari mode
+# SDGs/Berdampak -- SENGAJA di luar if/else mode di atas supaya tetap muncul
+# & berlaku di ketiga mode, termasuk mode "SDGs" yang punya jalur data sendiri
+# (lihat penerapannya di situ, beda dari filter unit di jalur Berdampak).
+# Default kosong = tidak memfilter apa pun sampai user pilih (lihat
+# berita_unit_kerja, tabel dari scripts/tag_unit_kerja.py).
+unit_pilih = st.sidebar.multiselect(
+    "Fakultas / Unit Kerja",
+    options=UNIT_KERJA_OPSI,
+    default=[],
+    format_func=lambda k: UNIT_KERJA[k]["nama"],
+    help="Filter berita yang menyebut fakultas/sekolah/unit kerja ini "
+         "(nama resmi, hasil keyword matching). Kosong = tidak memfilter.",
+)
 
 # Narasi LLM ter-cache (lihat load_narasi_cache di atas) cuma valid utk posisi
 # filter DEFAULT -- begitu user ganti tahun/tema/pilar/SDG, angka2 dalam
@@ -386,11 +389,19 @@ if mode == "SDGs":
     st.caption(
         "Mapping langsung url berita sitemap ke 17 SDG (tanpa tema dampak Kepmen): "
         "kata-kata slug URL untuk yang belum di-fetch + judul & deskripsi untuk "
-        "4.787 yang sudah. Satu berita bisa masuk beberapa SDG. Filter SDG di "
-        "sidebar berlaku di sini."
+        "4.787 yang sudah. Satu berita bisa masuk beberapa SDG. Filter SDG & "
+        "Fakultas/Unit Kerja di sidebar berlaku di sini."
     )
     sitemap["tahun"] = sitemap["lastmod"].str[:4]
     sm = sitemap[sitemap["tahun"].between(tahun_awal, tahun_akhir)].copy()
+    if unit_pilih:
+        # sitemap simpan url MENTAH (bisa ada trailing slash/query string),
+        # sedangkan berita_unit_kerja simpan url BERSIH (konvensi
+        # normalisasi.py) -- samakan bentuknya dulu sebelum dicocokkan,
+        # jangan langsung .isin() dua bentuk url yang berbeda.
+        unit_urls_bersih = set(uk.loc[uk["unit_kerja"].isin(unit_pilih), "url"])
+        sm_url_bersih = sm["url"].str.split("?").str[0].str.rstrip("/")
+        sm = sm[sm_url_bersih.isin(unit_urls_bersih)]
     ss_f = ss[ss["sdg"].isin(sdg_pilih) & ss["url"].isin(set(sm["url"]))]
     n_url = len(sm)
     n_tag = ss_f["url"].nunique()
