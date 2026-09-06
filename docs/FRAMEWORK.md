@@ -21,8 +21,16 @@
 ├── dashboard_<nama>.py  # Streamlit interaktif
 ├── laporan_<nama>.html  # laporan statis (plotly inline, offline)
 ├── data/              # DuckDB + CSV mentah/bersih
-└── scripts/           # pipeline: scrape → normalize → tag → aggregate → report
+├── scripts/           # pipeline: scrape → normalize → tag → aggregate → report
+└── docs/              # dokumen & sumber KHUSUS subproyek ini (bukan lintas-proyek)
+    └── sumber/        # PDF/xlsx sumber yang HANYA dipakai subproyek ini
 ```
+
+Dokumen/sumber yang dipakai ≥2 subproyek TIDAK masuk `<subproyek>/docs/` — tetap di
+root `docs/` (dokumen) atau root `sumber/` (data/PDF/xlsx sumber), supaya tidak
+diduplikasi. Contoh: `sumber/UGM Analytics.xlsx` dan `sumber/Salinan_Kepmen_361_M_KEP_2025_Indikator_Dampak.pdf`
+dipakai baik `berita-dampak/` maupun `matkul-sustainability/` untuk mapping resmi
+Kepmen/SDG.
 
 ## Pipeline umum (pola matkul-sustainability → dipakai berita-dampak)
 
@@ -67,7 +75,7 @@ aturan penting" di bawah.
   `SDG_NAMA`. Dashboard + laporan + tagging semua import dari sini.
 - Sumber: `sumber/UGM Analytics.xlsx` sheet "Konten UGM Berdampak" (7 baris resmi)
   + "#Ref" (Dampak→Tema→SDG, sparse/merged — baca per-sel dengan koordinat),
-  PDF Kepmen 361 (OCR: `docs/kepmen_361_ocr.txt`).
+  PDF Kepmen 361 (OCR: `berita-dampak/docs/kepmen_361_ocr.txt`).
 - Pitfall konseptual: klaster SDG adalah atribut tema (semua berita dalam
   satu tema membawa SDG sama), bukan hasil matching per berita.
 

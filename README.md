@@ -10,6 +10,7 @@ klaster **SDGs** — berbasis data publik yang bisa diambil offline.
 |---|---|---|
 | `berita-dampak/` | Analisis berita dampak ugm.ac.id (14 tema Kepmen, 3 pilar, SDG) | **Aktif** — pipeline + dashboard + laporan + update mingguan |
 | `matkul-sustainability/` | Mata kuliah terkait sustainability per fakultas/prodi | Selesai (2026-08-12) |
+| `akreditasi/` | Kelengkapan data LED & LKPS (LAM-INFOKOM) — Prodi Magister Elektronika dan Instrumentasi | **Aktif** — registry + dashboard + generator dokumen Word |
 | `kkn-desa-binaan/` | Sebaran KKN & desa binaan (data dari eLOK — belum ada) | Kosong, butuh akses eLOK |
 | `mahasiswa-afirmasi/` | Analisis kelompok afirmasi (data sensitif — belum ada) | Kosong, butuh akses resmi |
 
@@ -29,11 +30,12 @@ Laporan statis (tanpa server): `berita-dampak/laporan_berita_dampak.html`.
 
 - `docs/PERENCANAAN.md` — tujuan, backlog ide, milestone, status per subproyek
 - `docs/FRAMEWORK.md` — arsitektur, pipeline, konvensi, struktur folder, stack
-- `docs/OUTPUT.md` — output yang dihasilkan (dashboard, laporan, tabel DB, angka)
 - `berita-dampak/README.md` — peta file subproyek berita-dampak
 - `berita-dampak/PIPELINE.md` — alur processing + perintah run
 - `berita-dampak/DASHBOARD.md` — isi dashboard + cara membaca
+- `berita-dampak/docs/OUTPUT.md` — output yang dihasilkan (dashboard, laporan, tabel DB, angka)
 - `matkul-sustainability/README.md` + `PIPELINE.md` + `DASHBOARD.md` — subproyek matkul
+- `akreditasi/README.md` + `PIPELINE.md` + `DASHBOARD.md` — subproyek akreditasi (LED/LKPS)
 
 ## Referensi resmi (folder `sumber/`)
 
@@ -41,7 +43,7 @@ Laporan statis (tanpa server): `berita-dampak/laporan_berita_dampak.html`.
   (sheet "Konten UGM Berdampak" = 7 baris template; sheet "#Ref" = pemetaan
   Dampak → Topik Kepmen → SDGs). SUMBER KEBENARAN mapping topik→Kepmen→SDG.
 - `sumber/Salinan_Kepmen_361_M_KEP_2025_Indikator_Dampak.pdf` — Kepmen asli (scan;
-  OCR: `docs/kepmen_361_ocr.txt`)
+  OCR: `berita-dampak/docs/kepmen_361_ocr.txt`)
 - `sumber/Buku_IKU_Diktisaintek_Berdampak_V1.pdf` — 12 IKU (14 tema sama dgn Kepmen; jangan campur hitungan: 12 IKU ≠ 14 tema)
 
 ## Lingkungan

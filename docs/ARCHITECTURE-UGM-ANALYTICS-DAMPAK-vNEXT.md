@@ -48,7 +48,7 @@ Referensi resmi (satu sumber kebenaran, folder `sumber/`): `sumber/UGM Analytics
 (sheet "Konten UGM Berdampak" = 7 baris Dampak→Topik Resmi→Klaster SDGs→Indikator→Sumber Data;
 sheet "#Ref" = pemetaan Dampak→Topik Kepmen→SDG sparse/merged),
 `sumber/Salinan_Kepmen_361_M_KEP_2025_Indikator_Dampak.pdf` (scan, OCR →
-`docs/kepmen_361_ocr.txt`), `sumber/Buku_IKU_Diktisaintek_Berdampak_V1.pdf` (12 IKU — tema sama dgn Kepmen: 14).
+`berita-dampak/docs/kepmen_361_ocr.txt`), `sumber/Buku_IKU_Diktisaintek_Berdampak_V1.pdf` (12 IKU — tema sama dgn Kepmen: 14).
 Daftar 44 fakultas/sekolah/unit kerja UGM: diberikan langsung oleh pemilik project (bukan hasil
 scraping), disimpan di `berita-dampak/scripts/unit_kerja.py`.
 
@@ -95,7 +95,7 @@ caveat koneksi-tulis-mengunci-file di §5 & §6 HANYA berlaku untuk subproyek in
 - eLOK: user menolak probing jaringan live — semua kerja berbasis data lokal; re-scrape harus konfirmasi dulu
 - DuckDB di Windows: koneksi tulis (DuckDB CLI / DBeaver wizard) mengunci file total — dashboard IOException; fix: `duckdb -readonly`, disconnect DBeaver, atau retry loop (**HANYA berlaku matkul-sustainability** — berita-dampak sudah migrasi ke MySQL 2026-08-29, lihat caveat "Koneksi MySQL" di `berita-dampak/PIPELINE.md`)
 - Keyword false-positive DITOLAK berbasis validasi sampel: delegation (prestasi lomba), desa/village, kebijakan/policy, nuclear (terlalu luas)
-- Keyword WAJIB bersumber dari detailing tabel Kepmen (definisi/kriteria/ketentuan per tema, OCR docs/kepmen_361_ocr.txt) — istilah di luar detailing dibuang; kata luas lintas-tema ditolak; token ≤5 huruf otomatis word boundary di tag_kepmen_all.py (proven 2026-08-21: "paten" substring-match "kabupaten" 190 FP → \bpaten\b 2 match relevan)
+- Keyword WAJIB bersumber dari detailing tabel Kepmen (definisi/kriteria/ketentuan per tema, OCR berita-dampak/docs/kepmen_361_ocr.txt) — istilah di luar detailing dibuang; kata luas lintas-tema ditolak; token ≤5 huruf otomatis word boundary di tag_kepmen_all.py (proven 2026-08-21: "paten" substring-match "kabupaten" 190 FP → \bpaten\b 2 match relevan)
 - Klaster SDG adalah atribut TOPIK (semua berita satu topik membawa SDG sama), bukan matching per berita; SDG di-dedup per url — **konsekuensi non-obvious** (ditemukan 2026-09-01 lewat pertanyaan user "kenapa SDG 1 menang, bukan SDG 17"): tema Kepmen dominan suatu unit BISA membawa SDG yang tidak terkait langsung ke isi tekstual artikelnya (contoh nyata: Biro Transformasi Digital 16/18 berita ke tema "Penelitian dan Inovasi" → otomatis SDG 1 & 9 [resmi Kepmen], padahal isi teksnya lebih ke SDG 9/17; giliran dicek di mode "SDGs" [keyword langsung ke teks, independen dari tema] SDG 1 anjlok ke 1/19, SDG 9 & 4 malah seri di 19, SDG 17 di 16) — mode "Berdampak × SDGs" dan mode "SDGs" TIDAK bisa dianggap saling menggantikan, keduanya jawab pertanyaan berbeda
 - Angka dampak = lower-bound keyword match — **update 2026-09-01 (basis penuh 32.191 berita, isi lengkap ikut di-scan)**: tema Kepmen 19.800/32.191 (61,5%, naik dari 2.369/4.787=49,5% baseline 2026-08-21 sebagian besar karena isi lengkap + basis lebih besar), SDG langsung (mode "SDGs saja") 31.873/32.194 (99,0%, naik drastis dari sebelumnya keyword-di-slug-saja) — sediakan expander "tidak match" untuk cek manual
 - Update mingguan menulis DB 10–15 mnt → dashboard tak bisa dibuka; lock file cegah update ganda
@@ -117,7 +117,7 @@ caveat koneksi-tulis-mengunci-file di §5 & §6 HANYA berlaku untuk subproyek in
 
 ## 7. DOKUMEN TERKAIT
 
-- `docs/PERENCANAAN.md` (tujuan/backlog/milestone) · `docs/FRAMEWORK.md` (arsitektur/konvensi/stack) · `docs/OUTPUT.md` (hasil) · `docs/listing-ide-analisis-dampak.md` (ide backlog) · `docs/kepmen_361_ocr.txt` (OCR Kepmen)
+- `docs/PERENCANAAN.md` (tujuan/backlog/milestone) · `docs/FRAMEWORK.md` (arsitektur/konvensi/stack) · `berita-dampak/docs/OUTPUT.md` (hasil) · `docs/listing-ide-analisis-dampak.md` (ide backlog) · `berita-dampak/docs/kepmen_361_ocr.txt` (OCR Kepmen)
 - Per subproyek: `README.md` (peta file) + `PIPELINE.md` (alur) + `DASHBOARD.md` (isi dashboard) — matkul-sustainability & berita-dampak lengkap
 - Referensi resmi: `sumber/UGM Analytics.xlsx` · `sumber/Salinan_Kepmen_361_M_KEP_2025_Indikator_Dampak.pdf` · `sumber/Buku_IKU_Diktisaintek_Berdampak_V1.pdf`
 - Angka kunci live berita-dampak (**2026-09-01, MySQL, basis penuh 32.191 berita — isi lengkap ikut discan**): tema Kepmen 19.800 unik bertopik (61,5%); pilar Sosial 12.514 / Ekonomi 8.688 / Lingkungan 7.411; topik terbesar pengabdian_masyarakat 7.391, kunjungan_akademik 5.544, instansi_publik 4.746, penelitian_inovasi_sosial 3.826, rehabilitasi_lingkungan 3.396; SDG terbesar (mode Berdampak × SDGs, warisan tema) SDG 8 (12.888), 11 (12.224), 17 (11.197), 1 (10.253); SDG langsung dari teks (mode "SDGs saja") 31.873/32.194 URL (99,0%). Unit kerja (BARU): 10.296/32.191 berita (32,0%) match ≥1 dari 44 fakultas/sekolah/unit kerja.
