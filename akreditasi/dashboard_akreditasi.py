@@ -48,6 +48,22 @@ st.markdown(
 st.title("🎓 Kelengkapan Data Akreditasi")
 st.caption("LED & LKPS — Prodi Magister Elektronika dan Instrumentasi (MEI)")
 
+scope = st.radio(
+    "Lingkup akreditasi",
+    options=["Akreditasi Program Studi", "Akreditasi Universitas"],
+    horizontal=True,
+    key="akreditasi_scope",
+)
+if scope == "Akreditasi Universitas":
+    st.info(
+        "Instrumen akreditasi Universitas (BAN-PT — LED APT/LKPT) berbeda struktur dari "
+        "instrumen Program Studi (LAM-INFOKOM — LED/LKPS) yang sudah dibangun di sini. "
+        "Dokumen requirement untuk instrumen institusi ini belum tersedia di "
+        "akreditasi/docs/. Fitur ini akan dikembangkan setelah dokumen requirement "
+        "LED APT/LKPT disiapkan."
+    )
+    st.stop()
+
 dr.consume_pending_switch()
 mode = st.radio(
     "Pilih dokumen",

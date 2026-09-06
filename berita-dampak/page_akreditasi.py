@@ -155,6 +155,22 @@ def _render_lampiran_dampak_sdg():
 
 
 def render() -> None:
+    scope = st.radio(
+        "Lingkup akreditasi",
+        options=["Akreditasi Program Studi", "Akreditasi Universitas"],
+        horizontal=True,
+        key="akreditasi_scope",
+    )
+    if scope == "Akreditasi Universitas":
+        st.info(
+            "Instrumen akreditasi Universitas (BAN-PT — LED APT/LKPT) berbeda struktur dari "
+            "instrumen Program Studi (LAM-INFOKOM — LED/LKPS) yang sudah dibangun di sini. "
+            "Dokumen requirement untuk instrumen institusi ini belum tersedia di "
+            "akreditasi/docs/. Fitur ini akan dikembangkan setelah dokumen requirement "
+            "LED APT/LKPT disiapkan."
+        )
+        st.stop()
+
     import dashboard_render as dr  # dari akreditasi/scripts (bare import, lihat sys.path di atas)
     from registry_kebutuhan_data import led_items_by_kriteria, lkps_items_by_bagian  # bare import
 
