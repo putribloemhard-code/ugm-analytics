@@ -65,7 +65,16 @@ div[data-testid="stLayoutWrapper"] > div[data-testid="stVerticalBlock"] {
    .home-card di berita-dampak/common.py) -- proyek yang mendefinisikan
    class kartu sendiri WAJIB tambah `height: 100%; box-sizing: border-box;`
    di definisi class itu supaya kartunya sendiri (bukan cuma wrapper-nya)
-   ikut memanjang mengisi tinggi kolom yang sudah di-stretch di atas. */
+   ikut memanjang mengisi tinggi kolom yang sudah di-stretch di atas.
+   `stElementContainer` di atas SUDAH height:100%, tapi st.markdown
+   membungkusnya sekali lagi lewat `stMarkdown` (beda dari st.metric yang
+   langsung `stElementContainer > stMetric` tanpa wrapper tambahan) --
+   tanpa baris ini, height:100% berhenti di stElementContainer dan tidak
+   pernah sampai ke div/`<a>` custom-nya (diverifikasi lewat DOM Streamlit
+   1.61.1, bukan ditebak). */
+div[data-testid="stElementContainer"] > div[data-testid="stMarkdown"] { height: 100%; }
+div[data-testid="stElementContainer"] > div[data-testid="stMarkdown"] > div { height: 100%; }
+div[data-testid="stMarkdownContainer"] { height: 100%; }
 </style>
 """
 

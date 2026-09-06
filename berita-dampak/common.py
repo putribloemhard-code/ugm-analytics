@@ -148,8 +148,16 @@ div[data-testid="stNotification"] { border-radius: 12px; }
     padding-top: 8px; margin-top: 2px; min-height: 3.4em;
 }
 
-/* Kartu shortcut Beranda */
+/* Kartu shortcut Beranda -- SATU elemen <a> (kartu + tombol "Buka ->" jadi
+   satu blok HTML, lihat pages_app/beranda.py) supaya ukurannya menyesuaikan
+   diri sendiri, bukan digabung dari dua elemen Streamlit terpisah (custom
+   div + st.button). display:flex + footer margin-top:auto membuat
+   "Buka ->" selalu menempel di bawah kartu apa pun panjang teks
+   deskripsinya, dan kartu tetap rata tinggi lewat height:100% (kolomnya
+   sendiri sudah stretch align, lihat shared/style.py). */
 .home-card {
+    display: flex;
+    flex-direction: column;
     border-radius: 16px;
     padding: 24px 18px;
     text-align: center;
@@ -157,10 +165,32 @@ div[data-testid="stNotification"] { border-radius: 12px; }
     background: rgba(128,128,128,0.05);
     height: 100%;
     box-sizing: border-box;
+    text-decoration: none;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+/* `<a>` punya warna+underline default browser/tema Streamlit dgn spesifisitas
+   lebih tinggi dari `color:inherit` biasa -- paksa pakai warna teks tema
+   (var Streamlit) supaya kartu ini terlihat SAMA seperti versi <div> lama,
+   bukan seperti link biru pada umumnya. */
+.home-card,
+.home-card * {
+    text-decoration: none !important;
+    color: var(--text-color, inherit) !important;
+}
+.home-card:hover {
+    border-color: rgba(128,128,128,0.4);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
 }
 .home-card-icon { font-size: 2.4rem; line-height: 1; margin-bottom: 8px; }
 .home-card-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 6px; }
-.home-card-desc { font-size: 0.85rem; opacity: 0.75; min-height: 2.6em; }
+.home-card-desc { font-size: 0.85rem; opacity: 0.75; }
+.home-card-footer {
+    margin-top: auto;
+    padding-top: 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-top: 1px solid rgba(128,128,128,0.2);
+}
 </style>
 """
 

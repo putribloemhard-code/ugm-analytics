@@ -125,32 +125,37 @@ st.caption(
 st.markdown("<br>", unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns(3, gap="medium")
+# href = url_path halaman tujuan (lihat dashboard_berita_dampak.py) -- tombol
+# "Buka ->" SENGAJA jadi bagian dari SATU blok HTML yang sama dengan kartu
+# (bukan st.button terpisah di elemen Streamlit lain) supaya kartu+tombol
+# selalu satu kotak yang ukurannya menyesuaikan diri sendiri -- align lintas
+# elemen Streamlit (custom div vs st.button) terbukti rapuh lewat CSS murni
+# karena banyak lapis div pembungkus antara keduanya tidak meneruskan tinggi.
 kartu = [
     (col1, "🌍", "Analisis Dampak Universitas",
      "3 dampak (Lingkungan, Ekonomi, Sosial) & 14 tema resmi Kepmen, "
      "opsional dikombinasikan dengan SDGs.",
-     "pages_app/dampak_sdgs.py"),
+     "dampak-sdgs"),
     (col2, "🎯", "SDGs",
      "Mapping langsung seluruh berita UGM ke 17 SDG -- jangkauan paling luas.",
-     "pages_app/sdgs.py"),
+     "sdgs"),
     (col3, "📄", "Akreditasi",
      "Filter data & generate laporan akreditasi siap unduh (Word).",
-     "pages_app/akreditasi.py"),
+     "akreditasi"),
 ]
-for col, icon, judul, desk, target in kartu:
+for col, icon, judul, desk, url_path in kartu:
     with col:
         st.markdown(
             f"""
-            <div class="home-card">
+            <a class="home-card" href="/{url_path}" target="_self">
                 <div class="home-card-icon">{icon}</div>
                 <div class="home-card-title">{judul}</div>
                 <div class="home-card-desc">{desk}</div>
-            </div>
+                <div class="home-card-footer">Buka →</div>
+            </a>
             """,
             unsafe_allow_html=True,
         )
-        if st.button("Buka →", key=f"home_{judul}", use_container_width=True):
-            st.switch_page(target)
 
 st.markdown("---")
 st.subheader("Sekilas Data")
