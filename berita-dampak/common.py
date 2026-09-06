@@ -120,6 +120,11 @@ div[data-testid="stMetricValue"] * {
 }
 div[data-testid="stMetricLabel"] { font-size: 0.8rem; opacity: 0.75; }
 
+/* Kolom sejajar tinggi -- kartu (metric/pilar/home) dalam satu baris st.columns
+   rata tinggi ke kartu tertinggi, bukan masing-masing setinggi kontennya sendiri. */
+div[data-testid="stHorizontalBlock"] { align-items: stretch; }
+div[data-testid="column"] > div { height: 100%; }
+
 /* Narasi/insight box */
 div[data-testid="stAlertContentInfo"] { font-size: 0.97rem; line-height: 1.6; }
 div[data-testid="stNotification"] { border-radius: 12px; }
