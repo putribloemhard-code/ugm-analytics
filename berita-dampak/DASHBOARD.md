@@ -114,7 +114,7 @@ Sub-bagian di dalamnya:
 
 Indikator resmi Kepmen per tema (dari
 `Salinan_Kepmen_361_M_KEP_2025_Indikator_Dampak.pdf`, hasil OCR di
-`D:\\ugm-analytics\\docs\\kepmen_361_ocr.txt`):
+`D:\\ugm-analytics\\berita-dampak\\docs\\kepmen_361_ocr.txt`):
 
 | Tema berita | Indikator Kepmen | Formula | Satuan |
 |---|---|---|---|

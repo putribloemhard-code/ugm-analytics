@@ -26,7 +26,7 @@ Database: **MySQL** (bukan DuckDB lagi — migrasi penuh selesai; lihat
 | `scripts/laporan_static.py` | Cetak `laporan_berita_dampak.html` (11 chart + tabel 14 tema, JS inline) |
 | `scripts/update_mingguan.py` | Update berkala: jalankan pipeline lengkap (sitemap → RSS → fetch → normalisasi → tagging → narasi → laporan) |
 | `scripts/count_berita.py` | Helper kecil: cetak jumlah baris `berita_berita` (dipakai `update_mingguan.sh`) |
-| `scripts/ocr_kepmen.py` | OCR PDF Kepmen 361 (scan) → `../docs/kepmen_361_ocr.txt` |
+| `scripts/ocr_kepmen.py` | OCR PDF Kepmen 361 (scan) → `docs/kepmen_361_ocr.txt` |
 | `dashboard_berita_dampak.py` | Dashboard Streamlit interaktif (filter sidebar: tahun, 14 tema, sumber, pilar) |
 | `laporan_berita_dampak.html` | Laporan statis — buka di browser, render tanpa internet |
 | `DASHBOARD.md` | Penjelasan isi dashboard + cara membaca hasil |

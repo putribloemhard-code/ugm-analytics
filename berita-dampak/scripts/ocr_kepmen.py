@@ -7,9 +7,9 @@ from pathlib import Path
 import pymupdf
 from rapidocr_onnxruntime import RapidOCR
 
-PDF = Path(r"D:\ugm-analytics\Salinan_Kepmen_361_M_KEP_2025_Indikator_Dampak.pdf")
-OUT = Path(r"D:\ugm-analytics\docs\kepmen_361_ocr.txt")
-TMP = Path(r"D:\ugm-analytics\docs\_ocr_tmp")
+PDF = Path(r"D:\ugm-analytics\sumber\Salinan_Kepmen_361_M_KEP_2025_Indikator_Dampak.pdf")
+OUT = Path(r"D:\ugm-analytics\berita-dampak\docs\kepmen_361_ocr.txt")
+TMP = Path(r"D:\ugm-analytics\berita-dampak\docs\_ocr_tmp")
 TMP.mkdir(parents=True, exist_ok=True)
 
 ocr = RapidOCR()
