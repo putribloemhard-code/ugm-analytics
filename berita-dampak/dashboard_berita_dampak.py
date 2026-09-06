@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 st.set_page_config(page_title="Analisis Dampak UGM", layout="wide", page_icon="🎓")
 
 beranda = st.Page("pages_app/beranda.py", title="Beranda", icon="🏠", default=True)
-dampak_saja = st.Page("pages_app/dampak_saja.py", title="Dampak", icon="📊")
+dampak_saja = st.Page("pages_app/dampak_saja.py", title="Dampak", icon="📊", url_path="dampak")
 dampak_sdgs = st.Page("pages_app/dampak_sdgs.py", title="Dampak × SDGs", icon="🌍")
 sdgs = st.Page("pages_app/sdgs.py", title="SDGs", icon="🎯")
 akreditasi = st.Page("pages_app/akreditasi.py", title="Akreditasi", icon="📄")
