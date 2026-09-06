@@ -15,7 +15,7 @@ inject_css()
 
 st.title("🎓 Akreditasi")
 st.caption(
-    "Kelengkapan data LED & LKPS (Prodi MEI, dua dokumen terpisah) + Lampiran Data Dampak & SDG "
+    "Kelengkapan data LED & LKPS (dua dokumen terpisah) + Lampiran Data Dampak & SDG "
     "dari berita-dampak. Isi form input manual di tiap item, lalu generate laporan Word."
 )
 

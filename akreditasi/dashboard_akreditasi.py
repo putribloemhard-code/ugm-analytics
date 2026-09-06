@@ -49,7 +49,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.title("🎓 Kelengkapan Data Akreditasi")
-st.caption("LED & LKPS — Prodi Magister Elektronika dan Instrumentasi (MEI)")
+st.caption("Kelengkapan data LED & LKPS — instrumen akreditasi Program Studi (LAM-INFOKOM)")
 
 scope = st.radio(
     "Lingkup akreditasi",
