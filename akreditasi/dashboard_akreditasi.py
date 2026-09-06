@@ -25,12 +25,15 @@ from pathlib import Path
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root, utk shared/
 
+from shared.style import apply_custom_css  # noqa: E402
 from scripts import dashboard_render as dr  # noqa: E402
 from scripts.generate_template import generate_led_docx, generate_lkps_docx  # noqa: E402
 from scripts.registry_kebutuhan_data import led_items_by_kriteria, lkps_items_by_bagian  # noqa: E402
 
 st.set_page_config(page_title="Kelengkapan Data Akreditasi", layout="wide", page_icon="🎓")
+apply_custom_css()
 st.markdown(
     """
     <style>

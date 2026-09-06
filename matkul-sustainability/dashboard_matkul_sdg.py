@@ -1,8 +1,15 @@
+import sys
+from pathlib import Path
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root, utk shared/
+from shared.style import apply_custom_css  # noqa: E402
+
 st.set_page_config(page_title="Dampak Lingkungan - Mata Kuliah Sustainability", layout="wide")
+apply_custom_css()
 st.title("🌱 Dampak Lingkungan: Integrasi Kurikulum Sustainability")
 st.caption("Indikator resmi Kepmen 361/M/KEP/2025 — Dampak Lingkungan, Tema 5 (Pendidikan dan Penelitian)")
 

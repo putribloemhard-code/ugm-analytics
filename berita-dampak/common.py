@@ -11,7 +11,9 @@ import pandas as pd
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root, utk shared/
 
+from shared.style import apply_custom_css  # noqa: E402
 from scripts.keywords import KEYWORDS  # noqa: E402
 from scripts.kepmen_sdg import (  # noqa: E402
     SDG_NAMA,
@@ -120,11 +122,6 @@ div[data-testid="stMetricValue"] * {
 }
 div[data-testid="stMetricLabel"] { font-size: 0.8rem; opacity: 0.75; }
 
-/* Kolom sejajar tinggi -- kartu (metric/pilar/home) dalam satu baris st.columns
-   rata tinggi ke kartu tertinggi, bukan masing-masing setinggi kontennya sendiri. */
-div[data-testid="stHorizontalBlock"] { align-items: stretch; }
-div[data-testid="column"] > div { height: 100%; }
-
 /* Narasi/insight box */
 div[data-testid="stAlertContentInfo"] { font-size: 0.97rem; line-height: 1.6; }
 div[data-testid="stNotification"] { border-radius: 12px; }
@@ -135,6 +132,8 @@ div[data-testid="stNotification"] { border-radius: 12px; }
     padding: 18px 12px 14px;
     text-align: center;
     transition: box-shadow 0.15s ease;
+    height: 100%;
+    box-sizing: border-box;
 }
 .pilar-card-icon { font-size: 2.1rem; line-height: 1; margin-bottom: 2px; }
 .pilar-card-name {
@@ -157,6 +156,7 @@ div[data-testid="stNotification"] { border-radius: 12px; }
     border: 1px solid rgba(128,128,128,0.2);
     background: rgba(128,128,128,0.05);
     height: 100%;
+    box-sizing: border-box;
 }
 .home-card-icon { font-size: 2.4rem; line-height: 1; margin-bottom: 8px; }
 .home-card-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 6px; }
@@ -166,6 +166,7 @@ div[data-testid="stNotification"] { border-radius: 12px; }
 
 
 def inject_css():
+    apply_custom_css()
     st.markdown(CSS, unsafe_allow_html=True)
 
 

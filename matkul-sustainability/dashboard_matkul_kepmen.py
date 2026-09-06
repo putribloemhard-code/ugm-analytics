@@ -12,12 +12,19 @@ Fitur:
 Jalankan:
     streamlit run dashboard_matkul_kepmen.py
 """
+import sys
+from pathlib import Path
+
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root, utk shared/
+from shared.style import apply_custom_css  # noqa: E402
+
 st.set_page_config(page_title="Matkul Sustainability (Kepmen)", layout="wide")
+apply_custom_css()
 
 WARNA_HIJAU = ['#e8f5e9', '#a5d6a7', '#66bb6a', '#2e7d32', '#1b5e20']
 PALETTE = px.colors.qualitative.Set3
