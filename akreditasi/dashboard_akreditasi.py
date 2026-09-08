@@ -51,10 +51,9 @@ st.markdown(
 st.title("🎓 Kelengkapan Data Akreditasi")
 st.caption("Kelengkapan data LED & LKPS — instrumen akreditasi Program Studi (LAM-INFOKOM)")
 
-scope = st.radio(
+scope = st.selectbox(
     "Lingkup akreditasi",
     options=["Akreditasi Program Studi", "Akreditasi Universitas"],
-    horizontal=True,
     key="akreditasi_scope",
 )
 if scope == "Akreditasi Universitas":
@@ -68,10 +67,9 @@ if scope == "Akreditasi Universitas":
     st.stop()
 
 dr.consume_pending_switch()
-mode = st.radio(
+mode = st.selectbox(
     "Pilih dokumen",
     options=["LED", "LKPS"],
-    horizontal=True,
     key="akreditasi_dokumen",
     format_func=lambda m: "📘 LED — Laporan Evaluasi Diri" if m == "LED" else "📗 LKPS — Laporan Kinerja Program Studi",
 )

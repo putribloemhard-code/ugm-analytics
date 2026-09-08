@@ -12,8 +12,10 @@ app akreditasi/ yang berdiri sendiri sama-sama muncul di keduanya.
 
 Konten TAMBAHAN: "Lampiran: Data Dampak & SDG" -- ringkasan eksekutif +
 chart per pilar + chart SDG dari data dampak/SDG milik berita-dampak
-sendiri (filter tahun/dampak sendiri di sidebar), dilampirkan di bawah
-dashboard LED/LKPS dan ikut disisipkan ke dokumen Word yang digenerate.
+sendiri (filter tahun/dampak/fakultas sendiri, inline di dalam bagian ini
+-- BUKAN di sidebar, supaya tidak tercampur dengan filter halaman lain),
+dilampirkan di bawah dashboard LED/LKPS dan ikut disisipkan ke dokumen
+Word yang digenerate.
 """
 
 import sys
@@ -52,27 +54,30 @@ def _render_lampiran_dampak_sdg():
         load_data_or_stop()
     )
 
-    st.sidebar.markdown("---")
-    st.sidebar.caption("Filter Lampiran Dampak & SDG:")
+    st.caption("Filter Lampiran Dampak & SDG:")
     tahun_opsi = sorted(
         berita["tanggal"].dropna().str[:4].unique()
     ) if len(berita) else ["2005", "2026"]
-    tahun_awal, tahun_akhir = st.sidebar.select_slider(
-        "Rentang tahun (Lampiran)",
-        options=tahun_opsi,
-        value=(tahun_opsi[0], tahun_opsi[-1]),
-    )
-    pilar_pilih = st.sidebar.multiselect(
-        "Dampak (Lampiran)",
-        options=["Lingkungan", "Ekonomi", "Sosial"],
-        default=["Lingkungan", "Ekonomi", "Sosial"],
-        format_func=lambda p: f"{PILAR_ICON_SIDEBAR[p]} {p}",
-    )
-    fakultas_pilih = st.sidebar.selectbox(
-        "Fakultas/Sekolah (Lampiran)",
-        options=["Seluruh Universitas"] + _FAKULTAS_OPSI,
-        format_func=lambda k: k if k == "Seluruh Universitas" else UNIT_KERJA[k]["nama"],
-    )
+    fcol1, fcol2, fcol3 = st.columns([1.3, 1.6, 1.3])
+    with fcol1:
+        tahun_awal, tahun_akhir = st.select_slider(
+            "Rentang tahun (Lampiran)",
+            options=tahun_opsi,
+            value=(tahun_opsi[0], tahun_opsi[-1]),
+        )
+    with fcol2:
+        pilar_pilih = st.multiselect(
+            "Dampak (Lampiran)",
+            options=["Lingkungan", "Ekonomi", "Sosial"],
+            default=["Lingkungan", "Ekonomi", "Sosial"],
+            format_func=lambda p: f"{PILAR_ICON_SIDEBAR[p]} {p}",
+        )
+    with fcol3:
+        fakultas_pilih = st.selectbox(
+            "Fakultas/Sekolah (Lampiran)",
+            options=["Seluruh Universitas"] + _FAKULTAS_OPSI,
+            format_func=lambda k: k if k == "Seluruh Universitas" else UNIT_KERJA[k]["nama"],
+        )
 
     b = berita.copy()
     b["tahun"] = b["tanggal"].str[:4]
@@ -86,7 +91,7 @@ def _render_lampiran_dampak_sdg():
         t = t[t["url"].isin(set(b["url"]))]
 
     if len(b) == 0 or len(t) == 0:
-        st.warning("Tidak ada data Dampak/SDG untuk filter Lampiran ini. Ubah filter di sidebar.")
+        st.warning("Tidak ada data Dampak/SDG untuk filter Lampiran ini. Ubah filter di atas.")
         return None
 
     urls_t = set(b.merge(t, on="url", how="inner")["url"])
@@ -155,10 +160,9 @@ def _render_lampiran_dampak_sdg():
 
 
 def render() -> None:
-    scope = st.radio(
+    scope = st.selectbox(
         "Lingkup akreditasi",
         options=["Akreditasi Program Studi", "Akreditasi Universitas"],
-        horizontal=True,
         key="akreditasi_scope",
     )
     if scope == "Akreditasi Universitas":
@@ -181,10 +185,9 @@ def render() -> None:
     df_manual = dr.load_data_manual()
 
     dr.consume_pending_switch()
-    mode = st.radio(
+    mode = st.selectbox(
         "Pilih dokumen",
         options=["LED", "LKPS"],
-        horizontal=True,
         key="akreditasi_dokumen",
         format_func=lambda m: "📘 LED — Laporan Evaluasi Diri" if m == "LED" else "📗 LKPS — Laporan Kinerja Program Studi",
     )
