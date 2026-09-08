@@ -58,26 +58,24 @@ def _render_lampiran_dampak_sdg():
     tahun_opsi = sorted(
         berita["tanggal"].dropna().str[:4].unique()
     ) if len(berita) else ["2005", "2026"]
-    fcol1, fcol2, fcol3 = st.columns([1.3, 1.6, 1.3])
-    with fcol1:
-        tahun_awal, tahun_akhir = st.select_slider(
-            "Rentang tahun (Lampiran)",
-            options=tahun_opsi,
-            value=(tahun_opsi[0], tahun_opsi[-1]),
-        )
-    with fcol2:
-        pilar_pilih = st.multiselect(
-            "Dampak (Lampiran)",
-            options=["Lingkungan", "Ekonomi", "Sosial"],
-            default=["Lingkungan", "Ekonomi", "Sosial"],
-            format_func=lambda p: f"{PILAR_ICON_SIDEBAR[p]} {p}",
-        )
-    with fcol3:
-        fakultas_pilih = st.selectbox(
-            "Fakultas/Sekolah (Lampiran)",
-            options=["Seluruh Universitas"] + _FAKULTAS_OPSI,
-            format_func=lambda k: k if k == "Seluruh Universitas" else UNIT_KERJA[k]["nama"],
-        )
+    # Ditumpuk vertikal (bukan berjejer dalam kolom) -- lebih gampang dibaca
+    # untuk 3 filter dengan tipe widget beda (slider/multiselect/dropdown).
+    tahun_awal, tahun_akhir = st.select_slider(
+        "Rentang tahun (Lampiran)",
+        options=tahun_opsi,
+        value=(tahun_opsi[0], tahun_opsi[-1]),
+    )
+    pilar_pilih = st.multiselect(
+        "Dampak (Lampiran)",
+        options=["Lingkungan", "Ekonomi", "Sosial"],
+        default=["Lingkungan", "Ekonomi", "Sosial"],
+        format_func=lambda p: f"{PILAR_ICON_SIDEBAR[p]} {p}",
+    )
+    fakultas_pilih = st.selectbox(
+        "Fakultas/Sekolah (Lampiran)",
+        options=["Seluruh Universitas"] + _FAKULTAS_OPSI,
+        format_func=lambda k: k if k == "Seluruh Universitas" else UNIT_KERJA[k]["nama"],
+    )
 
     b = berita.copy()
     b["tahun"] = b["tanggal"].str[:4]
