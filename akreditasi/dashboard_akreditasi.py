@@ -93,14 +93,14 @@ st.markdown("---")
 if mode == "LED":
     st.subheader(f"Kelengkapan Data LED ({ringkasan['total']} item)")
     st.caption(
-        "Narasi evaluatif per Kriteria A-D (siklus PPEPP), sesuai docs/Data_Requirements_LED_LKPS_MEI.md. "
-        "Tiap tab Kriteria A/B/C1-C6 juga menampilkan cuplikan tabel LKPS terkait sebagai bukti evaluasi."
+        "Narasi evaluatif per Kriteria A-D (siklus PPEPP), sesuai dokumen kebutuhan data yang terdaftar "
+        "di registry. Tiap tab Kriteria A/B/C1-C6 juga menampilkan cuplikan tabel LKPS terkait sebagai bukti evaluasi."
     )
     dr.render_tabs_led(engine, df_manual, filled_ids)
 else:
     st.subheader(f"Kelengkapan Data LKPS ({ringkasan['total']} item)")
     st.caption(
-        "Tabel data mentah per Bagian 1-6, sesuai docs/Data_Requirements_LED_LKPS_MEI.md. "
+        "Tabel data mentah per Bagian 1-6, sesuai dokumen kebutuhan data yang terdaftar di registry. "
         "Isi form di tiap tabel berstatus \"perlu input manual\" -- tersimpan langsung ke MySQL."
     )
     dr.render_tabs_lkps(engine, df_manual, filled_ids)
