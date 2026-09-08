@@ -84,7 +84,12 @@ def _render_lampiran_dampak_sdg():
         # uk = berita_unit_kerja (url<->unit_kerja, lihat scripts/tag_unit_kerja.py) --
         # sama pola dengan filter "Fakultas / Unit Kerja" di page_dampak.py.
         b = b[b["url"].isin(set(uk.loc[uk["unit_kerja"] == fakultas_pilih, "url"]))]
-    t = bk[bk["dampak"].isin(pilar_pilih)] if pilar_pilih else bk
+    # TIDAK ada fallback "kosong = semua dampak" di sini (beda dari pola di
+    # page_dampak.py) -- multiselect ini defaultnya sudah semua tercentang,
+    # jadi kalau user sengaja mengosongkannya, hasilnya harus benar-benar
+    # kosong (ditangkap warning "Tidak ada data..." di bawah), bukan diam-diam
+    # balik menampilkan semua data seolah filternya tidak berubah.
+    t = bk[bk["dampak"].isin(pilar_pilih)]
     if len(b) and len(t):
         t = t[t["url"].isin(set(b["url"]))]
 
