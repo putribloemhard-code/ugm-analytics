@@ -26,10 +26,29 @@ akreditasi/data/uploads/
 akreditasi/data/generated/
 
 # OS
+.DS_Store
 Thumbs.db
 Desktop.ini
 push_log.txt
 push_log*.txt
 
+# Graphify generated cache/backups
+/graphify-out/cache/
+/graphify-out/20*/
+
 # Dump database - jangan commit
 ugm_analytics_dump.sql
+
+# Standalone frontend build artifacts
+web/node_modules/
+web/dist/
+
+# Isolated BTD deployment runtime state and target environment
+/deploy/.env
+/deploy/data/
+/deploy/stage-manifest.sha256
+/deploy/remote-manifest.sha256
+
+# Local test/cache artifacts for the standalone API
+api/.pytest_cache/
+api/**/__pycache__/
