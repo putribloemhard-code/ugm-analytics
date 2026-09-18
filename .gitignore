@@ -2,6 +2,8 @@
 
 # Kredensial (MySQL, dll.) — JANGAN di-commit
 .env
+# Secret Google OAuth (disiapkan utk Fase B login Google)
+client_secret*.json
 
 # Python venv (besar, bisa dibuat ulang)
 venv/
@@ -17,6 +19,11 @@ docs/_ocr_tmp/
 
 # File sementara
 tailscale_login.txt
+
+# File upload user (fitur upload pendukung akreditasi) -- binary, tidak perlu di-commit
+akreditasi/data/uploads/
+# Laporan Word hasil tombol Generate (riwayat per user)
+akreditasi/data/generated/
 
 # OS
 Thumbs.db
