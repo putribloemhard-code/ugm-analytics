@@ -10,9 +10,9 @@ berprefix "berita_", lihat scripts/db.py -- tidak ada lagi DuckDB perantara):
   6. tag_kepmen_all.py       — tagging 14 tema Kepmen + SDG (tabel berita_berita_kepmen_all)
   7. tag_unit_kerja.py       — tagging 44 fakultas/sekolah/unit kerja UGM
                                (tabel berita_unit_kerja), independen dari tagging Kepmen
-  8. generate_narasi_llm.py  — rangkai narasi ringkasan/insight pakai Gemini API,
+  8. generate_narasi_llm.py  — rangkai narasi ringkasan/insight pakai OpenAI API,
                                cache ke MySQL (opsional -- skip aman kalau
-                               GEMINI_API_KEY belum diisi, dashboard fallback
+                               OPENAI_API_KEY belum diisi, dashboard fallback
                                ke narasi template pandas)
   9. laporan_static.py       — regenerate laporan HTML statis
 

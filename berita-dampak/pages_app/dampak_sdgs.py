@@ -8,15 +8,18 @@ dampak_saja.py).
 
 import streamlit as st
 
-from common import inject_css
+import pencarian
+from common import inject_css, judul_halaman
 from page_dampak import render
 
 inject_css()
 
-st.title("🌍 Analisis Dampak Universitas — Dampak × SDGs")
+judul_halaman("Analisis Dampak Universitas — Dampak × SDGs", "dampakXsdgs.png")
 st.caption(
     "3 dampak & 14 tema resmi Kepmen, dikombinasikan dengan SDGs dari "
     "berita bertema."
 )
+
+pencarian.banner()
 
 render(mode="Berdampak × SDGs")

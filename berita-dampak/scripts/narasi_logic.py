@@ -195,11 +195,20 @@ def generate_executive_summary(
     mode: str,
     tahun_awal: str,
     tahun_akhir: str,
+    scope_label: str = "UGM",
 ) -> dict:
     """Ringkasan naratif lintas-pilar untuk bagian paling atas dashboard.
 
     Sama seperti generate_impact_insight: dihitung ulang dari data ter-filter
     saat render, jadi otomatis ter-update begitu ada berita baru masuk.
+
+    `scope_label` disebut di kalimat narasi ("Sepanjang ..., {scope_label}
+    mencatat ...") -- default "UGM" (dipakai page_dampak.py/generate_narasi_llm.py,
+    yang memang selalu lingkup universitas). Caller dengan filter tambahan di
+    luar tahun/tema (mis. Lampiran Akreditasi yang bisa difilter per Fakultas)
+    WAJIB kirim scope_label yang sesuai (mis. "Fakultas Teknik") -- kalau
+    tidak, angka yang sudah terfilter fakultas akan tetap dinarasikan seolah
+    mewakili seluruh UGM, padahal cuma satu fakultas.
     """
     bt = b.merge(t, on="url", how="inner")
     total_berita = int(bt["url"].nunique())
@@ -209,6 +218,7 @@ def generate_executive_summary(
             "pilar_top": "-",
             "pilar_top_naik": 0,
             "pilar_top_pct": None,
+            "pilar_top_baseline_tahun": tahun_awal,
             "topik_top_label": "-",
             "topik_top_short": "-",
             "topik_top_kind_label": "SDG terbanyak",
@@ -216,22 +226,34 @@ def generate_executive_summary(
             "narasi": f"Belum ada data pada rentang {tahun_awal}–{tahun_akhir} untuk filter ini.",
         }
 
-    # Pilar "pertumbuhan tertinggi" dipilih dari kenaikan ABSOLUT (bukan %) --
-    # basis awal yang sangat kecil (mis. 2 berita) bisa membuat persentase
-    # meledak jadi ribuan % dan menyesatkan pembaca laporan. Persentase cuma
-    # ditampilkan kalau basis awalnya cukup besar (>=5) supaya bermakna.
+    # Pilar "pertumbuhan tertinggi" dibandingkan dari baseline 5 TAHUN TERAKHIR
+    # (di-clip ke tahun_awal filter kalau rentang filter < 5 tahun) -- BUKAN dari
+    # titik awal rentang filter penuh. Titik awal rentang filter (mis. 2004, thn
+    # pertama data sitemap) basisnya sering sangat kecil (1-2 berita), bikin
+    # persentase pertumbuhan meledak jadi puluhan ribu % dan menyesatkan.
+    # Baseline 5 tahun terakhir jauh lebih stabil & bermakna sebagai % pertumbuhan.
+    # Persentase tetap disembunyikan (fallback ke kalimat "meningkat dari X ke Y
+    # berita") kalau basis 5-tahun itu sendiri masih <5 berita.
+    akhir_int = int(tahun_akhir)
+    baseline_int = max(int(tahun_awal), akhir_int - 5)
     pilar_tahun = bt.groupby(["dampak", "tahun"])["url"].nunique().reset_index(name="jumlah")
     pilar_top, pilar_top_naik, pilar_top_pct = "-", None, None
+    pilar_top_awal, pilar_top_akhir, pilar_top_baseline_tahun = 0, 0, tahun_awal
     for pilar in ["Lingkungan", "Ekonomi", "Sosial"]:
         sub = pilar_tahun[pilar_tahun["dampak"] == pilar].sort_values("tahun")
-        if len(sub) > 1:
-            awal, akhir = int(sub.iloc[0]["jumlah"]), int(sub.iloc[-1]["jumlah"])
+        sub_window = sub[sub["tahun"].astype(int) >= baseline_int]
+        sub_pakai = sub_window if len(sub_window) > 1 else sub
+        if len(sub_pakai) > 1:
+            awal, akhir = int(sub_pakai.iloc[0]["jumlah"]), int(sub_pakai.iloc[-1]["jumlah"])
+            baseline_tahun_ini = sub_pakai.iloc[0]["tahun"]
             naik = akhir - awal
             pct = (naik / awal * 100) if awal >= 5 else None
         else:
-            naik, pct = 0, None
+            awal, akhir, naik, pct, baseline_tahun_ini = 0, 0, 0, None, tahun_awal
         if pilar_top_naik is None or naik > pilar_top_naik:
             pilar_top, pilar_top_naik, pilar_top_pct = pilar, naik, pct
+            pilar_top_awal, pilar_top_akhir = awal, akhir
+            pilar_top_baseline_tahun = baseline_tahun_ini
     pilar_top_naik = pilar_top_naik or 0
 
     if mode != "Berdampak" and len(bs_f):
@@ -250,18 +272,24 @@ def generate_executive_summary(
 
     berita_tahun_ini = int(bt[bt["tahun"] == tahun_akhir]["url"].nunique())
     if pilar_top_pct is not None:
-        delta_text = f"tumbuh {pilar_top_pct:+.1f}% ({pilar_top_naik:+d} berita) dari {tahun_awal} ke {tahun_akhir}"
+        delta_text = (
+            f"tumbuh {pilar_top_pct:+.1f}% sejak {pilar_top_baseline_tahun} "
+            f"({pilar_top_baseline_tahun}→{tahun_akhir})"
+        )
     elif pilar_top_naik:
-        delta_text = f"bertambah {pilar_top_naik} berita dari {tahun_awal} ke {tahun_akhir}"
+        delta_text = (
+            f"meningkat dari {pilar_top_awal} menjadi {pilar_top_akhir} berita "
+            f"({pilar_top_baseline_tahun}→{tahun_akhir})"
+        )
     else:
         delta_text = "menunjukkan volume pemberitaan yang stabil"
 
     narasi = (
-        f"Sepanjang {tahun_awal}–{tahun_akhir}, UGM mencatat {total_berita:,} berita dampak yang tersebar di tiga dampak "
+        f"Sepanjang {tahun_awal}–{tahun_akhir}, {scope_label} mencatat {total_berita:,} berita dampak yang tersebar di tiga dampak "
         f"Lingkungan, Ekonomi, dan Sosial. Dampak {pilar_top} mencatat pertumbuhan tercepat, {delta_text}. "
         f"Pada sisi capaian resmi, {topik_top_label} menjadi {topik_kind} yang paling banyak disentuh dengan {topik_top_n:,} berita. "
         f"Di tahun terbaru pada rentang ini ({tahun_akhir}), tercatat {berita_tahun_ini:,} berita dampak — mencerminkan "
-        f"konsistensi UGM menjalankan tridarma yang memberi dampak nyata bagi masyarakat, ekonomi, dan lingkungan."
+        f"konsistensi {scope_label} menjalankan tridarma yang memberi dampak nyata bagi masyarakat, ekonomi, dan lingkungan."
     )
 
     return {
@@ -269,6 +297,7 @@ def generate_executive_summary(
         "pilar_top": pilar_top,
         "pilar_top_naik": pilar_top_naik,
         "pilar_top_pct": pilar_top_pct,
+        "pilar_top_baseline_tahun": pilar_top_baseline_tahun,
         "topik_top_label": topik_top_label,
         "topik_top_short": topik_top_short,
         "topik_top_kind_label": topik_top_kind_label,

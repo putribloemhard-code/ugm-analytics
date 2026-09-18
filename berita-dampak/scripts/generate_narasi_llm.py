@@ -1,4 +1,4 @@
-"""Generate narasi ringkasan/insight pakai Gemini API (LLM), simpan ke cache
+"""Generate narasi ringkasan/insight pakai OpenAI API (LLM), simpan ke cache
 MySQL (tabel berita_narasi_cache).
 
 Dipanggil sebagai step di update_mingguan.py, SETELAH sync_mysql.py (supaya
@@ -12,10 +12,10 @@ Cache ini hanya representatif untuk kondisi filter DEFAULT di dashboard
 otomatis balik pakai narasi template pandas (selalu akurat untuk filter
 apa pun) -- lihat narasi_llm_atau_fallback() di dashboard_berita_dampak.py.
 
-Kalau GEMINI_API_KEY belum diisi di .env, package google-genai belum
-terinstall, atau panggilan API gagal (down/quota habis), script ini SELALU
-skip dengan aman (exit 0) -- TIDAK PERNAH menggagalkan pipeline mingguan.
-Dashboard tetap jalan normal pakai narasi template kalau cache kosong/stale.
+Kalau OPENAI_API_KEY belum diisi di .env, package openai belum terinstall,
+atau panggilan API gagal (down/quota habis), script ini SELALU skip dengan
+aman (exit 0) -- TIDAK PERNAH menggagalkan pipeline mingguan. Dashboard
+tetap jalan normal pakai narasi template kalau cache kosong/stale.
 
 Jalankan (dari folder berita-dampak):
   python scripts/generate_narasi_llm.py
@@ -42,7 +42,7 @@ from narasi_logic import (  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT.parent / ".env")
 
-MODEL = "gemini-flash-lite-latest"
+MODEL = "cx/gpt-5.6-luna"
 
 SYSTEM_PROMPT = (
     "Kamu adalah asisten penulis untuk dashboard analitik dampak universitas. "
@@ -56,19 +56,25 @@ SYSTEM_PROMPT = (
 
 
 def rangkai_narasi(client, label: str, fallback_text: str, data_ringkas: str) -> str:
-    """Minta Gemini merangkai `data_ringkas` jadi narasi; kalau gagal apa pun,
+    """Minta OpenAI merangkai `data_ringkas` jadi narasi; kalau gagal apa pun,
     balikin `fallback_text` (template pandas) supaya cache tetap terisi valid."""
     try:
-        resp = client.models.generate_content(
+        resp = client.chat.completions.create(
             model=MODEL,
-            contents=(
-                f"{SYSTEM_PROMPT}\n\nKonteks: {label}.\n\n"
-                f"Data (semua angka WAJIB dipakai apa adanya, jangan diubah):\n{data_ringkas}\n\n"
-                f"Contoh gaya kalimat yang diharapkan (JANGAN disalin persis, "
-                f"cuma referensi nada/gaya):\n{fallback_text}"
-            ),
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Konteks: {label}.\n\n"
+                        f"Data (semua angka WAJIB dipakai apa adanya, jangan diubah):\n{data_ringkas}\n\n"
+                        f"Contoh gaya kalimat yang diharapkan (JANGAN disalin persis, "
+                        f"cuma referensi nada/gaya):\n{fallback_text}"
+                    ),
+                },
+            ],
         )
-        teks = (resp.text or "").strip()
+        teks = (resp.choices[0].message.content or "").strip()
         return teks if teks else fallback_text
     except Exception as e:  # noqa: BLE001
         print(f"  [WARN] Gagal generate narasi LLM utk '{label}': {e}")
@@ -76,9 +82,9 @@ def rangkai_narasi(client, label: str, fallback_text: str, data_ringkas: str) ->
 
 
 def main() -> None:
-    gemini_key = os.environ.get("GEMINI_API_KEY")
-    if not gemini_key:
-        print("[SKIP] GEMINI_API_KEY belum diset di .env -- lewati generate narasi LLM "
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    if not openai_key:
+        print("[SKIP] OPENAI_API_KEY belum diset di .env -- lewati generate narasi LLM "
               "(dashboard tetap jalan pakai narasi template pandas).")
         return
 
@@ -89,10 +95,12 @@ def main() -> None:
         return
 
     try:
-        from google import genai
+        from openai import OpenAI
     except ImportError:
-        print("[SKIP] Package google-genai belum terinstall (`pip install google-genai`).")
+        print("[SKIP] Package openai belum terinstall (`pip install openai`).")
         return
+
+    openai_base_url = os.environ.get("OPENAI_BASE_URL")
 
     engine = get_engine()  # pool_pre_ping + pool_recycle, lihat scripts/db.py
 
@@ -129,7 +137,7 @@ def main() -> None:
     bk_f = t[t["url"].isin(urls_t)].copy()
     bs_f = bs[bs["url"].isin(urls_t)].copy()
 
-    client = genai.Client(api_key=gemini_key)
+    client = OpenAI(api_key=openai_key, base_url=openai_base_url or None)
     hasil: dict[str, str] = {}
 
     # 1-2. Ringkasan eksekutif (2 mode: Berdampak x SDGs, Berdampak)
@@ -140,10 +148,15 @@ def main() -> None:
         stats = generate_executive_summary(b, t, bs_f, mode_val, tahun_awal, tahun_akhir)
         if stats["total_berita"] == 0:
             continue
+        _pilar_top_growth = (
+            f"{stats['pilar_top_pct']:+.1f}% sejak {stats['pilar_top_baseline_tahun']}"
+            if stats["pilar_top_pct"] is not None
+            else f"{stats['pilar_top_naik']:+d} berita sejak {stats['pilar_top_baseline_tahun']}"
+        )
         data_ringkas = (
             f"- Total berita dampak: {stats['total_berita']:,}\n"
-            f"- Dampak dengan pertumbuhan tercepat: {stats['pilar_top']} "
-            f"({stats['pilar_top_naik']:+d} berita dari {tahun_awal} ke {tahun_akhir})\n"
+            f"- Dampak dengan pertumbuhan tercepat: {stats['pilar_top']} ({_pilar_top_growth}, "
+            f"dibandingkan ke {tahun_akhir})\n"
             f"- {stats['topik_top_kind_label']}: {stats['topik_top_label']}\n"
             f"- Berita pada tahun terbaru ({tahun_akhir}): {stats['berita_tahun_ini']:,}\n"
             f"- Rentang tahun data: {tahun_awal}–{tahun_akhir}"

@@ -7,15 +7,18 @@ bareng dengan halaman "Dampak x SDGs" (lihat dampak_sdgs.py).
 
 import streamlit as st
 
-from common import inject_css
+import pencarian
+from common import inject_css, judul_halaman
 from page_dampak import render
 
 inject_css()
 
-st.title("📊 Analisis Dampak Universitas — Dampak")
+judul_halaman("Analisis Dampak Universitas — Dampak", "dampak.png")
 st.caption(
     "3 dampak (Lingkungan, Ekonomi, Sosial) & 14 tema resmi Kepmen "
     "361/M/KEP/2025 — tanpa bagian SDG."
 )
+
+pencarian.banner()
 
 render(mode="Berdampak")

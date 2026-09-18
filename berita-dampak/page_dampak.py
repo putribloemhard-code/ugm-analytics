@@ -29,10 +29,14 @@ from common import (
     UNIT_KERJA_OPSI,
     WARNA_KATEGORI,
     hover_keterangan,
+    insight_heatmap,
+    insight_top2,
     load_data_or_stop,
     penjelasan,
     token_freq,
 )
+import laporan_word
+import pencarian
 from scripts.kepmen_sdg import TOPIK_KEPMEN_ALL, WARNA_PILAR, sdg_label
 from scripts.kepmen_sdg import LABEL_TOPIC_ALL as LABEL_TOPIC
 from scripts.narasi_logic import generate_executive_summary, generate_impact_insight
@@ -50,10 +54,14 @@ def render(mode: str) -> None:
     tahun_opsi = sorted(
         berita["tanggal"].dropna().str[:4].unique()
     ) if len(berita) else ["2005", "2026"]
+    # Hasil pencarian Beranda (kalau ada) dipasang sbg nilai AWAL widget di
+    # bawah ini -- WAJIB sebelum widget-nya dibuat, lihat pencarian.py.
+    pencarian.terapkan_filter_awal(list(tahun_opsi))
     tahun_awal, tahun_akhir = st.sidebar.select_slider(
         "Rentang tahun",
         options=tahun_opsi,
         value=(tahun_opsi[0], tahun_opsi[-1]),
+        key=pencarian.WIDGET_TAHUN,
     )
     # Semua berita (RSS + sitemap) selalu ikut dihitung -- bukan pilihan yang
     # perlu diputuskan user, cuma dua cara pengambilan data yang saling melengkapi
@@ -67,6 +75,7 @@ def render(mode: str) -> None:
         options=["Lingkungan", "Ekonomi", "Sosial"],
         default=["Lingkungan", "Ekonomi", "Sosial"],
         format_func=lambda p: f"{PILAR_ICON_SIDEBAR[p]} {p}",
+        key=pencarian.WIDGET_PILAR,
     )
     # 2) ... baru tema Kepmen-nya, satu dropdown TERPISAH per dampak terpilih
     #    (bukan 1 dropdown gabungan isi 14 tema sekaligus).
@@ -228,24 +237,60 @@ def render(mode: str) -> None:
         f"{ringkasan['pilar_top_pct']:+.1f}%" if ringkasan["pilar_top_pct"] is not None
         else (f"+{ringkasan['pilar_top_naik']} berita" if ringkasan["pilar_top_naik"] else None)
     )
-    rc2.metric("Dampak pertumbuhan tertinggi", ringkasan["pilar_top"], _pilar_delta_label)
+    rc2.metric(
+        "Dampak pertumbuhan tertinggi", ringkasan["pilar_top"], _pilar_delta_label,
+        help=f"Dibandingkan sejak {ringkasan['pilar_top_baseline_tahun']} (baseline 5 tahun terakhir, "
+             "bukan dari titik awal rentang filter -- basis awal yang terlalu kecil bisa membuat "
+             "persentase menyesatkan).",
+    )
     rc3.metric(f"Sorotan {tahun_akhir}", f"{ringkasan['berita_tahun_ini']:,} berita")
     rc4.metric(ringkasan["topik_top_kind_label"], ringkasan["topik_top_short"])
     _exec_cache_key = "exec_berdampak_sdgs" if mode == "Berdampak × SDGs" else "exec_berdampak"
-    st.info(narasi_llm_atau_fallback(_exec_cache_key, ringkasan["narasi"]))
+    _narasi_eksekutif = narasi_llm_atau_fallback(_exec_cache_key, ringkasan["narasi"])
+    st.info(_narasi_eksekutif)
     penjelasan(
         "Ringkasan ini dihitung ulang tiap dashboard dimuat dari data ter-filter saat itu — "
         "otomatis ikut berubah begitu ada berita baru masuk lewat update mingguan, bukan teks statis."
     )
 
+    # Filter aktif -- dipakai laporan Word (baseline di bawah & versi lengkap
+    # setelah drill-down pilar, lihat laporan_word.tombol_unduh_laporan).
+    _filter_lines_dampak = [
+        f"Mode: {mode}",
+        f"Rentang tahun: {tahun_awal}–{tahun_akhir}",
+        "Dampak: " + (", ".join(pilar_pilih) if pilar_pilih else "(tidak ada dipilih)"),
+        "Tema Kepmen: " + (
+            "semua (14 tema)" if len(topik_pilih) == len(LABEL_TOPIC)
+            else ", ".join(LABEL_TOPIC.get(k, k) for k in topik_pilih) if topik_pilih
+            else "(tidak ada dipilih)"
+        ),
+    ]
+    if unit_pilih:
+        _filter_lines_dampak.append(
+            "Fakultas/Unit Kerja: " + ", ".join(UNIT_KERJA[k]["nama"] for k in unit_pilih)
+        )
+    _ringkasan_metrik_df = pd.DataFrame([
+        {"Metrik": "Total berita dampak", "Nilai": ringkasan["total_berita"]},
+        {"Metrik": "Dampak pertumbuhan tertinggi",
+         "Nilai": f"{ringkasan['pilar_top']} ({_pilar_delta_label or 'stabil'})"},
+        {"Metrik": f"Sorotan {tahun_akhir}", "Nilai": f"{ringkasan['berita_tahun_ini']:,} berita"},
+        {"Metrik": ringkasan["topik_top_kind_label"], "Nilai": ringkasan["topik_top_short"]},
+    ])
+
     # ---------- Overview: 3 pilar dampak, klik satu untuk drill-down ----------
     st.subheader("Overview Dampak UGM")
     st.caption("Klik salah satu dampak di bawah untuk melihat detail tema, tren, dan insight otomatis.")
+    st.caption(
+        f"📈 Dampak **{ringkasan['pilar_top']}** tumbuh paling cepat "
+        f"({_pilar_delta_label or 'stabil'}) sejak {ringkasan['pilar_top_baseline_tahun']} -- "
+        "lihat Ringkasan Eksekutif di atas untuk insight lengkapnya."
+    )
     st.session_state.setdefault("selected_pilar", None)
 
     PILAR_ICON = {"Lingkungan": "🌳", "Ekonomi": "💼", "Sosial": "🤝"}
     pilar_order = ["Lingkungan", "Ekonomi", "Sosial"]
     pilar_cards = st.columns(3, gap="medium")
+    _overview_pilar_rows = []
     for idx, pilar in enumerate(pilar_order):
         pilar_topik = t[t["dampak"] == pilar].copy()
         pilar_urls = set(pilar_topik["url"])
@@ -259,6 +304,10 @@ def render(mode: str) -> None:
             top_theme_n = int(tema_terbanyak.iloc[0])
         else:
             top_theme_name, top_theme_n = "-", 0
+        _overview_pilar_rows.append({
+            "Dampak": pilar, "Total berita": pilar_total,
+            "Tema terbanyak": top_theme_name, "Jumlah tema terbanyak": top_theme_n,
+        })
         with pilar_cards[idx]:
             is_active = st.session_state["selected_pilar"] == pilar
             warna = WARNA_PILAR[pilar]
@@ -288,6 +337,26 @@ def render(mode: str) -> None:
 
     if st.session_state["selected_pilar"] is None:
         st.info("👆 Klik salah satu dampak di atas untuk melihat detail tema, tren, dan insight.")
+        # Laporan versi DASAR (Ringkasan Eksekutif + Overview 3 Pilar) -- belum
+        # ada drill-down tema/tren karena user belum klik salah satu kartu
+        # dampak. Begitu satu dampak dipilih, tombol yang sama muncul lagi di
+        # akhir halaman dengan section jauh lebih lengkap (lihat bawah).
+        laporan_word.tombol_unduh_laporan(
+            key="laporan_dampak_dasar",
+            judul=f"Laporan Analisis {mode}",
+            subjudul="UGM Analytics -- Analisis Dampak Berita UGM",
+            filter_lines=_filter_lines_dampak,
+            ringkasan_eksekutif=_narasi_eksekutif,
+            seksi=[
+                laporan_word.SeksiLaporan("Ringkasan Eksekutif (metrik)", _ringkasan_metrik_df),
+                laporan_word.SeksiLaporan(
+                    "Overview 3 Pilar Dampak", pd.DataFrame(_overview_pilar_rows),
+                    catatan="Klik salah satu kartu dampak di halaman untuk laporan yang lebih lengkap "
+                            "(distribusi tema, tren, Kepmen/SDG, dst).",
+                ),
+            ],
+            nama_file_bagian=["Laporan", mode.replace("Berdampak", "Dampak"), tahun_awal, tahun_akhir],
+        )
         st.stop()
 
     selected_pilar = st.session_state["selected_pilar"]
@@ -350,6 +419,9 @@ def render(mode: str) -> None:
         )
         fig_detail.update_layout(showlegend=False, height=360)
         st.plotly_chart(fig_detail, width="stretch")
+        _insight_topik_p = insight_top2(topik_counts, "label", "jumlah")
+        st.info(_insight_topik_p)
+        penjelasan("Distribusi jumlah berita per tema pada dampak ini.")
 
         trend_detail = selected_news.groupby("tahun")["url"].nunique().reset_index(name="jumlah")
         fig_trend = px.line(
@@ -359,14 +431,36 @@ def render(mode: str) -> None:
         )
         fig_trend.update_layout(height=360)
         st.plotly_chart(fig_trend, width="stretch")
+        _awal_td, _akhir_td = trend_detail.iloc[0], trend_detail.iloc[-1]
+        _peak_td = trend_detail.loc[trend_detail["jumlah"].idxmax()]
+        _delta_td = int(_akhir_td["jumlah"]) - int(_awal_td["jumlah"])
+        _insight_trend_p = (
+            f"Dari {int(_awal_td['jumlah']):,} berita ({_awal_td['tahun']}) menjadi "
+            f"{int(_akhir_td['jumlah']):,} berita ({_akhir_td['tahun']}) -- "
+            f"{'naik' if _delta_td >= 0 else 'turun'} {abs(_delta_td):,} berita. "
+            f"Puncak tertinggi: {_peak_td['tahun']} dengan {int(_peak_td['jumlah']):,} berita."
+        )
+        st.info(_insight_trend_p)
+        penjelasan("Tren volume berita dampak ini dari tahun ke tahun.")
 
         st.markdown("**Daftar tema dalam dampak ini**")
         st.dataframe(
             topik_counts[["label", "jumlah"]].rename(columns={"label": "Tema", "jumlah": "Jumlah berita"}),
             width="stretch", hide_index=True,
         )
+        _total_tema_p = int(topik_counts["jumlah"].sum())
+        st.info(
+            f"{insight_top2(topik_counts, 'label', 'jumlah')} Total keseluruhan "
+            f"{_total_tema_p:,} berita di {len(topik_counts)} tema."
+        )
+        penjelasan(
+            "Rincian lengkap semua tema dalam dampak ini, data yang sama dengan "
+            "chart distribusi di atas."
+        )
 
     # --- Tab: Tema Resmi Kepmen ---
+    dist_k_p = None
+    _insight_kepmen_p = ""
     with next(tab_iter):
         if len(bk_f_pilar):
             dist_k_t_p = (
@@ -388,6 +482,13 @@ def render(mode: str) -> None:
             fig_k_p.update_layout(height=340, showlegend=False)
             hover_keterangan(fig_k_p, "Berita unik yang masuk Tema Resmi Kepmen ini pada dampak terpilih.")
             st.plotly_chart(fig_k_p, width="stretch")
+            _insight_kepmen_p = insight_top2(dist_k_p, "topik_kepmen", "jumlah")
+            st.info(_insight_kepmen_p)
+            penjelasan(
+                "Angka = berita unik dari tema dalam dampak ini yang dipetakan ke "
+                "Tema Resmi Kepmen ini (pemetaan resmi dari UGM Analytics.xlsx); "
+                "beberapa tema bisa memetakan ke Tema Resmi yang sama, jumlahnya digabung."
+            )
         else:
             st.info("Tidak ada data Kepmen untuk dampak ini pada filter saat ini.")
 
@@ -402,8 +503,15 @@ def render(mode: str) -> None:
             for k, meta in TOPIK_KEPMEN_ALL.items() if meta["dampak"] == selected_pilar
         ]
         st.dataframe(pd.DataFrame(map_rows_p), width="stretch", hide_index=True)
+        penjelasan(
+            f"Mencakup {len(map_rows_p)} tema resmi Kepmen pada dampak {selected_pilar} -- "
+            "pemetaan resmi tema dampak ke Tema Resmi Kepmen, indikator, dan satuan "
+            "(UGM Analytics.xlsx & Kepmen 361/M/KEP/2025)."
+        )
 
     # --- Tab: SDGs Terkait ---
+    dist_s_p = None
+    _insight_sdg_p = ""
     if mode != "Berdampak":
         with next(tab_iter):
             if len(bs_f_pilar):
@@ -423,6 +531,12 @@ def render(mode: str) -> None:
                                       xaxis=dict(tickangle=-45, tickfont=dict(size=10), automargin=True))
                 hover_keterangan(fig_s_p, "Berita unik dampak ini pada klaster SDG tsb.")
                 st.plotly_chart(fig_s_p, width="stretch")
+                _insight_sdg_p = insight_top2(dist_s_p, "nama", "jumlah")
+                st.info(_insight_sdg_p)
+                penjelasan(
+                    "Angka = berita unik dampak ini yang temanya memetakan ke klaster "
+                    "SDG ini (klaster resmi per tema, bukan keyword SDG langsung)."
+                )
 
                 hm_p = (
                     bs_f_pilar.merge(bk_f_pilar[["url", "topik"]], on="url", how="left")
@@ -449,6 +563,12 @@ def render(mode: str) -> None:
                     fig_hm_p.update_layout(height=360)
                     hover_keterangan(fig_hm_p, "Berita unik yang masuk tema baris sekaligus SDG kolom, dampak ini.")
                     st.plotly_chart(fig_hm_p, width="stretch")
+                    st.info(insight_heatmap(hm_piv_p2))
+                    penjelasan(
+                        "Sel kosong (0) = tidak ada berita pada kombinasi itu. Baris "
+                        "gelap = tema tersebar di banyak SDG; kolom gelap = SDG yang "
+                        "paling sering tersentuh."
+                    )
             else:
                 st.info("Tidak ada data SDG untuk dampak ini pada filter saat ini.")
 
@@ -474,6 +594,11 @@ def render(mode: str) -> None:
             fig_h_p.update_layout(height=340)
             hover_keterangan(fig_h_p, "Berita unik tema ini pada tahun tsb, dampak terpilih.")
             st.plotly_chart(fig_h_p, width="stretch")
+            st.info(insight_heatmap(piv_p_ty2))
+            penjelasan(
+                "Baris gelap = tema yang konsisten diberitakan; kolom gelap = "
+                "tahun dengan banyak aktivitas dampak ini."
+            )
         else:
             st.info("Tidak cukup data untuk heatmap dampak ini.")
 
@@ -491,6 +616,10 @@ def render(mode: str) -> None:
             fig_m_p.update_layout(height=340)
             hover_keterangan(fig_m_p, "Berita bulan tsb, semua tahun digabung, dampak terpilih.")
             st.plotly_chart(fig_m_p, width="stretch")
+            _bulan_sum_p = musim_p.groupby("bulan")["jumlah"].sum().reset_index()
+            _bulan_sum_p["label_bulan"] = "Bulan " + _bulan_sum_p["bulan"]
+            st.info(insight_top2(_bulan_sum_p, "label_bulan", "jumlah"))
+            penjelasan("Bulan kalender, semua tahun digabung. Bulan 01-12 = Januari-Desember.")
 
     # --- Tab: Kata Kunci & Berita ---
     with next(tab_iter):
@@ -519,6 +648,12 @@ def render(mode: str) -> None:
                 fig_kw_p.update_layout(height=max(300, 30 * len(kw_df_p) + 80),
                                        yaxis=dict(autorange="reversed"), showlegend=False)
                 st.plotly_chart(fig_kw_p, width="stretch")
+                st.info(insight_top2(kw_df_p, "keyword", "jumlah"))
+                penjelasan(
+                    "Angka = berita yang judul/deskripsinya mengandung keyword tsb; "
+                    "satu berita bisa match beberapa keyword, jadi totalnya bisa "
+                    "melebihi jumlah berita tema."
+                )
             else:
                 st.info("Tidak ada match keyword untuk tema ini.")
 
@@ -534,6 +669,11 @@ def render(mode: str) -> None:
                 )
                 fig_wf_p.update_layout(height=420, yaxis=dict(autorange="reversed"), showlegend=False)
                 st.plotly_chart(fig_wf_p, width="stretch")
+                st.info(insight_top2(freq_df_p, "kata", "jumlah", satuan="kali"))
+                penjelasan(
+                    "Kata di judul + deskripsi berita tema tsb (stopword dibuang, "
+                    "kata umum seperti 'ugm'/'universitas' sengaja dibuang)."
+                )
 
         st.markdown("**Daftar berita — dampak ini**")
         if len(bk_f_pilar):
@@ -558,10 +698,19 @@ def render(mode: str) -> None:
             tampil_p = df_p[["tanggal", "judul", "Tema Kepmen", "SDG", "sumber"]].copy()
             tampil_p.columns = ["Tanggal", "Judul", "Tema Kepmen", "SDG", "Sumber"]
             st.dataframe(tampil_p, width="stretch", hide_index=True)
+            _terbaru_p = df_p.iloc[0]
+            penjelasan(
+                f"Berita terbaru: \"{_terbaru_p['judul']}\" ({_terbaru_p['tanggal']}). "
+                "Daftar diurutkan dari yang terbaru, lengkap dengan Tema Kepmen & SDG "
+                "yang terdeteksi -- untuk menelusuri berita sumber di balik "
+                "angka-angka pada tab lain."
+            )
         else:
             st.info("Tidak ada berita untuk dampak ini pada filter saat ini.")
 
     # --- Tab: Fakultas/Unit Kerja ---
+    dist_uk = None
+    _insight_uk_p = ""
     with next(tab_iter):
         # SENGAJA pakai selected_news_tanpa_filter_unit (bukan selected_news)
         # -- kalau pakai selected_news yang sudah dipersempit filter "Fakultas
@@ -589,9 +738,26 @@ def render(mode: str) -> None:
             )
             hover_keterangan(fig_uk, "Berita unik dampak ini yang menyebut nama unit ini.")
             st.plotly_chart(fig_uk, width="stretch")
+            _insight_uk_p = insight_top2(dist_uk, "nama", "jumlah")
+            st.info(_insight_uk_p)
 
             n_unit_unik = uk_pilar["unit_kerja"].nunique()
             st.metric("Unit teridentifikasi", f"{n_unit_unik} / {len(UNIT_KERJA)}")
+
+            _csv_uk_p = (
+                dist_uk[["nama", "kategori", "jumlah"]]
+                .rename(columns={"nama": "Fakultas/Unit Kerja", "kategori": "Kategori", "jumlah": "Jumlah berita"})
+                .sort_values("Jumlah berita", ascending=False)
+                .to_csv(index=False)
+                .encode("utf-8")
+            )
+            st.download_button(
+                "⬇️ Unduh hasil per Fakultas/Unit Kerja (CSV)",
+                data=_csv_uk_p,
+                file_name=f"berita_per_unit_kerja_dampak_{selected_pilar.lower()}.csv",
+                mime="text/csv",
+                key=f"dl_unit_{selected_pilar}_{mode}",
+            )
         else:
             st.info("Tidak ada fakultas/unit kerja teridentifikasi untuk dampak ini pada filter saat ini.")
 
@@ -625,6 +791,11 @@ def render(mode: str) -> None:
 
     st.markdown("---")
 
+    # Default None -- diisi di dalam expander di bawah kalau datanya ada;
+    # dipakai laporan Word lengkap di akhir fungsi (lihat laporan_word di bawah).
+    dist_k = dist_s = rp_f = piv2 = tren = musim_sum = gab = None
+    _insight_kepmen = _insight_sdg = _insight_rp = _insight_tematahun = ""
+    _insight_trentahunan = _insight_musiman = _insight_cakupan = ""
     with st.expander("📂 Analisis Lintas-Dampak (Lanjutan)", expanded=False):
         st.subheader("Ringkasan")
         c1, c2, c3, c4 = st.columns(4)
@@ -632,6 +803,10 @@ def render(mode: str) -> None:
         c2.metric("Berita bertema dampak", t["url"].nunique() if len(t) else 0)
         c3.metric("Tema terpilih", len(topik_pilih))
         c4.metric("Rentang tahun", f"{tahun_awal}–{tahun_akhir}")
+        penjelasan(
+            "Ringkasan parameter filter yang sedang aktif untuk semua chart di "
+            "bagian 'Analisis Lintas-Dampak' ini."
+        )
 
         # ---------- Peta Kepmen & SDGs ----------
         st.subheader("Peta Tema Resmi Kepmen & Klaster SDGs")
@@ -681,13 +856,15 @@ def render(mode: str) -> None:
                 "(dijumlahkan dari tema dampak yang memetakan ke sini).",
             )
             st.plotly_chart(fig_k, width="stretch")
-            penjelasan(
-                "Distribusi berita ke Tema Resmi Kepmen 361/M/KEP/2025, diwarnai "
-                "per dampak. Angka = berita unik dari tema dampak yang dipetakan ke "
-                "Tema Resmi ini (pemetaan resmi dari UGM Analytics.xlsx); beberapa "
-                "tema dampak bisa memetakan ke Tema Resmi yang sama, jumlahnya "
-                "digabung."
+            _top_k = dist_k.loc[dist_k["jumlah"].idxmax()]
+            _insight_kepmen = (
+                f"Tema Resmi Kepmen teratas: **{_top_k['topik_kepmen']}** (dampak "
+                f"{_top_k['dampak']}) dengan {int(_top_k['jumlah']):,} berita. Angka = "
+                "berita unik dari tema dampak yang dipetakan ke Tema Resmi ini "
+                "(pemetaan resmi dari UGM Analytics.xlsx); beberapa tema dampak bisa "
+                "memetakan ke Tema Resmi yang sama, jumlahnya digabung."
             )
+            penjelasan(_insight_kepmen)
         else:
             st.info("Tidak ada data Kepmen untuk filter ini.")
 
@@ -715,11 +892,14 @@ def render(mode: str) -> None:
                 "Berita unik pada klaster SDG ini; satu berita bisa dihitung di beberapa SDG.",
             )
             st.plotly_chart(fig_s, width="stretch")
-            penjelasan(
-                "SDG mana yang paling banyak disentuh konten berita bertema. "
-                "Angka = berita unik bertema yang temanya memetakan ke klaster SDG "
-                "ini (klaster resmi per tema, bukan keyword SDG langsung)."
+            _top_sdg = dist_s.loc[dist_s["jumlah"].idxmax()]
+            _insight_sdg = (
+                f"SDG paling banyak disentuh: **{_top_sdg['nama']}** "
+                f"dengan {int(_top_sdg['jumlah']):,} berita. Angka = berita unik bertema "
+                "yang temanya memetakan ke klaster SDG ini (klaster resmi per tema, "
+                "bukan keyword SDG langsung)."
             )
+            penjelasan(_insight_sdg)
 
             # Heatmap tema dampak x SDG
             st.markdown("**Heatmap Tema Dampak × SDG**")
@@ -750,10 +930,12 @@ def render(mode: str) -> None:
                 fig_hm.update_layout(height=400)
                 hover_keterangan(fig_hm, "Berita unik yang masuk tema baris sekaligus SDG kolom.")
                 st.plotly_chart(fig_hm, width="stretch")
+                _stack = hm_piv2.stack()
+                _max_idx = _stack.idxmax()
                 penjelasan(
-                    "Kombinasi tema dampak × SDG: sel = jumlah berita unik yang "
-                    "masuk keduanya; sel kosong (0) = tidak ada berita pada "
-                    "kombinasi itu. Baris gelap = tema tersebar di banyak SDG; "
+                    f"Kombinasi tertinggi: **{_max_idx[0]} × {_max_idx[1]}** dengan "
+                    f"{int(_stack.max()):,} berita. Sel kosong (0) = tidak ada berita "
+                    "pada kombinasi itu. Baris gelap = tema tersebar di banyak SDG; "
                     "kolom gelap = SDG yang paling sering tersentuh."
                 )
 
@@ -776,10 +958,12 @@ def render(mode: str) -> None:
                 fig_st.update_layout(height=420)
                 hover_keterangan(fig_st, "Berita unik bertanda SDG ini pada tahun tsb.")
                 st.plotly_chart(fig_st, width="stretch")
+                _sdg_total = sdg_tahun.groupby("label")["jumlah"].sum()
                 penjelasan(
-                    "Perkembangan tiap SDG antar tahun: angka = berita unik bertema "
-                    "yang SDG-nya tercatat pada tahun publikasi tsb; garis naik = "
-                    "perhatian terhadap SDG makin sering diberitakan."
+                    f"SDG dengan total tertinggi sepanjang periode: **{_sdg_total.idxmax()}** "
+                    f"({int(_sdg_total.max()):,} berita). Angka = berita unik bertema yang "
+                    "SDG-nya tercatat pada tahun publikasi tsb; garis naik = perhatian "
+                    "terhadap SDG makin sering diberitakan."
                 )
 
             # Heatmap pilar x tahun (dari tema Kepmen)
@@ -809,10 +993,12 @@ def render(mode: str) -> None:
                 fig_p.update_layout(height=320)
                 hover_keterangan(fig_p, "Berita unik pada dampak ini di tahun tsb.")
                 st.plotly_chart(fig_p, width="stretch")
+                _row_sums_dt = piv_p.sum(axis=1)
+                _col_sums_dt = piv_p.sum(axis=0)
                 penjelasan(
-                    "Dominasi dampak Sosial/Ekonomi/Lingkungan per tahun. Angka = "
-                    "berita unik dari semua tema yang memetakan ke dampak itu pada "
-                    "tahun tsb (dari 14 tema resmi Kepmen)."
+                    f"Dampak paling dominan: **{_row_sums_dt.idxmax()}** "
+                    f"({int(_row_sums_dt.max()):,} berita total); tahun paling aktif: "
+                    f"**{_col_sums_dt.idxmax()}** ({int(_col_sums_dt.max()):,} berita)."
                 )
 
         st.markdown("**Ringkasan per dampak (Sosial/Ekonomi/Lingkungan)**")
@@ -833,10 +1019,13 @@ def render(mode: str) -> None:
                 fig_rp.update_layout(height=320, showlegend=False)
                 hover_keterangan(fig_rp, "Berita unik di semua tema dalam dampak ini.")
                 st.plotly_chart(fig_rp, width="stretch")
-                penjelasan(
-                    "Total berita unik per dampak (semua tema dalam dampak "
-                    "digabung, URL dideduplikasi per dampak)."
+                _top_rp = rp_f.loc[rp_f["jumlah_berita"].idxmax()]
+                _insight_rp = (
+                    f"Dampak dengan berita terbanyak: **{_top_rp['dampak']}** "
+                    f"({int(_top_rp['jumlah_berita']):,} berita). Total berita unik per "
+                    "dampak (semua tema dalam dampak digabung, URL dideduplikasi per dampak)."
                 )
+                penjelasan(_insight_rp)
             else:
                 st.info("Tidak ada data dampak untuk filter ini.")
 
@@ -887,11 +1076,14 @@ def render(mode: str) -> None:
             fig_h.update_layout(height=380)
             hover_keterangan(fig_h, "Berita unik tema ini pada tahun tsb.")
             st.plotly_chart(fig_h, width="stretch")
-            penjelasan(
-                "Kapan tiap tema ramai diberitakan: sel = jumlah berita unik per "
-                "tema per tahun publikasi. Baris gelap = tema yang konsisten "
-                "diberitakan; kolom gelap = tahun dengan banyak aktivitas dampak."
+            _row_sums2 = piv2.sum(axis=1)
+            _col_sums2 = piv2.sum(axis=0)
+            _insight_tematahun = (
+                f"Tema paling konsisten diberitakan: **{_row_sums2.idxmax()}** "
+                f"({int(_row_sums2.max()):,} berita total); tahun paling aktif: "
+                f"**{_col_sums2.idxmax()}** ({int(_col_sums2.max()):,} berita)."
             )
+            penjelasan(_insight_tematahun)
         else:
             st.info("Tidak cukup data untuk heatmap.")
 
@@ -911,10 +1103,14 @@ def render(mode: str) -> None:
             "Jumlah berita pada tahun tsb (per tema; berita multi-tema masuk di tiap tema).",
         )
         st.plotly_chart(fig2, width="stretch")
-        penjelasan(
-            "Perbandingan pertumbuhan antar tema per tahun. Angka = jumlah berita "
-            "per tema-tahun; berita yang masuk beberapa tema dihitung di tiap tema."
+        _tren_total = tren.groupby("label")["jumlah"].sum()
+        _insight_trentahunan = (
+            f"Tema dengan total berita tertinggi sepanjang periode: "
+            f"**{_tren_total.idxmax()}** ({int(_tren_total.max()):,} berita). Angka = "
+            "jumlah berita per tema-tahun; berita yang masuk beberapa tema dihitung "
+            "di tiap tema."
         )
+        penjelasan(_insight_trentahunan)
 
         # ---------- Tren bulanan ----------
         st.subheader("Tren Bulanan (musiman)")
@@ -930,11 +1126,13 @@ def render(mode: str) -> None:
         fig3.update_layout(height=400)
         hover_keterangan(fig3, "Jumlah berita pada bulan tsb, semua tahun digabung.")
         st.plotly_chart(fig3, width="stretch")
-        penjelasan(
-            "Pola musiman: bulan kalender mana yang paling banyak memuat berita "
-            "dampak (semua tahun digabung, ditumpuk per tema). Bulan 01-12 = "
-            "Januari-Desember."
+        musim_sum = musim.groupby(["bulan", "label"])["jumlah"].sum().reset_index()
+        _bulan_sum = musim.groupby("bulan")["jumlah"].sum()
+        _insight_musiman = (
+            f"Bulan paling ramai (semua tema & tahun): **{_bulan_sum.idxmax()}** "
+            f"dengan {int(_bulan_sum.max()):,} berita. Bulan 01-12 = Januari-Desember."
         )
+        penjelasan(_insight_musiman)
 
         # ---------- Cakupan vs total berita UGM ----------
         st.subheader("Cakupan vs Total Berita UGM per Tahun")
@@ -959,15 +1157,17 @@ def render(mode: str) -> None:
             "Abu-abu: seluruh URL sitemap (baseline); hijau: berita yang match tema dampak.",
         )
         st.plotly_chart(fig4, width="stretch")
-        st.caption(
-            "Tujuan: membandingkan volume konten UGM dengan berita yang "
-            "terdeteksi sebagai aktivitas dampak. "
+        _total_all = int(gab["total"].sum())
+        _total_matched = int(gab["bertopik"].sum())
+        _pct_matched = 100 * _total_matched / _total_all if _total_all else 0
+        _insight_cakupan = (
+            f"Sepanjang {tahun_awal}–{tahun_akhir}: dari {_total_all:,} total berita "
+            f"UGM, {_total_matched:,} ({_pct_matched:.1f}%) terdeteksi tema dampak. "
             "Garis abu-abu = seluruh URL di sitemap ugm.ac.id per tahun (baseline). "
-            "Garis hijau = berita yang match tema dampak. Proporsi menggambarkan "
-            "seberapa besar konten UGM yang tercatat sebagai aktivitas dampak; "
-            "nilainya lower-bound karena pencocokan keyword terbatas pada 14 tema "
-            "Kepmen yang dideteksi."
+            "Garis hijau = berita yang match tema dampak; nilainya lower-bound karena "
+            "pencocokan keyword terbatas pada 14 tema Kepmen yang dideteksi."
         )
+        st.caption(f"💡 {_insight_cakupan}")
 
         # ---------- Breakdown keyword ----------
         st.subheader("Keyword yang Memicu Match per Tema")
@@ -1017,11 +1217,12 @@ def render(mode: str) -> None:
                 )
                 hover_keterangan(fig5, "Jumlah berita yang teksnya mengandung keyword ini.")
                 st.plotly_chart(fig5, width="stretch")
+                _top_kw = sub_kw.iloc[-1]
                 penjelasan(
-                    "Audit keyword: keyword mana yang paling banyak memicu match "
-                    "pada tema terpilih. Angka = berita yang judul/deskripsinya "
-                    "mengandung keyword tsb; satu berita bisa match beberapa "
-                    "keyword, jadi totalnya bisa melebihi jumlah berita tema."
+                    f"Keyword paling sering memicu match pada tema ini: "
+                    f"**{_top_kw['keyword']}** ({int(_top_kw['jumlah']):,} berita). Satu "
+                    "berita bisa match beberapa keyword, jadi totalnya bisa melebihi "
+                    "jumlah berita tema."
                 )
             else:
                 st.info("Tidak ada match keyword untuk tema ini.")
@@ -1041,10 +1242,13 @@ def render(mode: str) -> None:
         fig6.update_layout(height=350)
         hover_keterangan(fig6, "Jumlah berita yang masuk N tema sekaligus.")
         st.plotly_chart(fig6, width="stretch")
+        _single_n = int(dist_n.loc[dist_n["jumlah tema"] == 1, "berita"].sum()) if 1 in dist_n["jumlah tema"].values else 0
+        _total_n = int(dist_n["berita"].sum())
+        _multi_pct = 100 * (_total_n - _single_n) / _total_n if _total_n else 0
         penjelasan(
-            "Sebaran kompleksitas: berapa banyak berita yang masuk 1 tema, 2 tema, "
-            "dst. Bar paling kiri = berita yang hanya masuk satu tema; semakin ke "
-            "kanan, semakin lintas-tema berita tersebut."
+            f"{_multi_pct:.1f}% berita masuk lebih dari satu tema (lintas-tema). Bar "
+            "paling kiri = berita yang hanya masuk satu tema; semakin ke kanan, "
+            "semakin lintas-tema berita tersebut."
         )
         multi = cnt[cnt["n_topik"] > 1]
         if len(multi):
@@ -1056,6 +1260,11 @@ def render(mode: str) -> None:
             )
             kombo["jumlah"] = kombo["url"].map(cnt.set_index("url")["n_topik"])
             st.dataframe(kombo[["kombinasi", "jumlah"]], width="stretch", hide_index=True)
+            _top_kombo = kombo.loc[kombo["jumlah"].idxmax()]
+            penjelasan(
+                f"Berita dengan tema terbanyak sekaligus: {int(_top_kombo['jumlah'])} tema "
+                f"({_top_kombo['kombinasi']}) -- rincian aktual dari bar multi-tema di atas."
+            )
         else:
             st.caption("Tidak ada berita multi-tema pada filter ini.")
 
@@ -1078,10 +1287,11 @@ def render(mode: str) -> None:
         fig7.update_layout(height=450, yaxis=dict(autorange="reversed"), showlegend=False)
         hover_keterangan(fig7, "Frekuensi kata ini muncul di judul+deskripsi berita tema tsb.")
         st.plotly_chart(fig7, width="stretch")
+        _top_kata = freq_df.iloc[0]
         penjelasan(
-            "Gambaran topik yang dibicarakan pada tema terpilih: 15 kata teratas "
-            "di judul + deskripsi berita tema tsb (stopword dibuang). Kata umum "
-            "seperti 'ugm'/'universitas' sengaja dibuang."
+            f"Kata paling sering muncul: **{_top_kata['kata']}** "
+            f"({int(_top_kata['jumlah']):,} kali) di judul + deskripsi berita tema tsb "
+            "(stopword dibuang, kata umum seperti 'ugm'/'universitas' sengaja dibuang)."
         )
 
         # ---------- Drill-down ----------
@@ -1129,6 +1339,13 @@ def render(mode: str) -> None:
                               "Indikator Kepmen", "SDG", "Sumber"]
             tampil["Tautan"] = df["url"].apply(lambda u: f"[buka]({u})")
             st.dataframe(tampil, width="stretch", hide_index=True)
+            _terbaru = df.iloc[0]
+            penjelasan(
+                f"Berita terbaru: \"{_terbaru['judul']}\" ({_terbaru['tanggal']}). Daftar "
+                "seluruh berita pada filter saat ini, diurutkan dari yang terbaru, "
+                "lengkap dengan Tema Kepmen, Indikator Kepmen, dan SDG yang terdeteksi "
+                "-- untuk menelusuri berita sumber di balik semua angka pada halaman ini."
+            )
         else:
             st.info("Tidak ada berita untuk filter ini.")
 
@@ -1143,3 +1360,100 @@ def render(mode: str) -> None:
                     belum[["tanggal", "judul", "url"]].sort_values("tanggal", ascending=False),
                     width="stretch", hide_index=True,
                 )
+
+    # ---------- Unduh Laporan (Word) -- versi LENGKAP (drill-down + lintas-dampak) ----------
+    _seksi_dampak = [
+        laporan_word.SeksiLaporan("Ringkasan Eksekutif (metrik)", _ringkasan_metrik_df),
+        laporan_word.SeksiLaporan(
+            "Overview 3 Pilar Dampak", pd.DataFrame(_overview_pilar_rows)),
+        laporan_word.SeksiLaporan(
+            f"Distribusi Tema — Dampak {selected_pilar}",
+            topik_counts[["label", "jumlah"]].rename(
+                columns={"label": "Tema", "jumlah": "Jumlah berita"}),
+            _insight_topik_p,
+        ),
+        laporan_word.SeksiLaporan(
+            f"Tren per Tahun — Dampak {selected_pilar}",
+            trend_detail.rename(columns={"tahun": "Tahun", "jumlah": "Jumlah berita"}),
+            _insight_trend_p,
+        ),
+    ]
+    if dist_k_p is not None:
+        _seksi_dampak.append(laporan_word.SeksiLaporan(
+            f"Tema Resmi Kepmen — Dampak {selected_pilar}",
+            dist_k_p.rename(columns={"topik_kepmen": "Tema Resmi Kepmen", "jumlah": "Jumlah berita"})
+            .sort_values("Jumlah berita", ascending=False),
+            _insight_kepmen_p,
+        ))
+    if dist_s_p is not None:
+        _seksi_dampak.append(laporan_word.SeksiLaporan(
+            f"SDG Terkait — Dampak {selected_pilar}",
+            dist_s_p[["label", "nama", "jumlah"]].rename(
+                columns={"label": "SDG", "nama": "Nama", "jumlah": "Jumlah berita"}
+            ).sort_values("Jumlah berita", ascending=False),
+            _insight_sdg_p,
+        ))
+    if dist_uk is not None:
+        _seksi_dampak.append(laporan_word.SeksiLaporan(
+            f"Fakultas/Unit Kerja — Dampak {selected_pilar}",
+            dist_uk[["nama", "kategori", "jumlah"]].rename(
+                columns={"nama": "Fakultas/Unit Kerja", "kategori": "Kategori", "jumlah": "Jumlah berita"}
+            ).sort_values("Jumlah berita", ascending=False),
+            _insight_uk_p,
+        ))
+    if dist_k is not None:
+        _seksi_dampak.append(laporan_word.SeksiLaporan(
+            "Peta Tema Resmi Kepmen (lintas-dampak)",
+            dist_k.rename(columns={"dampak": "Dampak", "topik_kepmen": "Tema Resmi Kepmen", "jumlah": "Jumlah berita"})
+            .sort_values("Jumlah berita", ascending=False),
+            _insight_kepmen,
+        ))
+    if dist_s is not None:
+        _seksi_dampak.append(laporan_word.SeksiLaporan(
+            "Klaster SDGs (lintas-dampak)",
+            dist_s[["label", "nama", "jumlah"]].rename(
+                columns={"label": "SDG", "nama": "Nama", "jumlah": "Jumlah berita"}
+            ).sort_values("Jumlah berita", ascending=False),
+            _insight_sdg,
+        ))
+    if rp_f is not None and len(rp_f):
+        _seksi_dampak.append(laporan_word.SeksiLaporan(
+            "Ringkasan per Dampak (Sosial/Ekonomi/Lingkungan)",
+            rp_f.rename(columns={"dampak": "Dampak", "jumlah_berita": "Jumlah berita"}),
+            _insight_rp,
+        ))
+    if piv2 is not None:
+        _seksi_dampak.append(laporan_word.SeksiLaporan(
+            "Heatmap Tema × Tahun (semua dampak)",
+            piv2.reset_index(names="Tema"), _insight_tematahun,
+        ))
+    if tren is not None:
+        _seksi_dampak.append(laporan_word.SeksiLaporan(
+            "Tren Tahunan per Tema (semua dampak)",
+            tren[["tahun", "label", "jumlah"]].rename(
+                columns={"tahun": "Tahun", "label": "Tema", "jumlah": "Jumlah berita"}),
+            _insight_trentahunan,
+        ))
+    if musim_sum is not None:
+        _seksi_dampak.append(laporan_word.SeksiLaporan(
+            "Tren Bulanan / Musiman (semua dampak)",
+            musim_sum.rename(columns={"bulan": "Bulan", "label": "Tema", "jumlah": "Jumlah berita"}),
+            _insight_musiman,
+        ))
+    if gab is not None:
+        _seksi_dampak.append(laporan_word.SeksiLaporan(
+            "Cakupan vs Total Berita UGM per Tahun",
+            gab.rename(columns={"tahun": "Tahun", "total": "Total berita (sitemap)",
+                                 "bertopik": "Berita bertema dampak"}),
+            _insight_cakupan,
+        ))
+
+    laporan_word.tombol_unduh_laporan(
+        key="laporan_dampak_lengkap",
+        judul=f"Laporan Analisis {mode}",
+        subjudul=f"Dampak {selected_pilar} -- UGM Analytics",
+        filter_lines=_filter_lines_dampak + [f"Dampak dipilih (drill-down): {selected_pilar}"],
+        ringkasan_eksekutif=_narasi_eksekutif,
+        seksi=_seksi_dampak,
+        nama_file_bagian=["Laporan", mode.replace("Berdampak", "Dampak"), selected_pilar, tahun_awal, tahun_akhir],
+    )

@@ -20,10 +20,14 @@ from common import (
     LABEL_TOPIC,
     SDG_NAMA,
     UNIT_KERJA_OPSI,
+    WARNA_KATEGORI,
     hover_keterangan,
+    insight_top2,
     load_data_or_stop,
     penjelasan,
 )
+import laporan_word
+import pencarian
 from scripts.narasi_logic import generate_sdg_saja_summary
 from scripts.sdg_keywords import SDG_KEYWORDS
 from scripts.unit_kerja import UNIT_KERJA
@@ -39,10 +43,14 @@ def render() -> None:
     tahun_opsi = sorted(
         berita["tanggal"].dropna().str[:4].unique()
     ) if len(berita) else ["2005", "2026"]
+    # Hasil pencarian Beranda (kalau ada) dipasang sbg nilai AWAL widget di
+    # bawah ini -- WAJIB sebelum widget-nya dibuat, lihat pencarian.py.
+    pencarian.terapkan_filter_awal(list(tahun_opsi), punya_sdg=True)
     tahun_awal, tahun_akhir = st.sidebar.select_slider(
         "Rentang tahun",
         options=tahun_opsi,
         value=(tahun_opsi[0], tahun_opsi[-1]),
+        key=pencarian.WIDGET_TAHUN,
     )
 
     # Mode SDG: filter berdasarkan SDG, bukan tema dampak.
@@ -51,6 +59,7 @@ def render() -> None:
         options=list(range(1, 18)),
         default=list(range(1, 18)),
         format_func=lambda s: f"SDG {s} — {SDG_NAMA.get(s, s)}",
+        key=pencarian.WIDGET_SDG,
     )
     topik_pilih: list = []
     pilar_pilih: list = []
@@ -165,7 +174,8 @@ def render() -> None:
     # ---------- Ringkasan Eksekutif (mode SDGs saja) ----------
     st.subheader("Ringkasan Eksekutif")
     narasi_sdg_saja_fallback = generate_sdg_saja_summary(sm, ss_f, tahun_awal, tahun_akhir)
-    st.info(narasi_llm_atau_fallback("sdg_saja", narasi_sdg_saja_fallback))
+    _narasi_eksekutif_sdg = narasi_llm_atau_fallback("sdg_saja", narasi_sdg_saja_fallback)
+    st.info(_narasi_eksekutif_sdg)
     penjelasan(
         "Ringkasan ini dihitung ulang tiap dashboard dimuat dari data ter-filter saat itu — "
         "sama seperti Ringkasan Eksekutif di mode Berdampak."
@@ -191,11 +201,14 @@ def render() -> None:
         "URL unik yang match keyword SDG ini; satu URL bisa masuk beberapa SDG.",
     )
     st.plotly_chart(fig_d, width="stretch")
-    penjelasan(
-        "Jangkauan tiap SDG: jumlah URL unik sitemap yang teksnya (slug "
-        "URL / judul / deskripsi) mengandung keyword SDG tsb. Satu URL "
-        "bisa dihitung di beberapa SDG."
+    _top_sdg_all = dist.loc[dist["jumlah"].idxmax()]
+    _insight_dist_sdg = (
+        f"SDG paling banyak disentuh: **{_top_sdg_all['label']} — {_top_sdg_all['nama']}** "
+        f"dengan {int(_top_sdg_all['jumlah']):,} berita. Jangkauan tiap SDG: jumlah URL "
+        "unik sitemap yang teksnya (slug URL / judul / deskripsi) mengandung keyword "
+        "SDG tsb. Satu URL bisa dihitung di beberapa SDG."
     )
+    penjelasan(_insight_dist_sdg)
 
     # Tren per tahun + heatmap SDG x tahun
     st.subheader("Tren SDG per Tahun")
@@ -206,6 +219,8 @@ def render() -> None:
         .size()
         .reset_index(name="jumlah")
     )
+    piv_h = None
+    _insight_tren_sdg = _insight_heatmap_sdg = ""
     if len(sdg_tahun):
         sdg_tahun["label"] = sdg_tahun["sdg"].map(lambda s: f"SDG {s}")
         fig_t = px.line(
@@ -216,10 +231,13 @@ def render() -> None:
         fig_t.update_layout(height=420)
         hover_keterangan(fig_t, "URL unik bertanda SDG ini pada tahun tsb.")
         st.plotly_chart(fig_t, width="stretch")
-        penjelasan(
-            "Perkembangan tiap SDG antar tahun (berdasar lastmod sitemap). "
-            "Angka = URL unik yang match keyword SDG pada tahun itu."
+        _sdg_trend_total = sdg_tahun.groupby("label")["jumlah"].sum()
+        _insight_tren_sdg = (
+            f"SDG dengan total tertinggi sepanjang periode: **{_sdg_trend_total.idxmax()}** "
+            f"({int(_sdg_trend_total.max()):,} berita). Angka = URL unik yang match "
+            "keyword SDG pada tahun itu (berdasar lastmod sitemap)."
         )
+        penjelasan(_insight_tren_sdg)
 
         st.markdown("**Heatmap SDG × Tahun**")
         piv = (
@@ -244,10 +262,13 @@ def render() -> None:
         fig_h.update_layout(height=480)
         hover_keterangan(fig_h, "URL unik yang masuk SDG baris pada tahun kolom.")
         st.plotly_chart(fig_h, width="stretch")
-        penjelasan(
-            "Kombinasi SDG × tahun: sel = jumlah URL unik berita yang match "
-            "keyword SDG pada tahun tsb; sel kosong (0) = tidak ada berita."
+        _stack_sdg = piv_h.stack()
+        _max_idx_sdg = _stack_sdg.idxmax()
+        _insight_heatmap_sdg = (
+            f"Kombinasi tertinggi: **{_max_idx_sdg[0]}, tahun {_max_idx_sdg[1]}** dengan "
+            f"{int(_stack_sdg.max()):,} berita. Sel kosong (0) = tidak ada berita."
         )
+        penjelasan(_insight_heatmap_sdg)
 
     # Tabel ringkasan
     st.subheader("Ringkasan per SDG")
@@ -256,6 +277,118 @@ def render() -> None:
     ring = ring[["sdg_label", "nama", "jumlah"]].sort_values("jumlah", ascending=False)
     ring.columns = ["SDG", "Nama", "Jumlah berita"]
     st.dataframe(ring, width="stretch", hide_index=True)
+    _top_ring = ring.iloc[0]
+    _insight_ring_sdg = (
+        f"Teratas: {_top_ring['SDG']} — {_top_ring['Nama']} "
+        f"({int(_top_ring['Jumlah berita']):,} berita). Angka yang sama dengan chart "
+        "Distribusi Berita per SDG di atas, terurut dari SDG paling banyak disentuh."
+    )
+    penjelasan(_insight_ring_sdg)
+
+    # ---------- Berita per SDG per Fakultas/Unit Kerja ----------
+    st.subheader("Berita per SDG per Fakultas/Unit Kerja")
+
+    def _url_bersih(s: pd.Series) -> pd.Series:
+        # sitemap simpan url MENTAH (bisa ada trailing slash/query string),
+        # berita_unit_kerja simpan url BERSIH -- samakan dulu sebelum join,
+        # sama pola dengan filter unit di sidebar (lihat atas).
+        return s.str.split("?").str[0].str.rstrip("/")
+
+    ss_f_b = ss_f.copy()
+    ss_f_b["url_b"] = _url_bersih(ss_f_b["url"])
+    uk_b = uk.copy()
+    uk_b["url_b"] = _url_bersih(uk_b["url"])
+    uk_sdg = ss_f_b.merge(uk_b[["url_b", "unit_kerja", "kategori"]], on="url_b", how="inner")
+
+    dist_unit_sdg = None
+    _insight_unit_sdg = ""
+    if len(uk_sdg):
+        dist_unit_sdg = (
+            uk_sdg.groupby(["unit_kerja", "kategori"])["url_b"].nunique().reset_index(name="jumlah")
+        )
+        dist_unit_sdg["nama"] = dist_unit_sdg["unit_kerja"].map(lambda k: UNIT_KERJA[k]["nama"])
+        dist_unit_sdg = dist_unit_sdg.sort_values("jumlah")
+        fig_unit_sdg = px.bar(
+            dist_unit_sdg, x="jumlah", y="nama", orientation="h", color="kategori",
+            title="Berita bertanda SDG per Fakultas/Unit Kerja",
+            labels={"nama": "Fakultas/Unit Kerja", "jumlah": "Jumlah berita", "kategori": "Kategori"},
+            color_discrete_map=WARNA_KATEGORI,
+        )
+        fig_unit_sdg.update_layout(
+            height=max(340, 28 * len(dist_unit_sdg) + 90),
+            yaxis=dict(autorange="reversed"),
+        )
+        hover_keterangan(fig_unit_sdg, "Berita unik bertanda SDG yang menyebut nama unit ini.")
+        st.plotly_chart(fig_unit_sdg, width="stretch")
+        _insight_unit_sdg = insight_top2(dist_unit_sdg, "nama", "jumlah")
+        st.info(_insight_unit_sdg)
+        penjelasan(
+            "Fakultas/unit kerja diidentifikasi lewat keyword matching nama resmi pada "
+            "judul/deskripsi berita -- bersifat lower-bound, bukan angka final kontribusi tiap unit."
+        )
+
+        _pivot_unit_sdg = (
+            uk_sdg.assign(nama=uk_sdg["unit_kerja"].map(lambda k: UNIT_KERJA[k]["nama"]))
+            .pivot_table(index="nama", columns="sdg", values="url_b", aggfunc="nunique", fill_value=0)
+        )
+        _pivot_unit_sdg.columns = [f"SDG {c}" for c in _pivot_unit_sdg.columns]
+        _csv_unit_sdg = _pivot_unit_sdg.reset_index().rename(columns={"nama": "Fakultas/Unit Kerja"})
+        st.download_button(
+            "⬇️ Unduh hasil per Fakultas/Unit Kerja x SDG (CSV)",
+            data=_csv_unit_sdg.to_csv(index=False).encode("utf-8"),
+            file_name="berita_per_unit_kerja_x_sdg.csv",
+            mime="text/csv",
+            key="dl_unit_sdg",
+        )
+    else:
+        st.info("Tidak ada fakultas/unit kerja teridentifikasi untuk filter SDG saat ini.")
+
+    # ---------- Unduh Laporan (Word) ----------
+    _filter_lines_sdg = [
+        f"Rentang tahun: {tahun_awal}–{tahun_akhir}",
+        ("SDG: semua (1-17)" if set(sdg_pilih) == set(range(1, 18))
+         else "SDG: " + ", ".join(f"SDG {s}" for s in sorted(sdg_pilih))) if sdg_pilih
+        else "SDG: (tidak ada dipilih)",
+    ]
+    if unit_pilih:
+        _filter_lines_sdg.append(
+            "Fakultas/Unit Kerja: " + ", ".join(UNIT_KERJA[k]["nama"] for k in unit_pilih)
+        )
+    _seksi_sdg = [
+        laporan_word.SeksiLaporan(
+            "Distribusi Berita per SDG",
+            dist[["label", "nama", "jumlah"]].rename(
+                columns={"label": "SDG", "nama": "Nama", "jumlah": "Jumlah berita"}),
+            _insight_dist_sdg,
+        ),
+    ]
+    if piv_h is not None:
+        _seksi_sdg.append(laporan_word.SeksiLaporan(
+            "Tren SDG per Tahun", sdg_tahun[["tahun", "label", "jumlah"]].rename(
+                columns={"tahun": "Tahun", "label": "SDG", "jumlah": "Jumlah berita"}),
+            _insight_tren_sdg,
+        ))
+        _seksi_sdg.append(laporan_word.SeksiLaporan(
+            "Heatmap SDG × Tahun", piv_h.reset_index(names="SDG"), _insight_heatmap_sdg,
+        ))
+    _seksi_sdg.append(laporan_word.SeksiLaporan("Ringkasan per SDG", ring, _insight_ring_sdg))
+    if dist_unit_sdg is not None:
+        _seksi_sdg.append(laporan_word.SeksiLaporan(
+            "Berita per SDG per Fakultas/Unit Kerja",
+            dist_unit_sdg[["nama", "kategori", "jumlah"]].rename(
+                columns={"nama": "Fakultas/Unit Kerja", "kategori": "Kategori", "jumlah": "Jumlah berita"}
+            ).sort_values("Jumlah berita", ascending=False),
+            _insight_unit_sdg,
+        ))
+    laporan_word.tombol_unduh_laporan(
+        key="laporan_sdgs",
+        judul="Laporan Analisis SDGs",
+        subjudul="Mapping seluruh berita UGM ke 17 SDG -- UGM Analytics",
+        filter_lines=_filter_lines_sdg,
+        ringkasan_eksekutif=_narasi_eksekutif_sdg,
+        seksi=_seksi_sdg,
+        nama_file_bagian=["Laporan", "SDGs", tahun_awal, tahun_akhir],
+    )
 
     # Keyword per SDG
     with st.expander("Lihat keyword per SDG (dasar mapping)"):
@@ -277,6 +410,10 @@ def render() -> None:
                 "Nama": st.column_config.TextColumn(width="medium"),
                 "Keyword": st.column_config.TextColumn(width=640),
             },
+        )
+        penjelasan(
+            "Daftar keyword yang jadi dasar pencocokan tiap SDG pada mapping "
+            "'SDGs saja' ini -- referensi metodologi, bukan hasil analisis."
         )
 
     # Cek manual

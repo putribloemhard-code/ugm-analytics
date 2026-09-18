@@ -5,13 +5,14 @@ Identik dengan mode "SDGs" pada dashboard_berita_dampak.py versi lama
 SDG, tanpa tema dampak Kepmen. Logikanya ada di page_sdgs.render().
 """
 
-import streamlit as st
-
-from common import inject_css
+import pencarian
+from common import inject_css, judul_halaman
 from page_sdgs import render
 
 inject_css()
 
-st.title("🎯 SDGs")
+judul_halaman("SDGs", "sdgs.png")
+
+pencarian.banner()
 
 render()

@@ -93,9 +93,9 @@ ringkasan/agregat tetap full-replace (`to_sql(if_exists="replace")`) tiap run.
 
 6c. **Narasi LLM** — `scripts/generate_narasi_llm.py` (opsional, setelah
    tagging selesai). Merangkai angka yang sudah dihitung pandas jadi narasi
-   Bahasa Indonesia via Gemini API, cache ke `berita_narasi_cache`. Skip
-   aman (exit 0) kalau `GEMINI_API_KEY` belum diisi atau API gagal --
-   dashboard fallback ke narasi template.
+   Bahasa Indonesia via OpenAI API (model `gpt-5.6-luna`), cache ke
+   `berita_narasi_cache`. Skip aman (exit 0) kalau `OPENAI_API_KEY` belum
+   diisi atau API gagal -- dashboard fallback ke narasi template.
 
 6d. **Tagging Fakultas/Unit Kerja** — `scripts/tag_unit_kerja.py` (independen
    dari tagging Kepmen/SDG di atas -- lapisan terpisah, tidak mengubah tabel
@@ -174,7 +174,7 @@ ringkasan/agregat tetap full-replace (`to_sql(if_exists="replace")`) tiap run.
 ../venv/Scripts/python.exe scripts/tag_kepmen_all.py   # 14 tema + SDG (utama)
 ../venv/Scripts/python.exe scripts/tag_unit_kerja.py    # 44 fakultas/sekolah/unit kerja
 ../venv/Scripts/python.exe scripts/tag_sdg_langsung.py  # mode "SDGs saja"
-../venv/Scripts/python.exe scripts/generate_narasi_llm.py  # opsional, butuh GEMINI_API_KEY
+../venv/Scripts/python.exe scripts/generate_narasi_llm.py  # opsional, butuh OPENAI_API_KEY
 ../venv/Scripts/python.exe scripts/laporan_static.py
 streamlit run dashboard_berita_dampak.py
 ```
