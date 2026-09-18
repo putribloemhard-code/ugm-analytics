@@ -50,13 +50,44 @@ Cakupan v1 -- keputusan scoping (baca sebelum menambah/mengubah item):
    cuplikan read-only item LKPS ber-`kriteria_led` sama (evidence PPEPP) --
    form input TETAP hanya di sisi LKPS (satu item = satu tempat isi data),
    lihat `lkps_cuplikan_untuk_kriteria`.
+7. **KOREKSI KEBIJAKAN (2026-09-11)**: sesi-sesi sebelumnya sempat mengisi
+   `akreditasi_data_manual` dengan hasil EKSTRAKSI ISI/ANGKA dari PDF LED &
+   LKPS asli Prodi MEI (`akreditasi/docs/sumber/`), dan sempat menambah 2
+   item non-resmi di luar 49 item ini (`led_b5_profil_publik_dtpr`,
+   `led_c3_metrik_publikasi_dtpr`) untuk data hasil scrape SINTA/dcse.
+   Ini SUDAH DIKOREKSI: PDF lama SEKARANG HANYA boleh dipakai sebagai
+   referensi struktur/daftar kebutuhan (kode item, nama, deskripsi,
+   kolom_dibutuhkan) -- bukan sumber data laporan. Seluruh 2.292 baris hasil
+   ekstraksi PDF (termasuk 2 item non-resmi di atas) sudah dipindah ke tabel
+   arsip `akreditasi_data_manual_arsip_pdf` (lihat
+   `scripts/migrasi_arsip_pdf.py`) -- TIDAK dipakai lagi oleh dashboard atau
+   generator laporan. Status per-item yang SAH sekarang ada di
+   `akreditasi/data_source_map.json` (Fase 1), bukan `status_ketersediaan`/
+   `mysql_table` di modul ini -- dua field itu masih ada di sini utk
+   kompatibilitas dashboard lama, tapi JANGAN dipakai sbg acuan
+   tersedia/tidak; acuan yang benar HANYA `data_source_map.json`.
+   Data live pengganti (SINTA dkk., utk 5 item bersatus "tersedia") ditarik
+   lewat pipeline Fase 2 (`scripts/pipeline_sinta.py` dst.) ke tabel baru
+   `akreditasi_publikasi_dosen`/`akreditasi_pddikti_snapshot` -- BUKAN
+   mengisi ulang `akreditasi_data_manual` dengan pola EAV lama.
 """
 
 # Urutan tampilan kriteria di dashboard (tab) & dokumen (heading per Bab).
-URUTAN_KRITERIA = ["Umum", "A", "B", "C1", "C2", "C3", "C4", "C5", "C6", "D"]
+# KataPengantar/RingkasanEksekutif/Pendahuluan/Penutup DITAMBAHKAN
+# (2026-09-11) setelah cross-check Daftar Isi PDF LED asli menunjukkan 4
+# bagian ini hilang total dari registry -- urutannya PERSIS mengikuti
+# Daftar Isi PDF: Umum (Identitas Pengusul + Tim Penyusun) -> Kata
+# Pengantar -> Ringkasan Eksekutif -> Bab I Pendahuluan -> Kriteria A-D ->
+# Bab III Penutup (LED tidak punya heading "Bab II" eksplisit -- Kriteria
+# A-D-lah yang jadi isi Bab II secara implisit).
+URUTAN_KRITERIA = ["Umum", "KataPengantar", "RingkasanEksekutif", "Pendahuluan",
+                    "A", "B", "C1", "C2", "C3", "C4", "C5", "C6", "D", "Penutup"]
 
 LABEL_KRITERIA = {
     "Umum": "Umum — Identitas & Administrasi",
+    "KataPengantar": "Kata Pengantar",
+    "RingkasanEksekutif": "Ringkasan Eksekutif",
+    "Pendahuluan": "Bab I — Pendahuluan",
     "A": "Kriteria A — Kondisi Eksternal",
     "B": "Kriteria B — Profil UPPS dan PS",
     "C1": "Kriteria C1 — Budaya Mutu",
@@ -66,6 +97,7 @@ LABEL_KRITERIA = {
     "C5": "Kriteria C5 — Akuntabilitas",
     "C6": "Kriteria C6 — Diferensiasi Misi",
     "D": "Kriteria D — Suplemen Program Studi (Kekhasan Kurikulum)",
+    "Penutup": "Bab III — Penutup",
 }
 
 STATUS_LABEL = {
@@ -131,6 +163,49 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "mysql_table": None,
     },
 
+    # ============== Kata Pengantar / Ringkasan Eksekutif / Bab I / Bab III ==============
+    # 4 item ini DITAMBAHKAN 2026-09-11 setelah cross-check Daftar Isi PDF
+    # LED asli -- hilang total dari registry sebelumnya. Urutan & posisi
+    # PERSIS Daftar Isi PDF (lihat komentar di URUTAN_KRITERIA). Semua
+    # narasi evaluatif/reflektif khas dokumen akreditasi -- BUKAN data yang
+    # bisa "diambil" dari sumber luar, harus disusun tim penyusun sendiri
+    # berdasarkan isi Kriteria A-D yang sudah mereka tulis (lihat
+    # data_source_map.json: jenis_kendala "perlu_penyusunan_manusia").
+    # Status "perlu_input_manual" (dulu "belum_tersedia", diubah 2026-09-17):
+    # keempatnya SUDAH punya form isian + draft AI, jadi "belum tersedia"
+    # (= tidak ada form) tidak lagi benar -- dan membuat item yang sudah
+    # diisi tetap dihitung belum lengkap (progress LED MEI tampil 8/25 padahal
+    # 10 item terisi). Sifat narasinya tetap ditandai lewat jenis_kendala.
+    "kata_pengantar": {
+        "kriteria_led": "KataPengantar", "tabel_lkps": None, "nama": "Kata Pengantar",
+        "deskripsi_singkat": "Pengantar naratif dari pimpinan UPPS/PS ttg proses & tujuan penyusunan LED.",
+        "tipe": "narasi", "kolom_dibutuhkan": ["Kata Pengantar"],
+        "sumber_data": "Ditulis pimpinan UPPS/PS", "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
+    },
+    "ringkasan_eksekutif": {
+        "kriteria_led": "RingkasanEksekutif", "tabel_lkps": None, "nama": "Ringkasan Eksekutif",
+        "deskripsi_singkat": "Ringkasan capaian & kondisi PS secara keseluruhan, ditulis setelah seluruh "
+                              "kriteria selesai dievaluasi.",
+        "tipe": "narasi", "kolom_dibutuhkan": ["Ringkasan Eksekutif"],
+        "sumber_data": "Kompilasi naratif oleh tim penyusun (setelah Kriteria A-D selesai)",
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
+    },
+    "bab1_pendahuluan": {
+        "kriteria_led": "Pendahuluan", "tabel_lkps": None, "nama": "Bab I Pendahuluan",
+        "deskripsi_singkat": "Dasar penyusunan LED (landasan kebijakan/regulasi) & mekanisme kerja tim "
+                              "penyusun evaluasi diri.",
+        "tipe": "narasi",
+        "kolom_dibutuhkan": ["A. Dasar Penyusunan", "B. Mekanisme Kerja Penyusunan Evaluasi Diri"],
+        "sumber_data": "Ditulis tim penyusun", "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
+    },
+    "bab3_penutup": {
+        "kriteria_led": "Penutup", "tabel_lkps": None, "nama": "Bab III Penutup",
+        "deskripsi_singkat": "Penutup: simpulan umum kondisi PS & komitmen tindak lanjut pasca-evaluasi diri.",
+        "tipe": "narasi", "kolom_dibutuhkan": ["Bab III Penutup"],
+        "sumber_data": "Kompilasi naratif oleh tim penyusun (setelah Kriteria A-D selesai)",
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
+    },
+
     # ============== Kriteria A — Kondisi Eksternal ==============
     "led_kriteria_a": {
         "kriteria_led": "A",
@@ -145,7 +220,7 @@ KEBUTUHAN_DATA: dict[str, dict] = {
             "Sintesis SWOT / Peluang Strategis",
         ],
         "sumber_data": "Rujukan eksternal (BPS, APJII, WEF, ranking QS, dll.) + analisis internal tim penyusun",
-        "status_ketersediaan": "belum_tersedia",
+        "status_ketersediaan": "perlu_input_manual",
         "mysql_table": None,
     },
 
@@ -205,7 +280,7 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "tipe": "narasi",
         "kolom_dibutuhkan": ["Struktur SPMI (Pengawal per Tahap PPEPP)", "Jumlah IKU/IKT yang Dimandatkan TCK"],
         "sumber_data": "Gugus Jaminan Mutu dan Akreditasi (GJMA)",
-        "status_ketersediaan": "belum_tersedia", "mysql_table": None,
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "led_b8_kinerja_ringkas": {
         "kriteria_led": "B", "tabel_lkps": None, "nama": "B.8 Kinerja UPPS/PS Ringkas",
@@ -213,7 +288,7 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "tipe": "narasi",
         "kolom_dibutuhkan": ["Highlight Capaian Pendidikan", "Highlight Capaian Penelitian", "Highlight Capaian PkM"],
         "sumber_data": "Kompilasi dari data Bagian 2-4 LKPS",
-        "status_ketersediaan": "belum_tersedia", "mysql_table": None,
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_1_a_1": {
         "kriteria_led": "B", "tabel_lkps": "1.A.1", "nama": "Pimpinan & Tupoksi",
@@ -264,7 +339,7 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "kolom_dibutuhkan": ["Nama Unit SPMI", "Dokumen SPMI Berlaku (link)", "Jumlah Auditor Bersertifikat",
                               "Jumlah Auditor Non-Sertifikat", "Frekuensi Audit/Monev per Tahun", "Link Laporan Audit"],
         "sumber_data": "SIMASTER EDPS + Gugus Jaminan Mutu dan Akreditasi (GJMA)",
-        "status_ketersediaan": "belum_tersedia", "mysql_table": None,
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_5_2": {
         "kriteria_led": "B", "tabel_lkps": "5.2", "nama": "Sarana Prasarana Pendidikan (UPPS)",
@@ -281,7 +356,7 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "kriteria_led": "C1", "tabel_lkps": None, "nama": "C1 Budaya Mutu",
         "deskripsi_singkat": "Tata kelola administrasi akademik/keuangan/SDM/kerja sama & sarpras UPPS, fungsi SPMI Prodi.",
         "tipe": "narasi", "kolom_dibutuhkan": list(_KOLOM_PPEPP),
-        "sumber_data": "SIMASTER EDPS + GJMA", "status_ketersediaan": "belum_tersedia", "mysql_table": None,
+        "sumber_data": "SIMASTER EDPS + GJMA", "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_5_1": {
         "kriteria_led": "C5", "tabel_lkps": "5.1", "nama": "Sistem Tata Kelola",
@@ -298,7 +373,20 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "kriteria_led": "C2", "tabel_lkps": None, "nama": "C2 Relevansi Pendidikan",
         "deskripsi_singkat": "Sarpras pendidikan, DTPR, pembiayaan, penerimaan mahasiswa baru, kurikulum, fleksibilitas pembelajaran, dst.",
         "tipe": "narasi", "kolom_dibutuhkan": list(_KOLOM_PPEPP),
-        "sumber_data": "Kompilasi data Bagian 2 LKPS", "status_ketersediaan": "belum_tersedia", "mysql_table": None,
+        "sumber_data": "Kompilasi data Bagian 2 LKPS", "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
+    },
+    # lkps_2_a_1 & lkps_2_a_3 DITAMBAHKAN 2026-09-11 -- ketahuan hilang dari
+    # registry saat cross-check Daftar Tabel PDF LKPS asli terhadap 49 item.
+    "lkps_2_a_1": {
+        "kriteria_led": "C2", "tabel_lkps": "2.A.1", "nama": "Data Mahasiswa",
+        "deskripsi_singkat": "Corong penerimaan per tahun (TS-3..TS): daya tampung, jumlah pendaftar/diterima/"
+                              "aktif per jalur (Reguler/RPL/Afirmasi/Kebutuhan Khusus).",
+        "tipe": "tabel",
+        "kolom_dibutuhkan": ["Tahun (TS-3/TS-2/TS-1/TS)", "Daya Tampung",
+                              "Jumlah Pendaftar (Reguler/RPL/Afirmasi/Keb. Khusus)",
+                              "Jumlah Diterima (Reguler/RPL/Afirmasi/Keb. Khusus)", "Jumlah Mahasiswa Aktif"],
+        "sumber_data": "SIMASTER modul Pendidikan / PDDIKTI",
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_2_a_2": {
         "kriteria_led": "C2", "tabel_lkps": "2.A.2", "nama": "Keragaman Asal Mahasiswa",
@@ -306,6 +394,14 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "tipe": "tabel",
         "kolom_dibutuhkan": ["Kategori Asal Mahasiswa", "Jumlah TS-2", "Jumlah TS-1", "Jumlah TS"],
         "sumber_data": "PDDIKTI + SIMASTER modul Pendidikan",
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
+    },
+    "lkps_2_a_3": {
+        "kriteria_led": "C2", "tabel_lkps": "2.A.3", "nama": "Kondisi Jumlah Mahasiswa",
+        "deskripsi_singkat": "Jumlah mahasiswa baru/aktif/lulus/mengundurkan diri-DO/cuti per tahun (TS-2/TS-1/TS).",
+        "tipe": "tabel",
+        "kolom_dibutuhkan": ["Kategori (Baru/Aktif/Lulus/Mengundurkan Diri-DO/Cuti)", "TS-2", "TS-1", "TS", "Jumlah"],
+        "sumber_data": "SIMASTER modul Pendidikan",
         "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_2_a_4": {
@@ -323,7 +419,19 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "tipe": "tabel",
         "kolom_dibutuhkan": ["Lokasi/Gedung", "Lingkup Ruangan", "Jenis Akses Fasilitas Difabel"],
         "sumber_data": "Pendataan mandiri departemen",
-        "status_ketersediaan": "belum_tersedia", "mysql_table": None,
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
+    },
+    # lkps_2_a_8 DITAMBAHKAN 2026-09-11 -- ketahuan hilang saat cross-check.
+    "lkps_2_a_8": {
+        "kriteria_led": "C5", "tabel_lkps": "2.A.8",
+        "nama": "Sistem Informasi Tridharma yang Melibatkan Mahasiswa",
+        "deskripsi_singkat": "Sistem informasi terintegrasi pendukung Tridharma (pendidikan/penelitian/PkM) "
+                              "yang melibatkan mahasiswa Prodi -- fungsionalitas, nama sistem, akses, pengelola.",
+        "tipe": "tabel",
+        "kolom_dibutuhkan": ["Fungsionalitas", "Nama Sistem Informasi", "Akses", "Unit Kerja/SDM Pengelola",
+                              "Link Bukti"],
+        "sumber_data": "SIMASTER (seluruh modul) + Direktorat Teknologi Informasi UGM",
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_2_b_1": {
         "kriteria_led": "C2", "tabel_lkps": "2.B.1", "nama": "Isi Pembelajaran",
@@ -334,13 +442,25 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "sumber_data": "Dokumen Kurikulum Prodi resmi (SK Kurikulum)",
         "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
+    # lkps_2_b_2 DITAMBAHKAN 2026-09-11 -- ketahuan hilang saat cross-check
+    # (beda dari 2.B.3: ini matriks CPL x Profil Lulusan, 2.B.3 matriks
+    # CPL x CPMK x semester).
+    "lkps_2_b_2": {
+        "kriteria_led": "C2", "tabel_lkps": "2.B.2", "nama": "Pemetaan CPL dan Profil Lulusan",
+        "deskripsi_singkat": "Matriks CPL x Profil Lulusan (PL1-PL5) -- menunjukkan CPL mana mendukung profil "
+                              "lulusan yang mana.",
+        "tipe": "tabel",
+        "kolom_dibutuhkan": ["CPL", "Profil Lulusan Terkait (PL1-PL5)"],
+        "sumber_data": "Dokumen Kurikulum Prodi resmi (SK Kurikulum)",
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
+    },
     "lkps_2_b_3": {
         "kriteria_led": "C2", "tabel_lkps": "2.B.3", "nama": "Peta Pemenuhan CPL",
         "deskripsi_singkat": "Matriks CPL x CPMK x mata kuliah pengampu per semester.",
         "tipe": "tabel",
         "kolom_dibutuhkan": ["CPL", "CPMK", "Mata Kuliah Pengampu", "Semester"],
         "sumber_data": "Dokumen Kurikulum Prodi + ELOK",
-        "status_ketersediaan": "belum_tersedia", "mysql_table": None,
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_2_b_4_1": {
         "kriteria_led": "C2", "tabel_lkps": "2.B.4.1", "nama": "MK Soft/Hard Competence",
@@ -348,7 +468,7 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "tipe": "tabel",
         "kolom_dibutuhkan": ["Kode MK", "Nama MK", "Kategori (Soft/Hard/Integrasi)", "Analisis Kontribusi Kompetensi"],
         "sumber_data": "Dokumen Kurikulum Prodi",
-        "status_ketersediaan": "belum_tersedia", "mysql_table": None,
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_2_b_4": {
         "kriteria_led": "C2", "tabel_lkps": "2.B.4", "nama": "Masa Tunggu Kerja Lulusan",
@@ -357,7 +477,7 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "kolom_dibutuhkan": ["Tahun Lulus", "Jumlah Lulusan", "Jumlah Lulusan Terlacak",
                               "Rata-rata Waktu Tunggu Kerja (bulan)"],
         "sumber_data": "Tracer study mandiri UPPS/Fakultas",
-        "status_ketersediaan": "belum_tersedia", "mysql_table": None,
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_2_b_5": {
         "kriteria_led": "C2", "tabel_lkps": "2.B.5", "nama": "Kesesuaian Bidang Kerja",
@@ -366,7 +486,7 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "kolom_dibutuhkan": ["Tahun Lulus", "Jumlah Lulusan Terlacak", "Sesuai Bidang Infokom", "Tidak Sesuai",
                               "Lingkup Tempat Kerja (Lokal/Multinasional)"],
         "sumber_data": "Tracer study mandiri UPPS/Fakultas",
-        "status_ketersediaan": "belum_tersedia", "mysql_table": None,
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_2_b_6": {
         "kriteria_led": "C2", "tabel_lkps": "2.B.6", "nama": "Kepuasan Pengguna Lulusan",
@@ -375,7 +495,7 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "kolom_dibutuhkan": ["Jenis Kemampuan Dinilai", "% Sangat Baik", "% Baik", "% Cukup", "% Kurang",
                               "Rencana Tindak Lanjut UPPS/PS"],
         "sumber_data": "Survei/kuesioner kepuasan pengguna lulusan",
-        "status_ketersediaan": "belum_tersedia", "mysql_table": None,
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_2_c": {
         "kriteria_led": "C2", "tabel_lkps": "2.C", "nama": "Fleksibilitas Pembelajaran",
@@ -387,7 +507,11 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_2_d": {
-        "kriteria_led": "C2", "tabel_lkps": "2.D", "nama": "Rekognisi Lulusan",
+        # tabel_lkps DIKOREKSI 2026-09-11: nomor asli di PDF adalah "2.D.1"
+        # (bukan cuma "2.D" -- "2.D" adalah judul SEKSI "Rekognisi dan
+        # Apresiasi Kompetensi Lulusan", tabelnya sendiri bernomor 2.D.1
+        # "Prestasi Mahasiswa"), ketahuan saat cross-check Daftar Tabel PDF asli.
+        "kriteria_led": "C2", "tabel_lkps": "2.D.1", "nama": "Rekognisi Lulusan",
         "deskripsi_singkat": "Sumber rekognisi (masyarakat, DUDI, prestasi mahasiswa), jenis pengakuan, per tahun.",
         "tipe": "tabel",
         "kolom_dibutuhkan": ["Sumber Rekognisi", "Jenis Pengakuan", "TS-2", "TS-1", "TS"],
@@ -400,7 +524,7 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "kriteria_led": "C3", "tabel_lkps": None, "nama": "C3 Penelitian",
         "deskripsi_singkat": "Sarpras, pembiayaan, roadmap penelitian, pengembangan DTPR, pelibatan mahasiswa, hibah, publikasi, HKI.",
         "tipe": "narasi", "kolom_dibutuhkan": list(_KOLOM_PPEPP),
-        "sumber_data": "Kompilasi data Bagian 3 LKPS", "status_ketersediaan": "belum_tersedia", "mysql_table": None,
+        "sumber_data": "Kompilasi data Bagian 3 LKPS", "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_3_a_1": {
         "kriteria_led": "C3", "tabel_lkps": "3.A.1", "nama": "Sarana Prasarana Penelitian",
@@ -448,13 +572,34 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "sumber_data": "LENTERA SIMASTER (lentera.simaster.ugm.ac.id)",
         "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
+    # lkps_3_c_2 & lkps_3_c_3 DITAMBAHKAN 2026-09-11 -- ketahuan hilang
+    # saat cross-check Daftar Tabel PDF LKPS asli.
+    "lkps_3_c_2": {
+        "kriteria_led": "C3", "tabel_lkps": "3.C.2", "nama": "Publikasi Penelitian",
+        "deskripsi_singkat": "Nama DTPR, judul publikasi, jenis publikasi (IB/I/S1-S4/T), tahun terbit, ciri "
+                              "khas PS, link bukti — per judul publikasi.",
+        "tipe": "tabel",
+        "kolom_dibutuhkan": ["Nama DTPR", "Judul Publikasi", "Jenis Publikasi (IB/I/S1-S4/T)",
+                              "Tahun Terbit (TS-2/TS-1/TS)", "Ciri Khas PS (Ya/Tidak)", "Link Bukti/PDF"],
+        "sumber_data": "SIMASTER modul Penelitian + Scopus/SINTA/Garuda + DOI",
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
+    },
+    "lkps_3_c_3": {
+        "kriteria_led": "C3", "tabel_lkps": "3.C.3", "nama": "Perolehan HKI (Granted) — Penelitian",
+        "deskripsi_singkat": "Judul HKI, jenis HKI, nama DTPR, tahun perolehan, ciri khas PS — per HKI penelitian.",
+        "tipe": "tabel",
+        "kolom_dibutuhkan": ["Judul HKI", "Jenis HKI", "Nama DTPR", "Tahun Perolehan (TS-2/TS-1/TS)",
+                              "Ciri Khas PS (Ya/Tidak)", "Link Bukti"],
+        "sumber_data": "PDKI (Pangkalan Data Kekayaan Intelektual, DJKI) + acadstaff.ugm.ac.id",
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
+    },
 
     # ============== Kriteria C4 — Relevansi PkM ==============
     "led_c4_pkm": {
         "kriteria_led": "C4", "tabel_lkps": None, "nama": "C4 Relevansi PkM",
         "deskripsi_singkat": "Sarpras, DTPR, roadmap, hibah, kerja sama, diseminasi, HKI — struktur sama dengan C3 tapi untuk PkM.",
         "tipe": "narasi", "kolom_dibutuhkan": list(_KOLOM_PPEPP),
-        "sumber_data": "Kompilasi data Bagian 4 LKPS", "status_ketersediaan": "belum_tersedia", "mysql_table": None,
+        "sumber_data": "Kompilasi data Bagian 4 LKPS", "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_4_a_1": {
         "kriteria_led": "C4", "tabel_lkps": "4.A.1", "nama": "Sarana Prasarana PkM",
@@ -463,6 +608,20 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "kolom_dibutuhkan": ["Nama Lab/Fasilitas", "Daya Tampung", "Luas (m2)", "Status Kepemilikan",
                               "Status Lisensi", "Daftar Perangkat", "Link Bukti"],
         "sumber_data": "SIMASET + pendataan mandiri departemen",
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
+    },
+    # lkps_4_a_2 DITAMBAHKAN 2026-09-11 -- ketahuan hilang saat cross-check
+    # (paralel 3.A.2 tapi utk PkM -- sebelumnya cuma ada narasi led_c4_pkm
+    # & sarpras/kerjasama/diseminasi, tanpa tabel hibah/pembiayaan PkM-nya sendiri).
+    "lkps_4_a_2": {
+        "kriteria_led": "C4", "tabel_lkps": "4.A.2", "nama": "PkM DTPR, Hibah dan Pembiayaan PkM",
+        "deskripsi_singkat": "Nama DTPR (ketua PkM), judul PkM, jumlah mahasiswa terlibat, jenis hibah, sumber "
+                              "dana, durasi, nominal pendanaan per tahun + link dokumen roadmap PkM.",
+        "tipe": "tabel",
+        "kolom_dibutuhkan": ["Nama DTPR (Ketua PkM)", "Judul PkM", "Jumlah Mahasiswa Terlibat",
+                              "Jenis Hibah PkM", "Sumber Dana", "Durasi (tahun)", "Pendanaan (Rp Juta)",
+                              "Link Dokumen Roadmap PkM"],
+        "sumber_data": "SIMASTER modul Pengabdian kepada Masyarakat",
         "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_4_c_1": {
@@ -483,13 +642,24 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "sumber_data": "simpan.ugm.ac.id / Google Drive + website departemen (dcse.fmipa.ugm.ac.id)",
         "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
+    # lkps_4_c_3 DITAMBAHKAN 2026-09-11 -- ketahuan hilang saat cross-check
+    # (paralel 3.C.3 tapi utk HKI hasil PkM).
+    "lkps_4_c_3": {
+        "kriteria_led": "C4", "tabel_lkps": "4.C.3", "nama": "Perolehan HKI PkM",
+        "deskripsi_singkat": "Judul HKI, jenis HKI, nama DTPR, tahun perolehan, ciri khas PS — per HKI hasil PkM.",
+        "tipe": "tabel",
+        "kolom_dibutuhkan": ["Judul HKI", "Jenis HKI", "Nama DTPR", "Tahun Perolehan (TS-2/TS-1/TS)",
+                              "Ciri Khas PS (Ya/Tidak)", "Link Bukti"],
+        "sumber_data": "PDKI (Pangkalan Data Kekayaan Intelektual, DJKI) + simpan.ugm.ac.id",
+        "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
+    },
 
     # ============== Kriteria C5 — Akuntabilitas ==============
     "led_c5_akuntabilitas": {
         "kriteria_led": "C5", "tabel_lkps": None, "nama": "C5 Akuntabilitas",
         "deskripsi_singkat": "Sistem tata kelola & tata pamong, standar mutu, efektivitas Audit Mutu Internal (AMI).",
         "tipe": "narasi", "kolom_dibutuhkan": list(_KOLOM_PPEPP),
-        "sumber_data": "GJMA + SIMASTER EDPS", "status_ketersediaan": "belum_tersedia", "mysql_table": None,
+        "sumber_data": "GJMA + SIMASTER EDPS", "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
 
     # ============== Kriteria C6 — Diferensiasi Misi ==============
@@ -497,7 +667,7 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "kriteria_led": "C6", "tabel_lkps": None, "nama": "C6 Diferensiasi Misi",
         "deskripsi_singkat": "Kebijakan VMTS, rencana pengembangan strategis (ciri khas keilmuan PS), pengakuan dari masyarakat & DUDIKA.",
         "tipe": "narasi", "kolom_dibutuhkan": list(_KOLOM_PPEPP),
-        "sumber_data": "Dokumen Renstra + testimoni DUDIKA", "status_ketersediaan": "belum_tersedia", "mysql_table": None,
+        "sumber_data": "Dokumen Renstra + testimoni DUDIKA", "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
     "lkps_6": {
         "kriteria_led": "C6", "tabel_lkps": "6", "nama": "Kesesuaian Visi Misi",
@@ -534,6 +704,90 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "status_ketersediaan": "perlu_input_manual", "mysql_table": None,
     },
 }
+
+# ---------- jenis_kendala (opsional -- HANYA relevan utk item yang BUKAN tersedia_otomatis) ----------
+# Membedakan item yang datanya ADA di suatu sumber tapi belum bisa diakses sistem
+# ("akses_data" -- tetap berupa FAKTA/ANGKA/TABEL, AI/ekstraksi boleh coba isi dari dokumen
+# yang diupload user, dan yang perlu dicek user adalah AKURASI kutipannya) VS item yang
+# makna/isinya harus disintesis/dinilai sendiri oleh tim penyusun prodi ("perlu_penyusunan_manusia"
+# -- AI tetap boleh bikin DRAFT dari dokumen yang diupload, tapi yang perlu dicek user adalah
+# KESEGARAN & RELEVANSI narasinya dgn kondisi terkini, BUKAN akurasi kutipan -- lihat pemakaian
+# di dashboard_render._render_item_form utk badge ekstraksi AI yang berbeda per kategori ini).
+#
+# Awalnya didata di akreditasi/data_source_map.json (investigasi akses sumber data live utk
+# prodi MEI, 2026-09-11) -- DIPINDAH jadi field permanen di registry ini krn ini properti
+# ITEM (berlaku general lintas prodi -- "Kata Pengantar" SELALU butuh penyusunan manusia,
+# "B.6 Keuangan & Sarpras" SELALU berupa data, apa pun prodinya), bukan spesifik prodi MEI.
+# Item yang TIDAK ada di sini (mis. sudah "tersedia_otomatis") dianggap default kategori
+# "data" oleh badge ekstraksi AI.
+_JENIS_KENDALA: dict[str, str] = {
+    "tim_penyusun_led": "akses_data",
+    "kata_pengantar": "perlu_penyusunan_manusia",
+    "ringkasan_eksekutif": "perlu_penyusunan_manusia",
+    "bab1_pendahuluan": "perlu_penyusunan_manusia",
+    "bab3_penutup": "perlu_penyusunan_manusia",
+    "led_kriteria_a": "perlu_penyusunan_manusia",
+    "led_b1_sejarah": "akses_data",
+    "led_b3_organisasi": "akses_data",
+    "led_b4_mahasiswa_lulusan": "akses_data",
+    "led_b5_dosen_tendik": "akses_data",
+    "led_b6_keuangan_sarpras": "akses_data",
+    "led_b7_spmi": "akses_data",
+    "led_b8_kinerja_ringkas": "akses_data",
+    "led_c1_budaya_mutu": "perlu_penyusunan_manusia",
+    "led_c2_relevansi_pendidikan": "perlu_penyusunan_manusia",
+    "led_c3_penelitian": "perlu_penyusunan_manusia",
+    "led_c4_pkm": "perlu_penyusunan_manusia",
+    "led_c5_akuntabilitas": "perlu_penyusunan_manusia",
+    "led_c6_diferensiasi_misi": "perlu_penyusunan_manusia",
+    "lkps_d1": "perlu_penyusunan_manusia",
+    "lkps_d2": "perlu_penyusunan_manusia",
+    "lkps_d3": "perlu_penyusunan_manusia",
+    "lkps_1_a_1": "akses_data",
+    "lkps_1_a_2": "akses_data",
+    "lkps_1_a_3": "akses_data",
+    "lkps_1_a_4": "akses_data",
+    "lkps_1_a_5": "akses_data",
+    "lkps_1_b": "akses_data",
+    "lkps_5_1": "akses_data",
+    "lkps_5_2": "akses_data",
+    "lkps_2_a_1": "akses_data",
+    "lkps_2_a_2": "akses_data",
+    "lkps_2_a_3": "akses_data",
+    "lkps_2_a_4": "akses_data",
+    "lkps_2_a_7": "akses_data",
+    "lkps_2_a_8": "akses_data",
+    "lkps_2_b_2": "akses_data",
+    "lkps_2_b_3": "akses_data",
+    "lkps_2_b_4_1": "perlu_penyusunan_manusia",
+    "lkps_2_b_4": "akses_data",
+    "lkps_2_b_5": "akses_data",
+    "lkps_2_b_6": "akses_data",
+    "lkps_2_c": "akses_data",
+    "lkps_2_d": "akses_data",
+    "lkps_3_a_1": "akses_data",
+    "lkps_3_a_2": "akses_data",
+    "lkps_3_a_3": "akses_data",
+    "lkps_3_a_4": "akses_data",
+    "lkps_3_c_1": "akses_data",
+    "lkps_3_c_2": "akses_data",
+    "lkps_3_c_3": "akses_data",
+    "lkps_4_a_1": "akses_data",
+    "lkps_4_a_2": "akses_data",
+    "lkps_4_c_1": "akses_data",
+    "lkps_4_c_2": "akses_data",
+    "lkps_4_c_3": "akses_data",
+}
+for _id, _jk in _JENIS_KENDALA.items():
+    if _id in KEBUTUHAN_DATA:
+        KEBUTUHAN_DATA[_id]["jenis_kendala"] = _jk
+
+
+def is_narasi_penilaian(item: dict) -> bool:
+    """True kalau item ini narasi/penilaian yang HARUS disintesis tim penyusun sendiri
+    (jenis_kendala == "perlu_penyusunan_manusia") -- dipakai dashboard_render utk pilih
+    badge/catatan ekstraksi AI yang tepat (soal kesegaran/relevansi, BUKAN akurasi)."""
+    return item.get("jenis_kendala") == "perlu_penyusunan_manusia"
 
 
 def by_kriteria() -> dict[str, list[dict]]:
@@ -597,14 +851,25 @@ def ringkasan_status(item_ids: "set[str] | list[str] | None" = None, terisi_ids:
     """Hitung jumlah item per status_ketersediaan. `item_ids` membatasi item yang
     dihitung (default semua 49 -- dipakai untuk ringkasan per mode LED/LKPS).
     `terisi_ids` = set item_id yang sudah punya data di akreditasi_data_manual
-    (dipakai bedakan 🟡 vs 🟠)."""
+    (dipakai bedakan 🟡 vs 🟠).
+
+    `lengkap`/`total` = SATU-SATUNYA angka kelengkapan (progress bar & kartu
+    Profil). `narasi_terisi`/`narasi_total` adalah BAGIAN dari angka itu
+    (item narasi/penilaian, lihat is_narasi_penilaian) -- ditampilkan sbg
+    keterangan "termasuk N/M narasi", bukan total kedua yang harus dijumlah."""
     terisi_ids = terisi_ids or set()
     subset = {k: v for k, v in KEBUTUHAN_DATA.items() if item_ids is None or k in item_ids}
+
+    def _lengkap(k: str) -> bool:
+        status = subset[k]["status_ketersediaan"]
+        return status == "tersedia_otomatis" or (status == "perlu_input_manual" and k in terisi_ids)
+
     total = len(subset)
     tersedia_otomatis = sum(1 for v in subset.values() if v["status_ketersediaan"] == "tersedia_otomatis")
     perlu_manual = [k for k, v in subset.items() if v["status_ketersediaan"] == "perlu_input_manual"]
     perlu_manual_terisi = sum(1 for k in perlu_manual if k in terisi_ids)
     belum_tersedia = sum(1 for v in subset.values() if v["status_ketersediaan"] == "belum_tersedia")
+    narasi = [k for k, v in subset.items() if is_narasi_penilaian(v)]
     return {
         "total": total,
         "tersedia_otomatis": tersedia_otomatis,
@@ -612,6 +877,8 @@ def ringkasan_status(item_ids: "set[str] | list[str] | None" = None, terisi_ids:
         "perlu_manual_terisi": perlu_manual_terisi,
         "belum_tersedia": belum_tersedia,
         "lengkap": tersedia_otomatis + perlu_manual_terisi,
+        "narasi_total": len(narasi),
+        "narasi_terisi": sum(1 for k in narasi if _lengkap(k)),
     }
 
 

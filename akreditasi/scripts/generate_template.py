@@ -37,12 +37,16 @@ from registry_kebutuhan_data import (  # noqa: E402
 WARNA_PLACEHOLDER = RGBColor(0x99, 0x33, 0x33)
 
 
-def _load_data_manual(engine) -> pd.DataFrame:
+def _load_data_manual(engine, prodi_id: str = "mei") -> pd.DataFrame:
+    """`prodi_id` WAJIB di-filter (2026-09-11, lihat scripts/migrasi_prodi_id.py)
+    -- tabel data_manual sekarang multi-tenant, tanpa filter ini dokumen yang
+    digenerate akan mencampur data semua prodi jadi satu."""
     if not db.table_exists(engine, db.t("data_manual")):
         return pd.DataFrame(columns=["item_id", "baris_ke", "kolom", "tahun", "nilai", "link_bukti"])
     return db.read_sql_retry(
-        engine, f"SELECT item_id, baris_ke, kolom, tahun, nilai, link_bukti FROM `{db.t('data_manual')}`",
-        label="load data_manual (generate_template)",
+        engine, f"SELECT item_id, baris_ke, kolom, tahun, nilai, link_bukti FROM `{db.t('data_manual')}` "
+                f"WHERE prodi_id = :prodi_id",
+        label="load data_manual (generate_template)", params={"prodi_id": prodi_id},
     )
 
 
@@ -196,12 +200,12 @@ def _add_cuplikan_lkps(doc: Document, kriteria: str, filled_ids: set) -> None:
     doc.add_paragraph()
 
 
-def generate_led_docx(engine=None) -> bytes:
+def generate_led_docx(engine=None, prodi_id: str = "mei") -> bytes:
     """Dokumen "Laporan Evaluasi Diri (LED)" -- isi per Kriteria (Umum/A/B/C1-C6/D),
     lihat led_items_by_kriteria(). Kriteria A/B/C1-C6 ditutup sub-tabel ringkas
     tabel LKPS terkait (cuplikan, bukan isi penuh)."""
     engine = engine or db.get_engine()
-    df_manual = _load_data_manual(engine)
+    df_manual = _load_data_manual(engine, prodi_id)
     filled_ids = set(df_manual["item_id"].unique()) if len(df_manual) else set()
     grouped = led_items_by_kriteria()
     item_ids = [item["id"] for items in grouped.values() for item in items]
@@ -226,12 +230,12 @@ def generate_led_docx(engine=None) -> bytes:
     return buf.getvalue()
 
 
-def generate_lkps_docx(engine=None) -> bytes:
+def generate_lkps_docx(engine=None, prodi_id: str = "mei") -> bytes:
     """Dokumen "Laporan Kinerja Program Studi (LKPS)" -- isi per Bagian 1-6,
     lihat lkps_items_by_bagian(). Rendering tabel sama persis seperti
     sebelumnya, cuma dikelompok ulang per Bagian bukan per Kriteria."""
     engine = engine or db.get_engine()
-    df_manual = _load_data_manual(engine)
+    df_manual = _load_data_manual(engine, prodi_id)
     filled_ids = set(df_manual["item_id"].unique()) if len(df_manual) else set()
     grouped = lkps_items_by_bagian()
     item_ids = [item["id"] for items in grouped.values() for item in items]

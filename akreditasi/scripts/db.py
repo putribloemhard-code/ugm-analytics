@@ -38,6 +38,7 @@ REQUIRED_ENV = ("MYSQL_HOST", "MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DB")
 
 RETRY_ATTEMPTS = 3
 RETRY_DELAY_SEC = 5
+UPSERT_CHUNK = 100
 
 logger = logging.getLogger("akreditasi.db")
 if not logger.handlers:
@@ -114,3 +115,52 @@ def read_sql_retry(engine: Engine, sql: str, label: str | None = None, params: d
     if not ok:
         raise RuntimeError(f"Gagal membaca data dari MySQL ({label}) -- cek koneksi.")
     return df
+
+
+def upsert(
+    engine: Engine,
+    table: str,
+    columns: list[str],
+    rows: list[tuple],
+    update_columns: list[str] | None = None,
+    chunk_size: int = UPSERT_CHUNK,
+    label: str | None = None,
+) -> int:
+    """INSERT ... ON DUPLICATE KEY UPDATE, dikirim per-batch kecil -- pola
+    identik dengan berita-dampak/scripts/db.py:upsert (lihat docstring di
+    sana), direplikasi ke sini supaya pipeline Fase 2 (SINTA dkk.) pakai
+    pola idempoten yang sama, bukan re-INSERT/DELETE penuh tiap run.
+
+    `update_columns` default = semua kolom selain kolom pertama (diasumsikan
+    primary key). Return jumlah baris yang berhasil tersimpan.
+    """
+    if not rows:
+        return 0
+    pk_col = columns[0]
+    update_columns = update_columns or [c for c in columns if c != pk_col]
+    label = label or f"upsert {table}"
+
+    cols_sql = ", ".join(f"`{c}`" for c in columns)
+    placeholders = ", ".join(f":{c}" for c in columns)
+    if update_columns:
+        set_sql = ", ".join(f"`{c}` = new.`{c}`" for c in update_columns)
+        sql = text(
+            f"INSERT INTO `{table}` ({cols_sql}) VALUES ({placeholders}) AS new "
+            f"ON DUPLICATE KEY UPDATE {set_sql}"
+        )
+    else:
+        sql = text(f"INSERT IGNORE INTO `{table}` ({cols_sql}) VALUES ({placeholders})")
+
+    saved = 0
+    for i in range(0, len(rows), chunk_size):
+        chunk = rows[i : i + chunk_size]
+        data = [dict(zip(columns, row)) for row in chunk]
+
+        def _run() -> None:
+            with engine.begin() as conn:
+                conn.execute(sql, data)
+
+        ok, _ = with_retry(_run, label=f"{label} (baris {i}-{i + len(chunk)})")
+        if ok:
+            saved += len(chunk)
+    return saved

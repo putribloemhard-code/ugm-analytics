@@ -17,6 +17,14 @@ Tabel yang dibuat:
   "3.C.1 per kontrak kerja sama"); tanpa ini tidak mungkin merekonstruksi
   baris mana yang berpasangan dengan baris mana saat baca balik ke
   st.data_editor / generate_template.py.
+
+  Kolom `prodi_id` DITAMBAHKAN 2026-09-11 (lihat scripts/migrasi_prodi_id.py
+  utk migrasi non-destruktif di database yang sudah berjalan) -- tabel ini
+  awalnya single-tenant (UNIQUE KEY tanpa pembeda prodi, data prodi lain
+  akan menimpa punya MEI). DDL di bawah SUDAH termasuk prodi_id sejak awal
+  supaya instalasi BARU langsung dapat skema yang benar; kalau DB sudah
+  ada & masih pakai skema lama, jalankan migrasi_prodi_id.py (CREATE TABLE
+  IF NOT EXISTS di bawah TIDAK akan mengubah tabel yang sudah ada).
 """
 
 import sys
@@ -29,6 +37,7 @@ import db  # noqa: E402
 DDL = f"""
 CREATE TABLE IF NOT EXISTS `{db.t('data_manual')}` (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    prodi_id VARCHAR(64) NOT NULL DEFAULT 'mei',
     item_id VARCHAR(64) NOT NULL,
     baris_ke INT NOT NULL DEFAULT 1,
     kolom VARCHAR(255) NOT NULL,
@@ -37,7 +46,7 @@ CREATE TABLE IF NOT EXISTS `{db.t('data_manual')}` (
     link_bukti VARCHAR(1000),
     diisi_oleh VARCHAR(255),
     updated_at DATETIME,
-    UNIQUE KEY uq_item_row_col_tahun (item_id, baris_ke, kolom, tahun)
+    UNIQUE KEY uq_prodi_item_row_col_tahun (prodi_id, item_id, baris_ke, kolom, tahun)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """
 

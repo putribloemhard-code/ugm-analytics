@@ -49,7 +49,26 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.title("🎓 Kelengkapan Data Akreditasi")
+
+# Login WAJIB -- mekanisme yang sama dgn menu Akreditasi di dashboard utama
+# (tanpa ini, app ini jadi pintu belakang yang melewati proteksi login).
+# Impor bare (bukan "scripts.xxx"): modul-modul di scripts/ saling impor secara
+# bare, jadi pola yang sama mencegah modul yang sama termuat dua kali.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "scripts"))
+from akun_akreditasi import simpan_riwayat_generate  # noqa: E402
+from auth_akreditasi import wajib_login  # noqa: E402
+
+user = wajib_login()
+
 st.caption("Kelengkapan data LED & LKPS — instrumen akreditasi Program Studi (LAM-INFOKOM)")
+
+if not dr.ensure_ready():
+    st.stop()
+
+prodi_id = dr.render_prodi_selector()
+if prodi_id is None:
+    st.info("Pilih Fakultas dan Program Studi dulu untuk melihat kelengkapan data.")
+    st.stop()
 
 scope = st.selectbox(
     "Lingkup akreditasi",
@@ -74,11 +93,8 @@ mode = st.selectbox(
     format_func=lambda m: "📘 LED — Laporan Evaluasi Diri" if m == "LED" else "📗 LKPS — Laporan Kinerja Program Studi",
 )
 
-if not dr.ensure_ready():
-    st.stop()
-
 engine = dr.get_engine()
-df_manual = dr.load_data_manual()
+df_manual = dr.load_data_manual(prodi_id)
 
 if mode == "LED":
     grouped = led_items_by_kriteria()
@@ -94,14 +110,16 @@ if mode == "LED":
         "Narasi evaluatif per Kriteria A-D (siklus PPEPP), sesuai dokumen kebutuhan data yang terdaftar "
         "di registry. Tiap tab Kriteria A/B/C1-C6 juga menampilkan cuplikan tabel LKPS terkait sebagai bukti evaluasi."
     )
-    dr.render_tabs_led(engine, df_manual, filled_ids)
+    dr.render_tabs_led(engine, df_manual, filled_ids, prodi_id,
+                       diisi_oleh_terverifikasi=user["email"])
 else:
     st.subheader(f"Kelengkapan Data LKPS ({ringkasan['total']} item)")
     st.caption(
         "Tabel data mentah per Bagian 1-6, sesuai dokumen kebutuhan data yang terdaftar di registry. "
         "Isi form di tiap tabel berstatus \"perlu input manual\" -- tersimpan langsung ke MySQL."
     )
-    dr.render_tabs_lkps(engine, df_manual, filled_ids)
+    dr.render_tabs_lkps(engine, df_manual, filled_ids, prodi_id,
+                        diisi_oleh_terverifikasi=user["email"])
 
 st.markdown("---")
 st.subheader(f"📄 Generate Dokumen {mode}")
@@ -111,7 +129,9 @@ st.caption(
 )
 if st.button(f"🔄 Generate Dokumen Template {mode}", type="primary"):
     with st.spinner("Membuat dokumen..."):
-        docx_bytes = generate_led_docx(engine) if mode == "LED" else generate_lkps_docx(engine)
+        docx_bytes = (generate_led_docx(engine, prodi_id) if mode == "LED"
+                      else generate_lkps_docx(engine, prodi_id))
+    simpan_riwayat_generate(user["email"], prodi_id, mode, docx_bytes)
     st.download_button(
         f"⬇️ Unduh template_{mode}.docx",
         data=docx_bytes,
