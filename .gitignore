@@ -55,3 +55,17 @@ api/**/__pycache__/
 
 # Graphify output (snapshot graph, jangan di-track)
 graphify-out/
+
+# Dump database & secret -- jangan pernah di-commit
+# (tidak ada file .sql yang sengaja di-track; dicek 2026-09-19)
+berita-dampak/data/analytics.sql
+*.sql
+.env.local
+*.env
+!*.env.example
+credentials*.json
+secrets.json
+service-account.json
+*.pem
+*.key
+id_rsa
