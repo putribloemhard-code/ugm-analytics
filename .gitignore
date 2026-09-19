@@ -52,3 +52,6 @@ web/dist/
 # Local test/cache artifacts for the standalone API
 api/.pytest_cache/
 api/**/__pycache__/
+
+# Graphify output (snapshot graph, jangan di-track)
+graphify-out/
