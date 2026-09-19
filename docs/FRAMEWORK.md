@@ -97,7 +97,11 @@ migrasi penuh ke MySQL (2026-08-29).
 - Satu koneksi tulis mengunci file TOTAl; dashboard harus `read_only=True`
   dengan retry 10×1s (`_connect_db` di dashboard_berita_dampak.py).
 - Jangan buka `duckdb` CLI mode tulis saat dashboard/update jalan; kalau
-  perlu query manual: `duckdb -readonly data/ugm_news.duckdb`.
+  perlu query manual di subproyek DuckDB: `duckdb -readonly data/<nama_file>.duckdb`.
+  Untuk berita-dampak tidak ada lagi file DuckDB (`ugm_news.duckdb` sudah
+  dihapus) -- query manual lewat MySQL, mis.
+  `mysql -u <user> -p ugm_analytics -e "SELECT COUNT(*) FROM berita_berita"`
+  (tabel berprefix `berita_`; lihat bagian "Koneksi MySQL" di bawah).
 - Update data menulis DB → dashboard tidak bisa dibuka selama update
   (sudah ada pesan ramah + lock file mencegah update ganda).
 

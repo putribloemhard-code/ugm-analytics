@@ -45,9 +45,16 @@ buka langsung di browser tanpa server, tanpa internet). Regenerate:
 
 Isi: 11 chart + tabel indikator resmi 14 tema + tabel contoh berita per tema.
 
-## 3. Database DuckDB
+## 3. Database MySQL
 
-File: `berita-dampak/data/ugm_news.duckdb` (21 MB).
+Database: MySQL `ugm_analytics` (kredensial di `.env` root repo). Sejak migrasi
+penuh 2026-08-29 data tidak lagi disimpan di file DuckDB `ugm_news.duckdb`
+(file itu sudah dihapus dari repo; riwayat Git masih menyimpannya).
+
+Nama tabel di bawah adalah nama asli saat masih DuckDB. Di MySQL setiap tabel
+diberi prefix `berita_` (mis. `sitemap` -> `berita_sitemap`, `berita` ->
+`berita_berita`, `berita_kepmen_all` -> `berita_berita_kepmen_all`). Jumlah baris
+adalah snapshot 2026-08-20, bukan angka live.
 
 | Tabel | Isi | Baris (2026-08-20) |
 |---|---|---|
@@ -65,8 +72,17 @@ File: `berita-dampak/data/ugm_news.duckdb` (21 MB).
 | `berita_kepmen`, `berita_sdg`, `ringkasan_sdg` | legacy (4 tema inti, tidak dipakai dashboard) | — |
 | `berita_kepmen_lengkap`, `ringkasan_kepmen_lengkap` | legacy (eksplorasi 9 tema) | — |
 
-Query manual: `duckdb -readonly data/ugm_news.duckdb` (jangan mode tulis saat
-dashboard/update jalan).
+Query manual: pakai klien MySQL biasa (mis. `mysql -u <user> -p ugm_analytics`)
+atau lewat Python dengan `get_engine()` dari `scripts/db.py`. Contoh:
+
+```sql
+SELECT COUNT(*) FROM berita_berita;                        -- total berita
+SELECT COUNT(DISTINCT url) FROM berita_berita_kepmen_all;  -- berita bertema dampak
+```
+
+Tidak ada masalah kunci-file seperti DuckDB, jadi query baca aman dijalankan
+saat dashboard/update berjalan. Cukup hindari perintah tulis (INSERT/UPDATE/
+DELETE/DROP) saat update pipeline sedang jalan.
 
 ## 4. Angka kunci (2026-08-21, lower-bound keyword match)
 
