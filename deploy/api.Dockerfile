@@ -13,7 +13,6 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 COPY api/app /app/api/app
 COPY berita-dampak/scripts /app/berita-dampak/scripts
 COPY akreditasi/scripts/registry_kebutuhan_data.py /app/akreditasi/scripts/registry_kebutuhan_data.py
-COPY deploy/bootstrap_duckdb.py /app/bootstrap_duckdb.py
 COPY deploy/migrate_mysql_to_postgres.py /app/migrate_mysql_to_postgres.py
 
 RUN useradd --system --uid 10001 --create-home appuser \
