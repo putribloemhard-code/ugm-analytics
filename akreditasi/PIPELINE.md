@@ -1,10 +1,15 @@
 # PIPELINE — Akreditasi
 
 Bukan pipeline scrape/tagging seperti `berita-dampak/` atau
-`matkul-sustainability/` (tidak ada sumber data eksternal yang di-scrape) --
-alurnya lebih ke **registry + input manual + generate dokumen**.
+`matkul-sustainability/` -- alurnya **registry + peta status sumber → pipeline
+data live → input manual/ekstraksi dokumen → generate dokumen**.
 
-## Alur
+Berkembang dalam 3 fase (semua sudah selesai per 2026-09-16):
+**Fase 1** registry + peta status sumber · **Fase 2** pipeline data live ·
+**Fase 3** ekstraksi dokumen upload + generator laporan live.
+Fase A+B (login akreditasi) selesai 2026-09-18.
+
+## Alur Fase 1 — registry + input manual + generate (alur asli)
 
 ```
 scripts/registry_kebutuhan_data.py   # 1. Satu sumber kebenaran: 49 item data
@@ -20,6 +25,30 @@ akreditasi_data_manual (MySQL)       # 4. Penyimpanan (skema "long"/EAV, lihat R
 scripts/generate_template.py         # 5. Generate .docx -- gabung registry + data manual
         ↓
 template_akreditasi_YYYYMMDD.docx    # 6. Output -- diunduh lewat dashboard
+```
+
+## Alur Fase 2 & 3 — data live + ekstraksi dokumen
+
+```
+data_source_map.json                 # Fase 1 lanjutan: peta status 61 item
+                                     #  (5 tersedia / 41 akses_data / 15 perlu manusia)
+        ↓
+scripts/pipeline_item_tersedia.py    # Fase 2: 5 item "tersedia" → akreditasi_item_tersedia
+scripts/pipeline_sinta.py            #         publikasi Scopus 18 DTPR → akreditasi_publikasi_dosen
+scripts/pipeline_dcse_berita.py      #         arsip RSS dcse.fmipa.ugm.ac.id → akreditasi_berita_dcse
+        ↓
+scripts/upload_akreditasi.py         # Fase 3: file pendukung → data/uploads/<prodi_id>/
+                                     #         + metadata akreditasi_upload_file
+        ↓
+scripts/ekstraksi_pattern.py         # Fase 3 tier 1: pattern-matching TANPA AI (dicoba dulu)
+        ↓ (kalau tidak cocok)
+scripts/ekstraksi_akreditasi.py      # Fase 3 tier 2: LLM per batch item registry
+        ↓
+akreditasi_upload_ekstraksi          # PREVIEW -- user review & klik Simpan dulu
+        ↓
+akreditasi_data_manual               # baru masuk sini setelah dikonfirmasi
+        ↓
+scripts/generate_laporan_live.py     # Fase 3: .docx dari data LIVE (bukan PDF lama)
 ```
 
 ## 1. Registry (`scripts/registry_kebutuhan_data.py`)
@@ -100,3 +129,26 @@ adaptasi langsung, prefix `akreditasi_`): `pool_pre_ping=True` +
 data subproyek ini kecil (input manusia, bukan scraping ribuan baris) --
 tidak butuh `upsert()` batch/chunk seperti `berita-dampak` (simpan pakai
 delete+reinsert per item, lihat di atas).
+
+Catatan: `mysql` CLI tidak ada di PATH mesin dev — query manual pakai
+`venv/Scripts/python.exe` + `load_dotenv()` + SQLAlchemy (contoh di
+`berita-dampak/docs/OUTPUT.md`).
+
+## Pitfall yang sudah ditemukan
+
+- **Model LLM gateway tidak menegakkan JSON Schema strict**: `cx/gpt-5.6-luna`
+  mengabaikan `response_format` (dicoba 2026-09-16) → parsing respons ekstraksi
+  harus defensif, jangan asumsikan bentuk JSON pasti sesuai skema.
+- **PDF LED/LKPS lama HANYA untuk struktur**: kode_item, nama, deskripsi_singkat,
+  kriteria_led, tabel_lkps, dokumen. TIDAK ADA angka/isi PDF yang dipindah ke
+  sistem — status sumber ditentukan dari verifikasi akses sumber live.
+- **Isi lama tabel data manual diarsipkan, bukan dibuang**: `migrasi_arsip_pdf.py`
+  memindahkan 2.292 baris isian lama (yang berasal dari PDF) ke
+  `akreditasi_data_manual_arsip_pdf`, supaya `akreditasi_data_manual` bersih
+  (murni data baru: 118 baris / 14 item per 2026-09-19).
+- **Dua lokasi upload berbeda**: jalur Streamlit menulis ke
+  `akreditasi/data/uploads/<prodi_id>/`, jalur API menulis ke
+  `ACCREDITATION_UPLOAD_DIR` (di container: `runtime/accreditation-uploads`).
+  Jangan menganggap keduanya satu folder saat mendeploy.
+- **Ekstraksi = preview**: hasil ekstraksi TIDAK langsung masuk data manual;
+  user harus review & klik Simpan (237 baris preview menunggu per 2026-09-19).

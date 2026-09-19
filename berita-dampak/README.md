@@ -1,7 +1,10 @@
 # Berita Dampak — Analisis Dampak Berita UGM
 
-Identifikasi dan pemetaan berita dampak UGM pada 4 topik:
-**rehabilitasi lingkungan, kewirausahaan, kunjungan akademik, kolaborasi riset**.
+Identifikasi dan pemetaan berita dampak UGM pada **14 tema resmi Kepmen
+361/M/KEP/2025** (3 pilar: Lingkungan/Ekonomi/Sosial) + klaster **SDGs**, plus
+lapisan independen **44 fakultas/sekolah/unit kerja UGM**. Empat tema awal
+(rehabilitasi lingkungan, kewirausahaan, kunjungan akademik, kolaborasi riset)
+tetap ada sebagai bagian dari 14 tema itu.
 
 ## Isi folder
 
@@ -21,8 +24,11 @@ Database: **MySQL** (bukan DuckDB lagi — migrasi penuh selesai; lihat
 | `scripts/process_nlp.py` | Tagging 4 topik inti + ringkasan per tahun |
 | `scripts/tag_kepmen_all.py` | **Utama**: tagging SEMUA berita ke 14 tema Kepmen + SDG (tabel berita_kepmen_all, berita_sdg_all, ringkasan_pilar, ringkasan_sdg_all) |
 | `scripts/tag_sdg_langsung.py` | Mode "SDGs saja": mapping langsung seluruh sitemap → 17 SDG |
+| `scripts/tag_unit_kerja.py` | Tagging 44 fakultas/sekolah/unit kerja UGM → `berita_unit_kerja` (lapisan independen dari Kepmen/SDG) |
+| `scripts/unit_kerja.py` | Daftar resmi 44 fakultas/sekolah/unit kerja + guard leakage lintas-universitas |
+| `scripts/fetch_backlog.py` | **Sumber tunggal ekstraksi isi lengkap** (`fetch_full()`, `clean_url()`, `ensure_fetch_columns()`) + backfill besar seluruh sitemap (manual/background, lock sendiri) |
 | `scripts/backfill_deskripsi.py` | Isi ulang deskripsi berita sitemap yang kosong (fallback og:description) |
-| `scripts/generate_narasi_llm.py` | Rangkai narasi ringkasan/insight via Gemini API, cache ke `berita_narasi_cache` |
+| `scripts/generate_narasi_llm.py` | Rangkai narasi ringkasan/insight via OpenAI API, cache ke `berita_narasi_cache` (opsional; skip aman ke narasi template kalau key kosong) |
 | `scripts/laporan_static.py` | Cetak `laporan_berita_dampak.html` (11 chart + tabel 14 tema, JS inline) |
 | `scripts/update_mingguan.py` | Update berkala: jalankan pipeline lengkap (sitemap → RSS → fetch → normalisasi → tagging → narasi → laporan) |
 | `scripts/count_berita.py` | Helper kecil: cetak jumlah baris `berita_berita` (dipakai `update_mingguan.sh`) |
@@ -37,44 +43,37 @@ Database: **MySQL** (bukan DuckDB lagi — migrasi penuh selesai; lihat
 DuckDB→MySQL, sudah tidak relevan setelah migrasi penuh) sudah **dihapus** dari
 folder ini.
 
-## Mengubah tampilan dashboard
+## Struktur dashboard (multipage sejak 2026-09-06)
 
-File yang diubah: `dashboard_berita_dampak.py` (buka di VS Code). Setelah edit,
-simpan lalu restart: tekan Ctrl+C di terminal streamlit, jalankan lagi:
+`dashboard_berita_dampak.py` sekarang hanya **shell navigasi** (78 baris). Isi tiap
+halaman dipisah supaya tiap file kecil dan mudah diedit:
 
-```bash
-cd D:\ugm-analytics\berita-dampak
-..\venv\Scripts\streamlit run dashboard_berita_dampak.py
-```
+| Halaman | File | Isi |
+|---|---|---|
+| Beranda | `pages_app/beranda.py` | ringkasan lintas halaman + kartu shortcut |
+| Dampak | `pages_app/dampak_saja.py` → `page_dampak.py` | mode "Berdampak" (pilar + 14 tema) |
+| Dampak × SDGs | `pages_app/dampak_sdgs.py` → `page_dampak.py` | mode penuh (pilar + tema + klaster SDG) |
+| SDGs | `pages_app/sdgs.py` → `page_sdgs.py` | mode "SDGs saja" (17 SDG, tanpa tema) |
+| Akreditasi | `pages_app/akreditasi.py` → `page_akreditasi.py` | kelengkapan LED/LKPS + upload |
+| Admin | `pages_app/admin.py` → `page_admin.py` | status data/update |
+| Profil | `pages_app/profil.py` → `page_profil.py` | info proyek |
 
-Peta baris (cek dengan Ctrl+G di VS Code):
+File pendukung: `common.py` (header/style/tema), `data_loader.py` (load data bersama),
+`pencarian.py` (pencarian bebas → rute + filter), `laporan_word.py` (ekspor .docx).
+`page_dampak.py` adalah file terbesar (~1.460 baris) — di dalamnya urutan bagian
+mengikuti urutan blok `st.subheader(...)`.
 
-| Baris | Mengubah apa |
-|---|---|
-| 56–58 | Judul halaman, judul besar, caption sumber |
-| 111–140 | Sidebar filter (tahun, topik, sumber, pilar) — label + default pilihan |
-| 144–165 | Bagian Ringkasan (angka statistik) |
-| 167–178 | Chart distribusi per topik |
-| 181–295 | Peta Kepmen & SDGs + tabel indikator |
-| 296–357 | Expander eksplorasi tema Kepmen lain |
-| 359–378 | Heatmap topik × tahun |
-| 380–390 | Tren tahunan per topik |
-| 393–404 | Tren bulanan (musiman) |
-| 407–423 | Cakupan vs total berita UGM |
-| 432–458 | Keyword pemicu match per topik |
-| 460–470 | Berita multi-topik |
-| 485–501 | Word frequency per topik |
-| 504–558 | Daftar berita (tabel) |
-| 559+ | Expander berita tanpa match (cek manual) |
+**Mengubah tampilan:** buka file halaman yang relevan di VS Code, simpan, lalu
+restart Streamlit (Ctrl+C di terminal, jalankan ulang perintah di bawah).
 
 Tips umum:
-- Warna chart diatur per-`fig` (argumen `color_discrete_sequence` / `marker_color`
-  di tiap bagian) — cari `px.` di baris itu.
+- Warna chart diatur per-`fig` (`color_discrete_sequence` / `marker_color`) — cari `px.`.
 - Teks/emoji label tinggal ganti string di `st.title`, `st.subheader`, `st.caption`.
-- `width="stretch"` di `st.plotly_chart` membuat chart selebar layar; ganti ke
-  angka tetap (mis. `width=800`) kalau mau sempit.
-- Urutan bagian = urutan baris di file. Mau pindah/ hapus bagian, potong blok
-  `st.subheader(...)` sampai `st.plotly_chart(...)`-nya.
+- Tiap chart wajib punya caption `💡 penjelasan(...)` + tooltip `hover_keterangan()`
+  (helper ada di `dashboard_berita_dampak.py`, sebelum `st.set_page_config`).
+- `width="stretch"` membuat chart selebar layar; ganti ke angka tetap kalau mau sempit.
+- Jangan me-rename identifier/kolom DB (mis. `topik` → `tema`) — hanya teks yang
+  tampil memakai istilah "tema"; nama tabel/kolom tetap `topik`.
 
 Laporan statis `laporan_berita_dampak.html` dihasilkan dari `scripts/laporan_static.py`
 — isi chart-nya diset di situ, bukan di file HTML (file HTML jangan diedit manual,

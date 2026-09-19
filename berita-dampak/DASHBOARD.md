@@ -7,38 +7,40 @@ cd D:\ugm-analytics\berita-dampak
 ..\venv\Scripts\streamlit run dashboard_berita_dampak.py
 ```
 
-Lalu buka http://localhost:8766 (atau http://10.73.1.179:8766 dari laptop
-lain di jaringan yang sama; port 8766 harus dibuka di firewall — lihat
-`D:\ugm-analytics\buka_akses_dashboard_admin.bat`).
+Lalu buka http://localhost:8766 (atau dari laptop lain di jaringan yang sama —
+IP LAN bisa berubah, cek dengan `ipconfig` atau jalankan
+`D:\ugm-analytics\buka_akses_dashboard_admin.bat` yang mencetak IP aktif + memasang
+firewall rule port 8766; untuk lintas jaringan pakai Tailscale).
 
 ## Sumber data
 
 MySQL (database `ugm_analytics`, kredensial dari `.env` root project) —
-bukan DuckDB lagi (migrasi penuh 2026-08-29). Tabel berprefix `berita_`:
+bukan DuckDB lagi (migrasi penuh 2026-08-29). Tabel berprefix `berita_`
+(angka di bawah = snapshot live 2026-09-19, kueri langsung):
 
-| Tabel (tanpa prefix `berita_`) | Isi |
-|---|---|
-| `sitemap` | 32.120 URL berita ugm.ac.id (2005–2026) — baseline volume |
-| `berita` | 4.777 berita: judul, tanggal, deskripsi, sumber (RSS/sitemap) |
-| `berita_topik` | 471 pasangan url–tema (4 tema inti; 1 berita bisa multi-tema) |
-| `ringkasan_topik_tahun` | jumlah berita per tema per tahun |
-| `berita_kepmen_all` | 1.487 pasangan url–tema (14 tema Kepmen) + pilar + sdg — sumber utama dashboard |
-| `berita_sdg_all` | pasangan url–SDG dedup (semua 14 tema) |
-| `ringkasan_topik_all` | jumlah berita unik per 14 tema (topik, pilar, topik_kepmen, sdg) |
-| `ringkasan_pilar` | jumlah berita unik per pilar (Lingkungan/Ekonomi/Sosial) |
-| `ringkasan_pilar_tahun` | jumlah berita per pilar per tahun |
-| `ringkasan_sdg_all` | jumlah berita unik per SDG (semua 14 tema) |
-| `sitemap_sdg` | pasangan url–SDG mapping LANGSUNG seluruh 32.130 URL sitemap (mode "SDGs saja"; slug + judul/deskripsi) |
-| `ringkasan_sdg_sitemap` | jumlah berita unik per SDG (17 SDG) dari sitemap_sdg |
-| `ringkasan_sdg_sitemap_tahun` | jumlah berita per SDG per tahun (lastmod sitemap) |
-| `narasi_cache` | narasi LLM (Gemini) hasil `generate_narasi_llm.py`, cache_key → narasi |
-| `unit_kerja` | pasangan url–unit_kerja–kategori (44 fakultas/sekolah/unit kerja UGM, `tag_unit_kerja.py`) — lapisan independen dari tagging Kepmen/SDG |
-| `berita_kepmen`, `berita_sdg`, `ringkasan_sdg` | orphan: dari script legacy yang sudah dihapus (tag_kepmen_berita.py) — tidak dipakai dashboard, tidak diperbarui lagi |
-| `berita_kepmen_lengkap`, `ringkasan_kepmen_lengkap` | orphan: dari script legacy yang sudah dihapus (tag_kepmen_lengkap.py) — tidak dipakai dashboard, tidak diperbarui lagi |
+| Tabel (tanpa prefix `berita_`) | Isi | Baris (2026-09-19) |
+|---|---|---|
+| `sitemap` | URL berita ugm.ac.id (2004–2026) — baseline volume | 32.281 |
+| `berita` | judul, tanggal, deskripsi, **isi lengkap**, kredit, sumber (RSS/sitemap) | 32.228 (isi terisi 32.209) |
+| `berita_topik` | pasangan url–tema (4 tema inti; 1 berita bisa multi-tema) | — |
+| `ringkasan_topik_tahun` | jumlah berita per tema per tahun | — |
+| `berita_kepmen_all` | pasangan url–tema (14 tema Kepmen) + pilar + sdg — sumber utama dashboard | 35.882 pasangan / 19.829 url |
+| `berita_sdg_all` | pasangan url–SDG dedup (semua 14 tema) | — |
+| `ringkasan_topik_all` | jumlah berita unik per 14 tema (SELALU 14 baris, zero-fill) | 14 |
+| `ringkasan_pilar` | jumlah berita unik per pilar (Lingkungan/Ekonomi/Sosial) | 3 |
+| `ringkasan_pilar_tahun` | jumlah berita per pilar per tahun | — |
+| `ringkasan_sdg_all` | jumlah berita unik per SDG (semua 14 tema) | 14 |
+| `sitemap_sdg` | pasangan url–SDG mapping LANGSUNG seluruh URL sitemap (mode "SDGs saja") | 127.871 pasangan / 31.873 url |
+| `ringkasan_sdg_sitemap` | jumlah berita unik per SDG (17 SDG) dari sitemap_sdg | 17 |
+| `ringkasan_sdg_sitemap_tahun` | jumlah berita per SDG per tahun (lastmod sitemap) | — |
+| `narasi_cache` | narasi LLM (OpenAI) hasil `generate_narasi_llm.py`, cache_key → narasi | — |
+| `unit_kerja` | pasangan url–unit_kerja–kategori (44 fakultas/sekolah/unit kerja UGM, `tag_unit_kerja.py`) — lapisan independen dari tagging Kepmen/SDG | 13.488 pasangan / 10.310 url |
+| `berita_kepmen`, `berita_sdg`, `ringkasan_sdg` | orphan: dari script legacy yang sudah dihapus (tag_kepmen_berita.py) — tidak dipakai dashboard, tidak diperbarui lagi | — |
+| `berita_kepmen_lengkap`, `ringkasan_kepmen_lengkap` | orphan: dari script legacy yang sudah dihapus (tag_kepmen_lengkap.py) — tidak dipakai dashboard, tidak diperbarui lagi | — |
 
 Data dimuat dengan cache Streamlit (`@st.cache_data`, TTL 300 detik). Koneksi
-MySQL pakai `pool_pre_ping=True` + `pool_recycle=3600` (lihat `_get_engine()`
-di `dashboard_berita_dampak.py`).
+MySQL pakai `pool_pre_ping=True` + `pool_recycle=3600` (lihat `_get_engine()` di
+`berita-dampak/common.py` / `data_loader.py`).
 
 ## Sidebar: Filter Global
 
@@ -47,14 +49,21 @@ sesuai filter.
 
 - **Mode analisis** — radio 3 mode:
   - *Berdampak* — 3 pilar & 14 tema Kepmen, tanpa bagian SDG.
-  - *Berdampak × SDGs* — tampilan penuh sekarang (tema + SDG dari berita bertema).
-  - *SDGs saja* — mapping LANGSUNG seluruh 32.130 URL berita sitemap ke 17 SDG
-    (tanpa tema dampak; teks = slug URL + judul/deskripsi yang sudah di-fetch).
-- **Rentang tahun** — select slider, default seluruh data (2005–2026).
+  - *Berdampak × SDGs* — tampilan penuh (tema + SDG dari berita bertema).
+  - *SDGs saja* — mapping LANGSUNG seluruh URL berita sitemap ke 17 SDG
+    (tanpa tema dampak; teks = slug URL + judul/deskripsi/isi lengkap).
+- **Rentang tahun** — select slider, default seluruh data (2004–2026).
+- **Fakultas / Unit Kerja** — multi-select 44 fakultas/sekolah/unit kerja UGM
+  (lapisan independen, dari `tag_unit_kerja.py`); tersedia di KETIGA mode.
 - **Filter mengikuti mode**: mode *Berdampak* / *Berdampak × SDGs* menampilkan
   filter **Tema dampak**, **Sumber**, **Pilar dampak (Kepmen)**; mode *SDGs saja*
   menampilkan filter **SDG (17)** (multi-select, contoh "SDG 4 — Pendidikan
   Berkualitas") — bukan filter tema.
+
+> Catatan struktur (sejak 2026-09-06): dashboard ini **multipage** —
+> `dashboard_berita_dampak.py` hanya shell navigasi; halaman Beranda/Dampak/
+> Dampak × SDGs/SDGs/Akreditasi/Admin/Profil ada di `pages_app/` +
+> `page_*.py`. Peta lengkap ada di `README.md` bagian "Struktur dashboard".
 
 ## Isi Dashboard
 
@@ -63,6 +72,14 @@ sesuai filter.
 2. Berita bertema dampak — jumlah berita unik yang match ≥ 1 dari 14 tema.
 3. Tema terpilih — berapa tema yang aktif di filter.
 4. Rentang tahun — rentang yang sedang difilter.
+
+> **Angka di bawah adalah snapshot 2026-08-21 (DuckDB, basis 4.787 berita) dan
+> sudah tidak berlaku.** Angka live 2026-09-19 (MySQL, basis 32.228 berita):
+> 19.829 berita bertema (61,5%); pilar Sosial 12.534 / Ekonomi 8.701 /
+> Lingkungan 7.430; tema terbesar pengabdian_masyarakat 7.405,
+> kunjungan_akademik 5.547, instansi_publik 4.754, penelitian_inovasi_sosial
+> 3.834, rehabilitasi_lingkungan 3.405; SDG warisan tema terbesar SDG 8 (12.904),
+> 11 (12.241), 17 (11.216), 1 (10.271). Selalu kueri MySQL untuk angka terkini.
 
 ### 1 — Distribusi per Tema Dampak
 Bar horizontal jumlah berita unik per 14 tema, warna per pilar. Semua 14
@@ -173,18 +190,20 @@ Daftar berita dalam filter yang tidak masuk tema mana pun. Dipakai untuk
 cek manual — false positive/negative bisa terjadi karena data sumber
 (deskripsi terpotong, keyword tidak lengkap, dll).
 
-## Mode "SDGs saja" (seluruh 32.130 URL)
+## Mode "SDGs saja" (seluruh URL sitemap)
 
 Menu Mode analisis → *SDGs saja*. Mapping langsung url berita sitemap ke
-17 SDG TANPA tema dampak Kepmen — jangkauan jauh lebih luas (15.688 / 32.130
-= 48,8% URL bertanda ≥1 SDG, vs 2.369 berita bertema). Teks yang dicocokkan:
-kata-kata slug URL (untuk 27.343 yang belum di-fetch) + judul & deskripsi
-(untuk 4.787 yang sudah). Satu berita bisa masuk beberapa SDG. Kamus:
-`scripts/sdg_keywords.py` (17 SDG, ID+EN, dari nama resmi & target SDG).
+17 SDG TANPA tema dampak Kepmen — jangkauan jauh lebih luas (live 2026-09-19:
+31.873 / 32.281 URL = 98,8% bertanda ≥1 SDG, vs 19.829 berita bertema).
+Teks yang dicocokkan: kata-kata slug URL + judul/deskripsi/isi lengkap artikel.
+Satu berita bisa masuk beberapa SDG. Kamus: `scripts/sdg_keywords.py`
+(17 SDG, ID+EN, dari nama resmi & target SDG).
 Bagian: metrik cakupan, bar distribusi per SDG (17), tren SDG per tahun,
 heatmap SDG × tahun, tabel ringkasan per SDG, expander "Lihat keyword per
 SDG", cek manual berita tanpa tanda SDG. Filter sidebar mode ini = **SDG (17)**
 multi-select (bukan tema dampak) — metrik & grafik mengikuti SDG terpilih.
+Snapshot historis (2026-08-21, sebelum isi lengkap, basis 32.130 URL):
+15.688 URL (48,8%) — jangan dipakai sebagai angka sekarang.
 
 ## Laporan Statis (tanpa server)
 
@@ -221,7 +240,7 @@ RSS id/en (10+10 item) ──────── ingest.py ───────�
     tag_kepmen_all.py (14 tema Kepmen + SDG dari xlsx)     → berita_kepmen_all, berita_sdg_all,
                                                              ringkasan_pilar(_tahun), ringkasan_sdg_all
     tag_sdg_langsung.py (mode "SDGs saja", 17 SDG)         → sitemap_sdg, ringkasan_sdg_sitemap(_tahun)
-    generate_narasi_llm.py (opsional, Gemini API)          → narasi_cache
+    generate_narasi_llm.py (opsional, OpenAI API)          → narasi_cache
     laporan_static.py                                      → laporan_berita_dampak.html
 ```
 
@@ -230,14 +249,14 @@ UPDATE) per batch kecil + retry — lihat `scripts/db.py` dan `PIPELINE.md`.
 
 ## Cara Membaca Hasil (caveat)
 
-- Angka bertema (2.369 unik / 4.787 berita) adalah **lower-bound**:
-  pencarian keyword terbatas pada 14 tema dan deskripsi yang tersedia.
+- Angka bertema adalah **lower-bound**: pencarian keyword terbatas pada 14 tema
+  dan teks yang tersedia. Live 2026-09-19: 19.829 unik / 32.228 berita (61,5%).
 - Berita EN dan ID bisa duplikat konten (terjemahan) — dedup berdasarkan URL,
   bukan konten, sehingga terjemahan dihitung sebagai 2 berita.
-- Baseline sitemap = SEMUA berita situs (32.130 URL: 19.223 /id/berita/ +
-  12.907 /en/news/; ID & EN adalah terjemahan konten sama). `berita` di tabel
-  hanya subset yang slug-nya cocok keyword tema (fetch_detail) — proporsi di
-  bagian 6 adalah indikasi kasar, bukan statistik resmi.
+- Baseline sitemap = SEMUA berita situs (live 2026-09-19: 32.281 URL — /id/berita/ +
+  /en/news/; ID & EN adalah terjemahan konten sama). `berita` di tabel hanya
+  subset yang slug-nya cocok keyword tema (fetch_detail) — proporsi di bagian
+  "Cakupan vs Total" adalah indikasi kasar, bukan statistik resmi.
 - Pemetaan Kepmen & SDG mengikuti template `UGM Analytics.xlsx` — bukan
   hitungan mandiri; klaster SDG adalah atribut resmi tema, jadi semua berita
   dalam satu tema otomatis membawa SDG yang sama (bukan hasil keyword

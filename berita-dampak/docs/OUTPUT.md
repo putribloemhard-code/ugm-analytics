@@ -1,109 +1,145 @@
 # OUTPUT — Apa yang Dihasilkan (berita-dampak)
 
-## 1. Dashboard Streamlit (interaktif)
+Terakhir disinkronkan: **2026-09-19**. Angka di dokumen ini = snapshot; verifikasi
+runtime selalu dari MySQL live (lihat "Cara query manual" di bawah).
 
-File: `berita-dampak/dashboard_berita_dampak.py` — jalankan:
+## 1. Dashboard Streamlit (interaktif, untuk analis)
+
+Sejak 2026-09-06 dashboard **multipage** — `dashboard_berita_dampak.py` hanya shell
+navigasi (78 baris), isi tiap halaman ada di `pages_app/` + `page_*.py`.
 
 ```bash
 cd D:\ugm-analytics\berita-dampak
 ..\venv\Scripts\streamlit run dashboard_berita_dampak.py
 ```
 
-Buka http://localhost:8766. Fitur:
+Buka http://localhost:8766 (dari laptop lain: Network URL / Tailscale, lihat
+`docs/FRAMEWORK.md` bagian "Jaringan & akses").
 
-**Sidebar filter global** (berlaku ke semua bagian):
-- Rentang tahun (slider, 2005–2026)
-- Tema dampak (14 tema, multi-select)
-- Sumber (sitemap / RSS)
-- Pilar Kepmen (Lingkungan / Ekonomi / Sosial)
-- Tombol "🔄 Update Berita Terbaru" (jalankan pipeline di background)
+| Halaman | File | Isi |
+|---|---|---|
+| Beranda | `pages_app/beranda.py` | ringkasan lintas halaman, kartu shortcut |
+| Dampak | `pages_app/dampak_saja.py` → `page_dampak.py` | mode "Berdampak" (pilar + 14 tema) |
+| Dampak × SDGs | `pages_app/dampak_sdgs.py` → `page_dampak.py` | mode penuh (pilar + tema + klaster SDG) |
+| SDGs | `pages_app/sdgs.py` → `page_sdgs.py` | mode "SDGs saja" (mapping langsung 17 SDG) |
+| Akreditasi | `pages_app/akreditasi.py` → `page_akreditasi.py` | kelengkapan LED/LKPS + upload |
+| Admin | `pages_app/admin.py` → `page_admin.py` | status data/update |
+| Profil | `pages_app/profil.py` → `page_profil.py` | info proyek |
 
-**11 bagian:**
-1. Ringkasan — 4 kartu: total berita, berita bertema dampak, tema terpilih, rentang tahun
-2. Distribusi per Tema Dampak — bar horizontal 14 tema, warna per pilar
-3. Peta Tema Resmi Kepmen & Klaster SDGs — bar per Tema Kepmen (warna pilar),
-   bar per SDG, heatmap tema×SDG, tren SDG per tahun, heatmap pilar×tahun,
-   expander ringkasan per pilar, expander tabel pemetaan + indikator 14 tema
+**Filter sidebar global** (berlaku lintas bagian): rentang tahun, tema dampak
+(14 tema), sumber (sitemap/RSS), pilar Kepmen (Lingkungan/Ekonomi/Sosial),
+**Fakultas / Unit Kerja** (di ketiga mode), dan tombol "🔄 Update Berita Terbaru".
+Mode "SDGs saja" memakai multi-select SDG (17) alih-alih tema.
+
+**Bagian analisis** (di mode Dampak / Dampak × SDGs):
+1. Ringkasan eksekutif + narasi dinamis (template pandas, opsional dirangkai OpenAI)
+2. Distribusi per Tema Dampak — bar 14 tema, warna per pilar
+3. Peta Tema Resmi Kepmen & Klaster SDGs — bar per tema Kepmen, bar per SDG,
+   heatmap tema×SDG, tren SDG per tahun, heatmap pilar×tahun, expander ringkasan
+   per pilar, expander tabel pemetaan + indikator 14 tema
 4. Heatmap Tema × Tahun
 5. Tren Tahunan per Tema (line)
 6. Tren Bulanan (musiman, bar stacked)
 7. Cakupan vs Total Berita UGM per Tahun (baseline sitemap)
-8. Keyword yang Memicu Match per Tema (bar)
+8. Keyword yang Memicu Match per Tema (bar) — dropdown "Pilar - Tema" untuk 14 tema
 9. Berita Multi-Tema (distribusi + daftar kombinasi)
 10. Kata yang Paling Sering Muncul per Tema (word frequency)
-11. Daftar Berita — tabel lengkap (tanggal, judul, Tema Kepmen,
-    indikator, SDG, sumber, tautan) + expander "berita tanpa match (cek manual)"
+11. Daftar Berita — Tanggal/Judul/Tema Kepmen/Indikator Kepmen/SDG/Sumber/Tautan
+    + expander "berita tanpa match (cek manual)"
+12. Tab **Fakultas / Unit Kerja** per pilar (ranking unit, drill-down)
+
+Konvensi tampilan (diminta user 2026-08-24): tiap chart punya caption
+`💡 penjelasan(...)` (tujuan + cara hitung angka) dan tooltip hover diperkaya
+lewat helper `hover_keterangan()` — keduanya didefinisikan di
+`dashboard_berita_dampak.py` sebelum `st.set_page_config`.
 
 ## 2. Laporan statis HTML (offline)
 
-File: `berita-dampak/laporan_berita_dampak.html` (±5 MB, plotly JS inline —
-buka langsung di browser tanpa server, tanpa internet). Regenerate:
+File: `berita-dampak/laporan_berita_dampak.html` (plotly JS inline — buka langsung
+di browser tanpa server/internet). Regenerate:
 
 ```bash
 ..\venv\Scripts\python.exe scripts\laporan_static.py
 ```
 
-Isi: 11 chart + tabel indikator resmi 14 tema + tabel contoh berita per tema.
+Isi: chart + tabel indikator resmi 14 tema + tabel contoh berita per tema.
+
+Ada juga laporan Word dari dashboard: `laporan_word.py` (tombol di halaman analisis).
 
 ## 3. Database MySQL
 
-Database: MySQL `ugm_analytics` (kredensial di `.env` root repo). Sejak migrasi
-penuh 2026-08-29 data tidak lagi disimpan di file DuckDB `ugm_news.duckdb`
-(file itu sudah dihapus dari repo; riwayat Git masih menyimpannya).
+Database: MySQL `ugm_analytics` (kredensial `.env` root repo), semua tabel berprefix
+`berita_`. Migrasi penuh dari DuckDB selesai 2026-08-29; file `data/ugm_news.duckdb`
+sudah DIHAPUS dari repo (2026-09-19).
 
-Nama tabel di bawah adalah nama asli saat masih DuckDB. Di MySQL setiap tabel
-diberi prefix `berita_` (mis. `sitemap` -> `berita_sitemap`, `berita` ->
-`berita_berita`, `berita_kepmen_all` -> `berita_berita_kepmen_all`). Jumlah baris
-adalah snapshot 2026-08-20, bukan angka live.
+Skema inti `berita_berita`: `url`, `judul`, `tanggal`, `deskripsi`, `kategori`,
+`sumber`, `isi` (isi lengkap artikel), `kredit` (byline redaksional, SENGAJA tidak
+ikut keyword matching), `fetch_gagal_count` (cap 3x).
 
-| Tabel | Isi | Baris (2026-08-20) |
+| Tabel | Isi | Snapshot 2026-09-19 |
 |---|---|---|
-| `sitemap` | URL berita ugm.ac.id + lastmod (baseline) | 32.130 |
-| `berita` | Judul, tanggal, deskripsi, sumber | 4.787 |
-| `berita_topik` | url–tema (4 tema inti) | 1.392 |
-| `berita_kepmen_all` | url–topik–dampak–topik_kepmen–sdg (14 tema resmi, sumber utama) | 3.084 baris / 2.369 url unik |
-| `berita_sdg_all` | url–sdg (dedup) | 7.739 |
-| `ringkasan_topik_all` | jumlah berita unik per tema (dari 14 tema resmi; pengajaran_pembelajaran 0 match) | 14 |
-| `ringkasan_pilar` | jumlah berita per pilar | 3 |
-| `ringkasan_pilar_tahun` | jumlah berita per pilar per tahun | 65 |
-| `ringkasan_sdg_all` | jumlah berita per SDG | 14 |
-| `sitemap_sdg` | url–sdg mapping langsung seluruh sitemap (mode SDGs saja) | 22.499 pasangan / 15.688 url unik (48,8%) |
-| `ringkasan_sdg_sitemap` | jumlah berita unik per SDG (17 SDG) | 17 |
-| `berita_kepmen`, `berita_sdg`, `ringkasan_sdg` | legacy (4 tema inti, tidak dipakai dashboard) | — |
-| `berita_kepmen_lengkap`, `ringkasan_kepmen_lengkap` | legacy (eksplorasi 9 tema) | — |
+| `berita_sitemap` | URL berita ugm.ac.id + lastmod (baseline) | 32.281 |
+| `berita_berita` | Judul, tanggal, deskripsi, isi lengkap, kredit | 32.228 (isi terisi 32.209 = 99,94%) |
+| `berita_berita_kepmen_all` | url–topik–dampak–topik_kepmen–sdg (14 tema resmi, sumber utama) | 35.882 baris / 19.829 url unik (61,5%) |
+| `berita_berita_sdg_all` | url–sdg (dedup) | — |
+| `berita_berita_topik` | url–tema (4 tema inti, legacy proses lama) | — |
+| `berita_ringkasan_topik_all` | jumlah berita unik per tema (SELALU 14 baris, zero-fill) | 14 |
+| `berita_ringkasan_pilar` | jumlah berita per pilar | 3 (Sosial 12.534, Ekonomi 8.701, Lingkungan 7.430) |
+| `berita_ringkasan_pilar_tahun` | jumlah berita per pilar per tahun | — |
+| `berita_ringkasan_sdg_all` | jumlah berita per SDG (warisan tema) | 14 |
+| `berita_sitemap_sdg` | url–sdg mapping LANGSUNG seluruh sitemap (mode "SDGs saja") | 127.871 pasangan / 31.873 url unik |
+| `berita_ringkasan_sdg_sitemap(_tahun)` | jumlah url unik per SDG (17 SDG) | 17 |
+| `berita_unit_kerja` | url–unit–kategori (44 fakultas/sekolah/unit kerja UGM) | 13.488 pasangan / 10.310 url unik |
+| `berita_narasi_cache` | cache narasi LLM (cache_key, narasi, generated_at) | — |
+| `berita_berita_kepmen`, `berita_berita_sdg`, `berita_ringkasan_sdg` | legacy (4 tema inti, tidak dipakai dashboard) | — |
+| `berita_berita_kepmen_lengkap`, `berita_ringkasan_kepmen_lengkap` | legacy (eksplorasi 9 tema) | — |
 
-Query manual: pakai klien MySQL biasa (mis. `mysql -u <user> -p ugm_analytics`)
-atau lewat Python dengan `get_engine()` dari `scripts/db.py`. Contoh:
+Cara query manual: `mysql` CLI TIDAK ada di PATH mesin dev — pakai Python:
 
-```sql
-SELECT COUNT(*) FROM berita_berita;                        -- total berita
-SELECT COUNT(DISTINCT url) FROM berita_berita_kepmen_all;  -- berita bertema dampak
+```bash
+cd D:\ugm-analytics
+./venv/Scripts/python.exe -c "
+import os; from dotenv import load_dotenv; load_dotenv()
+import pandas as pd; from sqlalchemy import create_engine, text
+e = create_engine(f\"mysql+pymysql://{os.getenv('MYSQL_USER')}:{os.getenv('MYSQL_PASSWORD')}@{os.getenv('MYSQL_HOST')}:{os.getenv('MYSQL_PORT','3306')}/{os.getenv('MYSQL_DB')}\")
+print(pd.read_sql(text('SELECT COUNT(*) FROM berita_berita'), e))
+"
 ```
 
-Tidak ada masalah kunci-file seperti DuckDB, jadi query baca aman dijalankan
-saat dashboard/update berjalan. Cukup hindari perintah tulis (INSERT/UPDATE/
-DELETE/DROP) saat update pipeline sedang jalan.
+Tidak ada masalah kunci-file seperti DuckDB, jadi query baca aman saat dashboard
+jalan. Hindari perintah tulis saat update pipeline sedang berjalan.
 
-## 4. Angka kunci (2026-08-21, lower-bound keyword match)
+## 4. Angka kunci
 
-- Total berita: 4.787 | bertema dampak: **2.369 (49,5%)**
-- Per pilar: **Lingkungan 1.105**, **Sosial 1.009**, **Ekonomi 700**
-- Tema terbesar: rehabilitasi lingkungan 638, pengabdian masyarakat 635,
-  limbah 392, kewirausahaan 303, instansi publik 271, penelitian & inovasi 237,
-  kolaborasi riset 219, kunjungan akademik 159, energi 122, pengeluaran
-  institusi 53, pendidikan inklusif 33, transportasi 14, pendidikan &
-  penelitian 8, pengajaran & pembelajaran 0
-- SDG terbesar: SDG 8 (1.050), SDG 17 (1.021), SDG 1 (838), SDG 11 (793),
-  SDG 13 (759), SDG 9 (691), SDG 15 (646), SDG 14 (646), SDG 12 (444),
-  SDG 6 (392)
-- 2.418 berita tidak match — mayoritas berita umum (prestasi, wisuda,
-  pengumuman); tersedia di expander cek manual.
+**Live 2026-09-19** (kueri langsung MySQL): 32.228 berita · 19.829 bertema dampak
+(61,5%) · pilar Sosial 12.534 / Ekonomi 8.701 / Lingkungan 7.430 · tema terbesar
+pengabdian_masyarakat 7.405, kunjungan_akademik 5.547, instansi_publik 4.754,
+penelitian_inovasi_sosial 3.834, rehabilitasi_lingkungan 3.405 · SDG langsung
+31.873 url · unit kerja 10.310 url · rentang tanggal 2004-11-08 → 2026-09-15.
+
+Snapshot historis (2026-08-21, DuckDB, basis 4.787 berita — JANGAN dipakai sebagai
+angka sekarang): bertema dampak 2.369 (49,5%); pilar Lingkungan 1.105, Sosial 1.009,
+Ekonomi 700; tema terbesar rehabilitasi_lingkungan 638, pengabdian_masyarakat 635,
+limbah 392; SDG terbesar SDG 8 (1.050), 17 (1.021), 1 (838).
+
+Semua angka bertema adalah **lower-bound** keyword match, bukan angka resmi.
 
 ## 5. Update otomatis
 
-- **Cron mingguan**: Sabtu 06:00 (job Hermes `update_berita_dampak.sh`),
-  log: `logs_update_mingguan.txt`.
-- **Tombol dashboard**: sidebar → "🔄 Update Berita Terbaru" (background,
-  log: `logs_update_dashboard.txt`).
-- `update_mingguan.py` menjalankan 7 langkah pipeline; lock `data/.update_lock`
-  mencegah tabrakan; fetch incremental (hanya URL baru).
+- **Cron Hermes**: Sabtu 06:00 (`0 6 * * 6`), job `update_berita_dampak.sh` →
+  `scripts/update_mingguan.py`. Log: `logs_update.txt` / `logs_update_mingguan.txt`.
+- **Tombol dashboard**: sidebar → "🔄 Update Berita Terbaru" (background, Popen
+  detached; log `logs_update_dashboard.txt`).
+- `update_mingguan.py` menjalankan pipeline berurutan; lock `data/.update_lock`
+  mencegah tabrakan; fetch incremental (hanya URL baru/belum ada isinya).
+- **`fetch_backlog.py` TIDAK termasuk jadwal mingguan** — backfill isi lengkap
+  dijalankan manual/background, punya lock sendiri `data/.fetch_backlog_lock`
+  dan mengecek lock update_mingguan supaya tidak bentrok.
+
+## 6. Jalur output ketiga: frontend React + API (belum aktif)
+
+Sejak 2026-09-19 repo juga punya `web/` (React+Vite) + `api/` (FastAPI) + `deploy/`
+(Compose terisolasi) yang menyajikan analitik publik TANPA Streamlit. API membaca
+PostgreSQL (bukan MySQL lokal). Belum dijalankan di mesin dev (Docker tidak
+terpasang, `web/node_modules` belum ada) — lihat `docs/FRAMEWORK.md` dan
+`docs/PRD_FRONTEND_NON_STREAMLIT.md`.

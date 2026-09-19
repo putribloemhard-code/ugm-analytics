@@ -1,10 +1,17 @@
 # PIPELINE — Analisis Dampak Berita UGM (berita-dampak)
 
+Terakhir disinkronkan: **2026-09-19**. Angka live ada di `docs/OUTPUT.md`; bagian
+"Hasil" di bawah adalah snapshot historis (2026-08-20, DuckDB) — jangan dipakai
+sebagai kondisi sekarang.
+
 ## Tujuan
 
-Mengidentifikasi dan memetakan berita dampak UGM pada 4 tema:
-rehabilitasi lingkungan, kewirausahaan, kunjungan akademik, kolaborasi riset.
-Sumber data: situs publik ugm.ac.id (RSS + sitemap). Bukan eLOK.
+Mengidentifikasi dan memetakan berita dampak UGM ke **14 tema resmi Kepmen
+361/M/KEP/2025** (3 pilar: Lingkungan/Ekonomi/Sosial) + klaster **SDGs**, plus
+lapisan independen **44 fakultas/sekolah/unit kerja UGM**. Empat tema awal
+(rehabilitasi lingkungan, kewirausahaan, kunjungan akademik, kolaborasi riset)
+adalah bagian dari 14 tema itu. Sumber data: situs publik ugm.ac.id
+(RSS + sitemap). Bukan eLOK.
 
 ## Penyimpanan data
 
@@ -83,13 +90,15 @@ ringkasan/agregat tetap full-replace (`to_sql(if_exists="replace")`) tiap run.
    -- aman diabaikan atau di-drop manual, dashboard tidak pernah membacanya.
 
 6b. **Tagging SDG LANGSUNG seluruh sitemap** — `scripts/tag_sdg_langsung.py`
-   (mode dashboard "SDGs saja"). SEMUA 32.130 URL sitemap dipetakan ke 17 SDG
-   TANPA tema dampak: kata-kata slug URL (27.343 yang belum di-fetch) +
-   judul & deskripsi (4.787 yang sudah). Kamus: `scripts/sdg_keywords.py`
+   (mode dashboard "SDGs saja"). SEMUA URL sitemap dipetakan ke 17 SDG
+   TANPA tema dampak: kata-kata slug URL + judul/deskripsi/isi lengkap
+   (semua 32.209 baris yang sudah punya isi). Kamus: `scripts/sdg_keywords.py`
    (17 SDG, ID+EN, sumber nama resmi & target SDG; keyword ≤5 huruf pakai
-   word-boundary). Output: `sitemap_sdg` (url, sdg), `ringkasan_sdg_sitemap`,
-   `ringkasan_sdg_sitemap_tahun`. Hasil (2026-08-21): 22.499 pasangan,
-   15.688 / 32.130 URL (48,8%) bertanda >=1 SDG.
+   word-boundary). Output: `berita_sitemap_sdg` (url, sdg),
+   `berita_ringkasan_sdg_sitemap`, `berita_ringkasan_sdg_sitemap_tahun`.
+   Hasil live 2026-09-19: 127.871 pasangan / 31.873 URL unik (98,8% dari
+   32.281 sitemap). Snapshot historis 2026-08-21 (sebelum isi lengkap, basis
+   32.130 URL): 22.499 pasangan, 15.688 URL (48,8%).
 
 6c. **Narasi LLM** — `scripts/generate_narasi_llm.py` (opsional, setelah
    tagging selesai). Merangkai angka yang sudah dihitung pandas jadi narasi
@@ -182,7 +191,12 @@ streamlit run dashboard_berita_dampak.py
 Atau jalankan semuanya sekaligus (urutan sudah benar, dengan lock file):
 `../venv/Scripts/python.exe scripts/update_mingguan.py`
 
-## Hasil (terakhir dijalankan: 2026-08-20)
+## Hasil (snapshot historis 2026-08-20 — DuckDB, basis 4.787 berita)
+
+> **JANGAN pakai angka di bagian ini sebagai kondisi sekarang.** Sejak migrasi
+> MySQL (2026-08-29) + isi lengkap artikel + basis sitemap penuh, angkanya jauh
+> berbeda. Angka live 2026-09-19 ada di `docs/OUTPUT.md` (32.228 berita,
+> 19.829 bertema = 61,5%, dst.). Bagian ini disimpan sebagai jejak milestone.
 
 - sitemap: 32.130 URL berita (2005–2026)
 - berita di tabel: 4.787 (20 dari RSS, sisanya fetch detail sitemap)
@@ -222,9 +236,9 @@ Atau jalankan semuanya sekaligus (urutan sudah benar, dengan lock file):
   daftar "tidak match" tersedia di dashboard untuk cek manual.
 - Berita EN (ugm.ac.id/en) dan ID (ugm.ac.id/id) bisa duplikat konten
   (terjemahan). Dedup berdasarkan URL, bukan konten.
-- Baseline sitemap = semua berita situs (32.130: /id/berita/ + /en/news/,
-  ID/EN duplikat terjemahan); `berita` hanya subset yang slug-nya match
-  keyword tema — proporsi di chart "Cakupan vs Total" indikasi kasar.
+- Baseline sitemap = semua berita situs (live 2026-09-19: 32.281 URL — /id/berita/
+  + /en/news/, ID/EN duplikat terjemahan); `berita` hanya subset yang slug-nya
+  match keyword tema — proporsi di chart "Cakupan vs Total" indikasi kasar.
 - Angka bertema adalah lower-bound: keyword terbatas pada 14 tema + deskripsi
   yang tersedia di halaman.
 
