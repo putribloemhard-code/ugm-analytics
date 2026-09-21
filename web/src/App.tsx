@@ -1,9 +1,10 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
-import { AUTH_EVENT, accreditationLogin, accreditationLogout, accreditationMe, accreditationRegister, accreditationUpload, downloadReport, getAccreditation, getHomeSummary, getImpact, getMetadata, getNews, getSdgs, searchAnalytics, type AccreditationResult, type AnalyticsResult, type Metadata } from './lib/api';
+import { AUTH_EVENT, accreditationLogin, accreditationLogout, accreditationMe, accreditationRegister, accreditationUpload, downloadReport, getAccreditation, getHomeSummary, getMetadata, getNews, getStory, searchAnalytics, type AccreditationResult, type Metadata, type PillarDetail, type Story, type TopicOption } from './lib/api';
 import { assetUrl, CountUp, SiteShell, useInView } from './shell';
 import { MultiSelect } from './multiselect';
+import { ChartGrid, Insight, StoryTableView } from './story';
 
 type FilterState = { yearFrom: string; yearTo: string; pillars: string[]; topics: string[]; sdgs: number[]; units: string[] };
 const emptyFilters: FilterState = { yearFrom: '', yearTo: '', pillars: [], topics: [], sdgs: [], units: [] };
@@ -45,38 +46,6 @@ function Filters({ metadata, value, onChange, sdgMode, idPrefix, syncUrl }: { me
   return <section className="filter-panel" aria-label="Filter analisis"><div className="filter-heading"><div><p className="section-kicker">Kontrol analisis</p><h3>Filter data</h3></div><span className="filter-count">{activeCount ? `${activeCount} filter aktif` : 'Semua data'}</span></div><div className="year-range"><div className="range-label"><label htmlFor={`${idPrefix}-year-start`}>Rentang tahun</label><strong>{value.yearFrom} — {value.yearTo}</strong></div><div className="range-inputs"><input id={`${idPrefix}-year-start`} type="range" min={0} max={years.length - 1} value={startIndex} onChange={event => change({ ...value, yearFrom: years[Number(event.target.value)] })} /><input id={`${idPrefix}-year-end`} type="range" min={0} max={years.length - 1} value={endIndex} onChange={event => change({ ...value, yearTo: years[Math.max(startIndex, Number(event.target.value))] })} /></div></div><div className="filter-grid">{sdgMode ? <MultiSelect id={`${idPrefix}-sdgs`} label="SDG" options={metadata.sdgs.map(sdg => ({ value: String(sdg.id), label: `SDG ${sdg.id} — ${sdg.label}` }))} selected={value.sdgs.map(String)} onChange={next => change({ ...value, sdgs: next.map(Number) })} searchable /> : <MultiSelect id={`${idPrefix}-pillars`} label="Dampak" options={metadata.pillars.map(pillar => ({ value: pillar, label: pillar }))} selected={value.pillars} onChange={next => change({ ...value, pillars: next })} />}{!sdgMode && <MultiSelect id={`${idPrefix}-topics`} label="Tema resmi Kepmen" options={topics.map(topic => ({ value: topic.id, label: `${topic.label} (${topic.pillar})` }))} selected={value.topics} onChange={next => change({ ...value, topics: next })} searchable />}<MultiSelect id={`${idPrefix}-units`} label="Fakultas / Unit Kerja" options={metadata.units.map(unit => ({ value: unit.id, label: unit.label }))} selected={value.units} onChange={next => change({ ...value, units: next })} searchable /></div><div className="action-row"><button className="button secondary" type="button" onClick={() => change({ yearFrom: metadata.years.min, yearTo: metadata.years.max, pillars: [], topics: [], sdgs: [], units: [] })}>Reset filter</button><span className="filter-hint">Centang beberapa opsi. Kosongkan untuk memakai semua.</span></div></section>;
 }
 
-function BarList({ title, rows, labelKey = 'label', valueKey = 'count', tone = 'navy' }: { title: string; rows: unknown[]; labelKey?: string; valueKey?: string; tone?: 'navy' | 'green' | 'orange' | 'blue' }) {
-  const values = rows as Record<string, unknown>[];
-  const max = Math.max(...values.map(row => Number(row[valueKey]) || 0), 1);
-  return <section className="chart-card"><h3>{title}</h3>{values.length ? <div className="chart-list">{values.map((row, index) => <div className="chart-row" key={`${String(row[labelKey])}-${index}`}><span className="chart-label">{String(row[labelKey] ?? '-')}</span><div className={`chart-track ${tone}`} aria-label={`${String(row[labelKey])}: ${String(row[valueKey])}`}><div className="chart-bar" style={{ width: `${((Number(row[valueKey]) || 0) / max) * 100}%` }} /></div><span className="chart-value">{Number(row[valueKey] ?? 0).toLocaleString('id-ID')}</span></div>)}</div> : <Notice type="info">Belum ada data untuk bagian ini.</Notice>}</section>;
-}
-
-function LineChart({ title, rows }: { title: string; rows: unknown[] }) {
-  const values = (rows as Record<string, unknown>[]).map(row => ({ label: String(row.year ?? row.month ?? ''), value: Number(row.count) || 0 }));
-  const max = Math.max(...values.map(item => item.value), 1); const width = 640; const height = 210; const pad = 28;
-  const points = values.map((item, index) => `${pad + (index * (width - pad * 2)) / Math.max(values.length - 1, 1)},${height - pad - (item.value / max) * (height - pad * 2)}`).join(' ');
-  return <section className="chart-card chart-line-card"><h3>{title}</h3>{values.length ? <><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}><polyline points={points} fill="none" stroke="var(--chart-primary)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />{values.map((item, index) => { const x = pad + (index * (width - pad * 2)) / Math.max(values.length - 1, 1); const y = height - pad - (item.value / max) * (height - pad * 2); return <g key={`${item.label}-${index}`}><circle cx={x} cy={y} r="5" fill="var(--gold)" /><title>{item.label}: {item.value.toLocaleString('id-ID')}</title><text x={x} y={height - 7} textAnchor="middle">{item.label}</text></g>; })}</svg><div className="chart-axis-note">Nilai maksimum: {max.toLocaleString('id-ID')}</div></> : <Notice type="info">Belum ada data untuk bagian ini.</Notice>}</section>;
-}
-
-function DonutChart({ title, rows }: { title: string; rows: unknown[] }) {
-  const values = rows as Record<string, unknown>[]; const total = values.reduce((sum, row) => sum + (Number(row.count) || 0), 0); let offset = 0; const colors = ['var(--pillar-1)', 'var(--pillar-2)', 'var(--pillar-3)', 'var(--pillar-4)'];
-  return <section className="chart-card donut-card"><h3>{title}</h3>{values.length && total ? <div className="donut-layout"><svg viewBox="0 0 120 120" role="img" aria-label={title}><circle cx="60" cy="60" r="43" fill="none" stroke="#e8edf3" strokeWidth="18" />{values.map((row, index) => { const pct = (Number(row.count) || 0) / total; const dash = pct * 270; const rotation = offset * 360 - 90; offset += pct; return <circle key={String(row.label ?? index)} cx="60" cy="60" r="43" fill="none" stroke={colors[index % colors.length]} strokeWidth="18" strokeDasharray={`${dash} ${270 - dash}`} transform={`rotate(${rotation} 60 60)`} />; })}<text x="60" y="57" textAnchor="middle" className="donut-total">{total.toLocaleString('id-ID')}</text><text x="60" y="70" textAnchor="middle" className="donut-caption">berita</text></svg><div className="donut-legend">{values.map((row, index) => <div key={String(row.label ?? index)}><i style={{ background: colors[index % colors.length] }} />{String(row.label ?? '-')} <b>{Number(row.count ?? 0).toLocaleString('id-ID')}</b></div>)}</div></div> : <Notice type="info">Belum ada data untuk bagian ini.</Notice>}</section>;
-}
-
-function ActivityHeatmap({ rows }: { rows: unknown[] }) {
-  const values = rows as Record<string, unknown>[]; const grouped = new Map<string, number>(); values.forEach(row => grouped.set(String(row.month ?? ''), (grouped.get(String(row.month ?? '')) ?? 0) + (Number(row.count) || 0))); const max = Math.max(...grouped.values(), 1);
-  return <section className="chart-card"><h3>Heatmap aktivitas per bulan</h3>{grouped.size ? <div className="heatmap">{Array.from(grouped.entries()).map(([month, count]) => <div key={month} className="heat-cell" style={{ opacity: .25 + count / max * .75 }} title={`${month}: ${count}`}><strong>{month}</strong><span>{count.toLocaleString('id-ID')}</span></div>)}</div> : <Notice type="info">Belum ada data bulanan.</Notice>}</section>;
-}
-
-function ChartGrid({ result }: { result: AnalyticsResult }) {
-  const charts = result.charts as Record<string, unknown[]>;
-  const yearly = (charts.yearly ?? []).slice().sort((a, b) => Number((a as Record<string, unknown>).year) - Number((b as Record<string, unknown>).year));
-  const monthlyMap = new Map<string, number>();
-  (charts.monthly ?? []).forEach(row => { const item = row as Record<string, unknown>; const month = String(item.month ?? ''); monthlyMap.set(month, (monthlyMap.get(month) ?? 0) + (Number(item.count) || 0)); });
-  const monthly = Array.from(monthlyMap, ([month, count]) => ({ month, count }));
-  return <div className="chart-grid"><DonutChart title="Komposisi pilar dampak" rows={charts.pillars ?? []} /><LineChart title="Tren berita tahunan" rows={yearly} /><BarList title="Ranking tema resmi Kepmen" rows={charts.topics ?? []} tone="blue" />{monthly.length > 0 && <><LineChart title="Tren aktivitas bulanan" rows={monthly} /><ActivityHeatmap rows={monthly} /></>}{result.mode !== 'impact' && <BarList title="Distribusi SDGs" rows={charts.sdgs ?? []} tone="green" />}</div>;
-}
-
 function Table({ title, rows }: { title: string; rows: unknown[] }) {
   const values = rows as Record<string, unknown>[];
   const columns = values.length ? Object.keys(values[0]) : [];
@@ -85,22 +54,83 @@ function Table({ title, rows }: { title: string; rows: unknown[] }) {
 
 const NEWS_PAGE_SIZE = 5;
 
-function AnalyticsContent({ result }: { result: AnalyticsResult }) {
-  const [tab, setTab] = useState('summary');
+const pillarAccent: Record<string, string> = { Lingkungan: 'green', Ekonomi: 'orange', Sosial: 'blue' };
+const fmtValue = (value: unknown) => (typeof value === 'number' ? value.toLocaleString('id-ID') : String(value ?? '-'));
+
+function Executive({ story }: { story: Story }) {
+  return <section className="story-block" aria-label="Ringkasan eksekutif">
+    <h3>Ringkasan eksekutif</h3>
+    <div className="analysis-summary-grid">{story.executive.metrics.map(metric => <div className="metric" key={metric.label} title={metric.help ?? undefined}><div className="metric-label">{metric.label}</div><div className="metric-value">{fmtValue(metric.value)}</div>{metric.note && <div className="metric-note">{metric.note}</div>}</div>)}</div>
+    <Insight label="Ringkasan analisis">{story.executive.narrative}</Insight>
+  </section>;
+}
+
+function Overview({ story, pillar, onPick }: { story: Story; pillar: string; onPick: (pillar: string) => void }) {
+  return <section className="story-block" aria-label="Overview dampak">
+    <h3>Overview dampak</h3>
+    <p className="section-note">Pilih satu dampak untuk membaca rinciannya di bawah.</p>
+    <div className="pillar-cards">{story.overview.map(item => <button type="button" key={item.pillar} aria-pressed={pillar === item.pillar} className={`pillar-card ${pillarAccent[item.pillar] ?? 'blue'} ${pillar === item.pillar ? 'is-selected' : ''}`} onClick={() => onPick(item.pillar)}>
+      <span className="pillar-card__name">{item.pillar}</span>
+      <strong>{item.total.toLocaleString('id-ID')}</strong><span className="pillar-card__unit">berita</span>
+      {item.top_topic && <small>Tema terbanyak: {item.top_topic} — {item.top_topic_count.toLocaleString('id-ID')} berita</small>}
+    </button>)}</div>
+  </section>;
+}
+
+function TopicPicker({ id, options, value, onChange }: { id: string; options: TopicOption[]; value: string; onChange: (topic: string) => void }) {
+  if (!options.length) return null;
+  return <div className="field topic-picker"><label htmlFor={id}>Pilih tema (keyword)</label><select id={id} value={value} onChange={event => onChange(event.target.value)}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>;
+}
+
+function PillarDetailView({ detail, topic, onTopic, busy }: { detail: PillarDetail; topic: string; onTopic: (topic: string) => void; busy: boolean }) {
+  const [tabId, setTabId] = useState(detail.tabs[0]?.id ?? '');
+  const active = detail.tabs.find(tab => tab.id === tabId) ?? detail.tabs[0];
+  if (!active) return null;
+  return <section className={`story-block ${busy ? 'is-busy' : ''}`} aria-label={`Detail dampak ${detail.pillar}`} aria-busy={busy}>
+    <h3>Detail dampak: {detail.pillar}</h3>
+    <Insight label="Narasi dampak">{detail.narrative}</Insight>
+    <div className="analysis-summary-grid analysis-summary-grid--3">{detail.metrics.map(metric => <div className="metric" key={metric.label} title={metric.help ?? undefined}><div className="metric-label">{metric.label}</div><div className="metric-value">{fmtValue(metric.value)}</div></div>)}</div>
+    <div className="tabs analysis-tabs" role="tablist" aria-label={`Rincian dampak ${detail.pillar}`}>{detail.tabs.map(tab => <button key={tab.id} id={`tab-${tab.id}`} role="tab" type="button" aria-selected={tab.id === active.id} aria-controls={`panel-${tab.id}`} className={`tab ${tab.id === active.id ? 'active' : ''}`} onClick={() => setTabId(tab.id)}>{tab.label}</button>)}</div>
+    <div role="tabpanel" id={`panel-${active.id}`} aria-labelledby={`tab-${active.id}`}>
+      {active.id === 'kata_kunci' && <TopicPicker id="topic-picker-detail" options={detail.topic_options} value={topic || detail.selected_topic} onChange={onTopic} />}
+      {active.note && <p className="chart-note">{active.note}</p>}
+      <ChartGrid charts={active.charts} />
+      {active.tables.map(table => <StoryTableView key={table.id} table={table} />)}
+    </div>
+  </section>;
+}
+
+function CrossSection({ story, topic, onTopic }: { story: Story; topic: string; onTopic: (topic: string) => void }) {
+  if (!story.cross.charts.length && !story.cross.tables.length && !story.tables.length) return null;
+  return <section className="story-block" aria-label={story.cross.title}>
+    <h3>{story.cross.title}</h3>
+    <TopicPicker id="topic-picker-cross" options={story.cross.topic_options ?? []} value={topic || story.cross.selected_topic || ''} onChange={onTopic} />
+    <ChartGrid charts={story.cross.charts} />
+    {[...story.cross.tables, ...story.tables].map(table => <StoryTableView key={table.id} table={table} />)}
+  </section>;
+}
+
+function AnalyticsContent({ story, pillar, onPickPillar, topic, onTopic, busy }: { story: Story; pillar: string; onPickPillar: (pillar: string) => void; topic: string; onTopic: (topic: string) => void; busy: boolean }) {
   const [news, setNews] = useState<{ rows: unknown[]; total: number } | null>(null);
   const [newsError, setNewsError] = useState('');
   const [page, setPage] = useState(1);
   const [reportError, setReportError] = useState('');
   const [reportBusy, setReportBusy] = useState(false);
-  // Daftar berita sudah tampil di bagian bawah Ringkasan, jadi tab 'news' dan tabel kosong tidak ditampilkan.
-  const tabs = Object.keys(result.tables).filter(name => name !== 'news' && (result.tables[name] ?? []).length > 0);
-  useEffect(() => { setPage(1); }, [result]);
-  useEffect(() => { setNews(null); setNewsError(''); getNews({ mode: result.mode, year_from: result.filters.year_from as string, year_to: result.filters.year_to as string, pillars: result.filters.pillars as string[], topics: result.filters.topics as string[], sdgs: result.filters.sdgs as number[], units: result.filters.units as string[] }, page, NEWS_PAGE_SIZE).then(setNews).catch(() => setNewsError('Daftar berita belum dapat dimuat.')); }, [result, page]);
+  const filtersKey = JSON.stringify(story.filters);
+  useEffect(() => { setPage(1); }, [filtersKey, story.mode]);
+  useEffect(() => { setNews(null); setNewsError(''); const f = story.filters; getNews({ mode: story.mode, year_from: f.year_from as string, year_to: f.year_to as string, pillars: f.pillars as string[], topics: f.topics as string[], sdgs: f.sdgs as number[], units: f.units as string[] }, page, NEWS_PAGE_SIZE).then(setNews).catch(() => setNewsError('Daftar berita belum dapat dimuat.')); }, [filtersKey, story.mode, page]);
   const totalPages = news ? Math.max(1, Math.ceil(news.total / NEWS_PAGE_SIZE)) : 1;
-  async function report() { setReportBusy(true); setReportError(''); try { const blob = await downloadReport({ mode: result.mode, ...result.filters }); const href = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = href; link.download = `Laporan_UGM_Analytics_${result.mode}.docx`; link.click(); URL.revokeObjectURL(href); } catch { setReportError('Laporan belum dapat dibuat. Periksa koneksi API.'); } finally { setReportBusy(false); } }
-  return <div className="analysis-dashboard"><section className="analysis-summary-grid">{Object.entries(result.summary).map(([label, value]) => <Metric key={label} label={label.replaceAll('_', ' ')} value={value} />)}</section><section className="insight insight--info"><div className="insight__label">Ringkasan analisis</div><p>{result.narrative}</p></section><div className="section tabs analysis-tabs" role="tablist" aria-label="Bagian analisis">{['summary', ...tabs].map(item => <button key={item} className={`tab ${tab === item ? 'active' : ''}`} role="tab" aria-selected={tab === item} onClick={() => setTab(item)}>{item === 'summary' ? 'Ringkasan' : item === 'news' ? 'Berita' : item.replaceAll('_', ' ')}</button>)}</div>{tab === 'summary' && <ChartGrid result={result} />}{tab !== 'summary' && <Table title={tab} rows={result.tables[tab] ?? []} />}<section className="section"><h3>Daftar berita</h3>{newsError ? <Notice type="error">{newsError}</Notice> : !news ? <div className="loading" role="status">Memuat daftar berita...</div> : <><Table title="Berita terpilih" rows={news.rows} /><div className="action-row"><button className="button secondary" disabled={page <= 1} onClick={() => setPage(current => current - 1)}>Halaman sebelumnya</button><span aria-live="polite">Halaman {page} dari {totalPages}</span><button className="button secondary" disabled={page >= totalPages} onClick={() => setPage(current => current + 1)}>Halaman berikutnya</button></div></>}</section><section className="section"><h3>Catatan metodologi</h3><ul>{result.caveats.map(caveat => <li key={caveat}>{caveat}</li>)}</ul></section><section className="section"><h3>Unduh laporan</h3><p className="section-note">Dokumen Word dibuat dari filter dan data yang divalidasi server.</p><button className="button" disabled={reportBusy} onClick={report}>{reportBusy ? 'Membuat laporan...' : 'Buat laporan Word'}</button>{reportError && <div className="section"><Notice type="error">{reportError}</Notice></div>}</section></div>;
+  async function report() { setReportBusy(true); setReportError(''); try { const blob = await downloadReport({ mode: story.mode, ...story.filters }); const href = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = href; link.download = `Laporan_UGM_Analytics_${story.mode}.docx`; link.click(); URL.revokeObjectURL(href); } catch { setReportError('Laporan belum dapat dibuat. Periksa koneksi API.'); } finally { setReportBusy(false); } }
+  return <div className={`analysis-dashboard ${busy ? 'is-busy' : ''}`} aria-busy={busy}>
+    <Executive story={story} />
+    {story.overview.length > 0 && <Overview story={story} pillar={pillar} onPick={onPickPillar} />}
+    {story.pillar_detail && <PillarDetailView detail={story.pillar_detail} topic={topic} onTopic={onTopic} busy={busy} />}
+    <CrossSection story={story} topic={topic} onTopic={onTopic} />
+    <section className="story-block"><h3>Daftar berita</h3>{newsError ? <Notice type="error">{newsError}</Notice> : !news ? <div className="loading" role="status">Memuat daftar berita...</div> : <><Table title="Berita terpilih" rows={news.rows} /><div className="action-row"><button className="button secondary" disabled={page <= 1} onClick={() => setPage(current => current - 1)}>Halaman sebelumnya</button><span aria-live="polite">Halaman {page} dari {totalPages}</span><button className="button secondary" disabled={page >= totalPages} onClick={() => setPage(current => current + 1)}>Halaman berikutnya</button></div></>}</section>
+    <section className="story-block"><h3>Catatan metodologi</h3><ul>{story.caveats.map(caveat => <li key={caveat}>{caveat}</li>)}</ul></section>
+    <section className="story-block"><h3>Unduh laporan</h3><p className="section-note">Dokumen Word dibuat dari filter dan data yang divalidasi server.</p><button className="button" disabled={reportBusy} onClick={report}>{reportBusy ? 'Membuat laporan...' : 'Buat laporan Word'}</button>{reportError && <div className="section"><Notice type="error">{reportError}</Notice></div>}</section>
+  </div>;
 }
-
 
 type AnalysisDef = { id: 'dampak' | 'dampak-sdgs' | 'sdgs'; mode: 'impact' | 'impact-sdgs' | 'sdgs'; title: string; icon: string; eyebrow: string; caption: string; description: string; accent: string; sdgMode?: boolean };
 const analysisSections: AnalysisDef[] = [
@@ -157,22 +187,27 @@ function AnalysisScene({ def, metadata, metadataError, seeded, seedKey, tint }: 
   const seen = useInView(ref);
   const active = seen || seeded;
   const [filters, setFilters] = useState(emptyFilters);
-  const [result, setResult] = useState<AnalyticsResult | null>(null);
+  const [story, setStory] = useState<Story | null>(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [pillar, setPillar] = useState('Lingkungan');
+  const [topic, setTopic] = useState('');
   useEffect(() => { if (metadata) setFilters(seeded ? queryFilters(metadata) : defaultFilters(metadata)); }, [metadata, seeded, seedKey]);
   useEffect(() => {
     if (!active || !metadata || !filters.yearFrom) return;
-    let cancelled = false; setResult(null); setError('');
-    const load = def.mode === 'sdgs' ? getSdgs({ year_from: filters.yearFrom, year_to: filters.yearTo, sdgs: filters.sdgs, units: filters.units }) : getImpact({ year_from: filters.yearFrom, year_to: filters.yearTo, pillars: filters.pillars, topics: filters.topics, sdgs: filters.sdgs, units: filters.units }, def.mode as 'impact' | 'impact-sdgs');
-    load.then(value => { if (!cancelled) setResult(value); }).catch(() => { if (!cancelled) setError('Data analisis belum dapat dimuat. Periksa koneksi API.'); });
+    let cancelled = false; setLoading(true); setError('');
+    // Data lama tetap tampil (redup) selama data baru dimuat, supaya halaman tidak melompat.
+    getStory({ mode: def.mode, year_from: filters.yearFrom, year_to: filters.yearTo, pillars: filters.pillars, topics: filters.topics, sdgs: filters.sdgs, units: filters.units, pillar: def.mode === 'sdgs' ? undefined : pillar, topic: topic || undefined })
+      .then(value => { if (!cancelled) { setStory(value); setLoading(false); } })
+      .catch(() => { if (!cancelled) { setError('Data analisis belum dapat dimuat. Periksa koneksi API.'); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [active, metadata, filters, def.mode]);
+  }, [active, metadata, filters, def.mode, pillar, topic]);
   const failure = metadataError || error;
   return <section ref={ref} id={def.id} className={`story-scene ${tint ? 'story-scene--tint' : ''}`} aria-labelledby={`${def.id}-title`}><div className="story-scene__inner">
     <header className="story-scene__header"><p className={`eyebrow eyebrow--${def.accent}`}><img src={assetUrl(`logo/${def.icon}`)} alt="" />{def.eyebrow}</p><h2 id={`${def.id}-title`}>{def.title}</h2><p className="story-scene__deck">{def.caption}</p></header>
     {failure ? <Notice type="error">{failure}</Notice> : !active || !metadata ? <div className="loading loading--scene" role="status">Bagian ini dimuat saat Anda menggulir ke sini...</div> : <>
       <Filters metadata={metadata} value={filters} onChange={setFilters} sdgMode={!!def.sdgMode} idPrefix={def.id} syncUrl={seeded} />
-      {!result ? <div className="loading" role="status">Memuat hasil analisis...</div> : <><AnalyticsContent result={result} /><p className="footer-note">Data terakhir: {result.data_as_of ?? 'waktu pembaruan belum tersedia'}.</p></>}
+      {!story ? <div className="loading" role="status">Memuat hasil analisis...</div> : <><AnalyticsContent story={story} pillar={pillar} onPickPillar={value => { setPillar(value); setTopic(''); }} topic={topic} onTopic={setTopic} busy={loading} /><p className="footer-note">Data terakhir: {story.data_as_of ?? 'waktu pembaruan belum tersedia'}.</p></>}
     </>}
   </div></section>;
 }

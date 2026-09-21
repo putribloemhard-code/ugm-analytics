@@ -46,6 +46,34 @@ export type AccreditationResult = {
   requirements: { led: Record<string, unknown>[]; lkps: Record<string, unknown>[] };
 };
 
+/* ---- /analytics/story: seluruh chart + narasi insight dashboard lama (kontrak dibuat di api/app/services/story.py) ---- */
+export type Chart = {
+  id: string;
+  kind: 'bar' | 'line' | 'stacked_bar' | 'heatmap' | 'combo';
+  title: string;
+  insight?: string | null;
+  note?: string | null;
+  orientation?: 'h' | 'v';
+  data: unknown;
+};
+export type StoryTable = { id: string; title: string; note?: string | null; insight?: string | null; columns: { key: string; label: string }[]; rows: Record<string, unknown>[] };
+export type StoryMetric = { label: string; value: string | number; note?: string | null; help?: string | null };
+export type StoryTab = { id: string; label: string; note?: string | null; charts: Chart[]; tables: StoryTable[] };
+export type TopicOption = { value: string; label: string };
+export type PillarDetail = { pillar: string; narrative: string; metrics: StoryMetric[]; tabs: StoryTab[]; topic_options: TopicOption[]; selected_topic: string };
+export type Story = {
+  mode: string;
+  filters: Record<string, unknown>;
+  data_as_of: string | null;
+  caveats: string[];
+  executive: { metrics: StoryMetric[]; narrative: string };
+  overview: { pillar: string; total: number; top_topic: string | null; top_topic_count: number }[];
+  cross: { title: string; charts: Chart[]; tables: StoryTable[]; topic_options?: TopicOption[]; selected_topic?: string };
+  pillar_detail: PillarDetail | null;
+  tables: StoryTable[];
+};
+export function getStory(params: Record<string, QueryValue>) { return get<Story>(`/analytics/story?${toQuery(params)}`); }
+
 export function getMetadata() { return get<Metadata>('/analytics/metadata'); }
 export function getAccreditation() { return get<AccreditationResult>('/analytics/accreditation'); }
 
