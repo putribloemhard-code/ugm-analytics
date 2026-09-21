@@ -124,6 +124,32 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .auth-chip a { display: inline-block; max-width: 160px; min-height: 36px; overflow: hidden; line-height: 36px; text-overflow: ellipsis; white-space: nowrap; text-decoration: none; }
 .auth-chip button { min-height: 28px; padding: 0 10px; border: 0; border-radius: 999px; color: #fff; background: #ffffff1f; font-size: .78rem; font-weight: 700; cursor: pointer; }
 .auth-chip button:hover { background: #ffffff33; }
+.auth-chip__admin { padding: 0 8px; border-radius: 999px; color: var(--ugm-blue); background: var(--gold); font-size: .72rem; font-weight: 800; letter-spacing: .02em; }
+
+/* ---- Halaman Profil Saya & Admin ---- */
+.account-page > .section { margin-top: 34px; }
+.profile-identity { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-top: 22px; }
+.profile-identity .field { display: grid; gap: 6px; padding: 16px 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
+.field__label { color: var(--text-muted); font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.profile-identity b { color: var(--text-heading); font-size: .98rem; overflow-wrap: anywhere; }
+.ongoing-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-top: 16px; }
+.ongoing-card { padding: 20px; border: 1px solid var(--border-subtle); border-left: 4px solid var(--ugm-blue); border-radius: 12px; background: var(--surface-card); }
+.ongoing-card__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ongoing-card .completion-line { margin: 14px 0 16px; }
+.ongoing-card .button { display: inline-flex; align-items: center; min-height: 36px; text-decoration: none; }
+.admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-top: 16px; }
+.admin-card { padding: 20px; border: 1px solid var(--border-subtle); border-left: 4px solid var(--status-positive); border-radius: 12px; background: var(--surface-card); }
+.admin-card.is-blocked { border-left-color: var(--status-critical); }
+.admin-card__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.admin-card__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.admin-card__actions .button { min-height: 34px; font-size: .84rem; }
+/* Tombol untuk akun sendiri dinonaktifkan; beri alasan yang terbaca (bukan hanya warna). */
+.admin-card__actions .button:disabled { cursor: not-allowed; opacity: .5; }
+.button--danger { border-color: var(--status-critical); color: var(--status-critical); }
+.admin-confirm { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--status-critical); border-radius: 10px; background: color-mix(in srgb, var(--status-critical) 10%, var(--surface-card)); }
+.admin-confirm p { margin: 0 0 12px; }
+.admin-confirm .button { margin-right: 8px; }
+.tag { margin-left: 8px; padding: 1px 8px; border-radius: 999px; color: var(--text-heading); background: var(--surface-tint); font-size: .7rem; font-weight: 700; }
 .theme-toggle { flex: none; padding: 0 14px; border: 1px solid #ffffff59; border-radius: 999px; color: #fff; background: transparent; font-size: .85rem; font-weight: 600; cursor: pointer; }
 .theme-toggle:hover { background: #ffffff1f; }
 
@@ -316,7 +342,12 @@ td { line-height: 1.45; }
 .rail__label { position: absolute; top: 50%; right: calc(100% + 14px); display: flex; flex-direction: column; align-items: flex-end; width: max-content; max-width: 220px; padding: 7px 12px; border-radius: 6px; background: var(--surface-tint); box-shadow: 0 4px 14px rgba(0,0,0,.18); text-align: right; opacity: 0; pointer-events: none; transform: translateY(-50%); transition: opacity .15s ease; }
 .rail__label small { color: var(--text-muted); font-size: .66rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .rail__label strong { color: var(--text-heading); font-size: .84rem; line-height: 1.25; }
-.rail__item.is-active .rail__label, .rail__item a:hover .rail__label, .rail__item a:focus-visible .rail__label { opacity: 1; }
+/* Label hanya wajib tampil saat pengguna mendekat (hover/fokus). */
+.rail__item a:hover .rail__label, .rail__item a:focus-visible .rail__label { opacity: 1; }
+/* Label untuk bagian yang sedang dibaca ditampilkan terus HANYA kalau benar-benar ada ruang:
+   konten 1200px + rail 52px + label 220px baru muat mulai ~1500px. Di bawah itu label melayang
+   di atas panel filter/kotak insight (temuan §5.1 review), jadi cukup tampil saat hover/fokus. */
+@media (min-width: 1500px) { .rail__item.is-active .rail__label { opacity: 1; } }
 .rail__end { display: grid; width: 32px; min-height: 0; height: 28px; margin-top: 6px; place-items: center; border: 0; color: var(--text-muted); background: transparent; font-size: 1rem; cursor: pointer; }
 .rail__end:hover { color: var(--text-heading); }
 @media (prefers-reduced-motion: reduce) { .rail__node, .rail__label { transition: none; } }
@@ -410,7 +441,12 @@ td { line-height: 1.45; }
 .workspace-head, .section-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .user-chip { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 14px; border: 1px solid var(--border-subtle); border-radius: 999px; background: var(--surface-card); font-size: .85rem; font-weight: 700; }
 .user-chip button { min-height: 30px; padding: 0 10px; border: 0; border-radius: 999px; color: var(--text-heading); background: var(--surface-tint); cursor: pointer; }
-.accreditation-selectors { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; padding: 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
+.accreditation-selectors { display: grid; grid-template-columns: 2.1fr 1.6fr 1fr; gap: 14px; padding: 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
+/* Nama fakultas UGM panjang ("Fakultas Kedokteran, Kesehatan Masyarakat, dan Keperawatan"),
+   jadi beri kolom lebih lebar + keterangan di bawah dropdown agar info tidak hilang di elipsis. */
+.field-hint { color: var(--text-muted); font-size: .75rem; line-height: 1.4; }
+/* Prodi terkunci sampai fakultas dipilih (alur dashboard lama) -- beri isyarat visual jelas. */
+.field select:disabled { color: var(--text-muted); background: var(--surface-sunken, var(--surface-card)); opacity: .7; cursor: not-allowed; }
 .progress-overview { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 18px; }
 .progress-card { padding: 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
 .progress-card span, .progress-card small { display: block; color: var(--text-muted); font-size: .8rem; }

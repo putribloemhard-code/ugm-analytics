@@ -1,22 +1,23 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { AUTH_EVENT, accreditationLogin, accreditationLogout, accreditationMe, accreditationRegister, accreditationUpload, downloadReport, getAccreditation, getHomeSummary, getMetadata, getNews, getStory, searchAnalytics, type AccreditationResult, type Metadata, type PillarDetail, type Story, type TopicOption } from './lib/api';
 import { assetUrl, CountUp, SiteShell, useInView } from './shell';
 import { MultiSelect } from './multiselect';
 import { ChartGrid, Insight, StoryTableView } from './story';
+import { Notice, PageHeader } from './ui';
+import { AdminPage, ProfilePage } from './account';
 
 type FilterState = { yearFrom: string; yearTo: string; pillars: string[]; topics: string[]; sdgs: number[]; units: string[] };
 const emptyFilters: FilterState = { yearFrom: '', yearTo: '', pillars: [], topics: [], sdgs: [], units: [] };
 
 function AppShell({ children }: { children: React.ReactNode }) { return <SiteShell>{children}</SiteShell>; }
 
-function PageHeader({ title, icon, caption }: { title: string; icon: string; caption?: string }) {
-  return <header><h1 className="page-heading"><img src={assetUrl(`logo/${icon}`)} alt="" />{title}</h1>{caption && <p className="page-caption">{caption}</p>}</header>;
-}
-
-function Notice({ type, children }: { type: 'info' | 'warning' | 'error'; children: React.ReactNode }) {
-  return <div className={`notice ${type}`} role={type === 'error' ? 'alert' : 'status'}>{children}</div>;
+/** Pesan kegagalan muat: pakai pesan asli dari API bila ada (mis. "Basis data tidak dapat
+ *  dihubungi...") supaya pengguna tahu penyebabnya, bukan hanya "belum dapat dimuat". */
+function pesanMuat(error: unknown, apa: string): string {
+  const detail = error instanceof Error ? error.message : '';
+  return detail && !/^\s*$/.test(detail) ? `${apa} gagal dimuat. ${detail}` : `${apa} belum dapat dimuat. Periksa koneksi API.`;
 }
 
 function queryFilters(metadata: Metadata): FilterState {
@@ -118,9 +119,9 @@ function AnalyticsContent({ story, pillar, onPickPillar, topic, onTopic, busy }:
   const [reportBusy, setReportBusy] = useState(false);
   const filtersKey = JSON.stringify(story.filters);
   useEffect(() => { setPage(1); }, [filtersKey, story.mode]);
-  useEffect(() => { setNews(null); setNewsError(''); const f = story.filters; getNews({ mode: story.mode, year_from: f.year_from as string, year_to: f.year_to as string, pillars: f.pillars as string[], topics: f.topics as string[], sdgs: f.sdgs as number[], units: f.units as string[] }, page, NEWS_PAGE_SIZE).then(setNews).catch(() => setNewsError('Daftar berita belum dapat dimuat.')); }, [filtersKey, story.mode, page]);
+  useEffect(() => { setNews(null); setNewsError(''); const f = story.filters; getNews({ mode: story.mode, year_from: f.year_from as string, year_to: f.year_to as string, pillars: f.pillars as string[], topics: f.topics as string[], sdgs: f.sdgs as number[], units: f.units as string[] }, page, NEWS_PAGE_SIZE).then(setNews).catch(e => setNewsError(pesanMuat(e, 'Daftar berita'))); }, [filtersKey, story.mode, page]);
   const totalPages = news ? Math.max(1, Math.ceil(news.total / NEWS_PAGE_SIZE)) : 1;
-  async function report() { setReportBusy(true); setReportError(''); try { const blob = await downloadReport({ mode: story.mode, ...story.filters }); const href = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = href; link.download = `Laporan_UGM_Analytics_${story.mode}.docx`; link.click(); URL.revokeObjectURL(href); } catch { setReportError('Laporan belum dapat dibuat. Periksa koneksi API.'); } finally { setReportBusy(false); } }
+  async function report() { setReportBusy(true); setReportError(''); try { const blob = await downloadReport({ mode: story.mode, ...story.filters }); const href = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = href; link.download = `Laporan_UGM_Analytics_${story.mode}.docx`; link.click(); URL.revokeObjectURL(href); } catch (e) { setReportError(pesanMuat(e, 'Laporan')); } finally { setReportBusy(false); } }
   return <div className={`analysis-dashboard ${busy ? 'is-busy' : ''}`} aria-busy={busy}>
     <Executive story={story} />
     {story.overview.length > 0 && <Overview story={story} pillar={pillar} onPick={onPickPillar} />}
@@ -199,7 +200,7 @@ function AnalysisScene({ def, metadata, metadataError, seeded, seedKey, tint }: 
     // Data lama tetap tampil (redup) selama data baru dimuat, supaya halaman tidak melompat.
     getStory({ mode: def.mode, year_from: filters.yearFrom, year_to: filters.yearTo, pillars: filters.pillars, topics: filters.topics, sdgs: filters.sdgs, units: filters.units, pillar: def.mode === 'sdgs' ? undefined : pillar, topic: topic || undefined })
       .then(value => { if (!cancelled) { setStory(value); setLoading(false); } })
-      .catch(() => { if (!cancelled) { setError('Data analisis belum dapat dimuat. Periksa koneksi API.'); setLoading(false); } });
+      .catch(e => { if (!cancelled) { setError(pesanMuat(e, 'Data analisis')); setLoading(false); } });
     return () => { cancelled = true; };
   }, [active, metadata, filters, def.mode, pillar, topic]);
   const failure = metadataError || error;
@@ -218,7 +219,7 @@ function ScrollReport({ target }: { target?: AnalysisDef['id'] }) {
   const [summaryError, setSummaryError] = useState('');
   const [metadata, setMetadata] = useState<Metadata | null>(null);
   const [metadataError, setMetadataError] = useState('');
-  useEffect(() => { getHomeSummary().then(setSummary).catch(() => setSummaryError('Ringkasan data belum dapat dimuat. Periksa koneksi API.')); getMetadata().then(setMetadata).catch(() => setMetadataError('Metadata filter belum dapat dimuat.')); }, []);
+  useEffect(() => { getHomeSummary().then(setSummary).catch(e => setSummaryError(pesanMuat(e, 'Ringkasan data'))); getMetadata().then(setMetadata).catch(e => setMetadataError(pesanMuat(e, 'Metadata filter'))); }, []);
   useEffect(() => {
     const id = location.hash ? location.hash.slice(1) : target;
     if (!id) { window.scrollTo(0, 0); return; }
@@ -239,23 +240,81 @@ function ScrollReport({ target }: { target?: AnalysisDef['id'] }) {
   </AppShell>;
 }
 
-function AccreditationLogin({ onUser }: { onUser: (user: { id: number; email: string; nama: string; is_admin: boolean }) => void }) {
+function AccreditationLogin({ onUser, next }: { onUser: (user: { id: number; email: string; nama: string; is_admin: boolean }) => void; next?: string | null }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState(''); const [name, setName] = useState(''); const [password, setPassword] = useState(''); const [message, setMessage] = useState('');
-  async function submit() { setMessage(''); try { if (mode === 'register') { await accreditationRegister(email, name, password); setMode('login'); setMessage('Registrasi berhasil. Silakan masuk.'); } else onUser(await accreditationLogin(email, password)); } catch (e) { setMessage(e instanceof Error ? e.message : 'Autentikasi gagal'); } }
+  const navigate = useNavigate();
+  async function submit() {
+    setMessage('');
+    try {
+      if (mode === 'register') { await accreditationRegister(email, name, password); setMode('login'); setMessage('Registrasi berhasil. Silakan masuk.'); return; }
+      onUser(await accreditationLogin(email, password));
+      // Kembali ke halaman yang tadi diminta (mis. /admin) setelah login berhasil.
+      if (next && next.startsWith('/')) navigate(next, { replace: true });
+    } catch (e) { setMessage(e instanceof Error ? e.message : 'Autentikasi gagal'); }
+  }
   return <div className="accreditation-gate"><section className="accreditation-hero"><div className="brand-chip"><img src={assetUrl('logo/LogoUGM.png')} alt="" /> Universitas Gadjah Mada</div><h1>Portal <span>Akreditasi</span></h1><p>Kelola kelengkapan data LED & LKPS, ekstrak dokumen pendukung, dan susun laporan akreditasi program studi dalam satu tempat.</p></section><section className="auth-panel"><p className="section-kicker">Selamat datang 👋</p><h2>Masuk untuk melanjutkan</h2><p className="section-note">Gunakan akun UGM Anda untuk mengelola dokumen akreditasi.</p><div className="auth-tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Masuk</button><button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Daftar akun baru</button></div>{mode === 'register' && <div className="field"><label htmlFor="acc-name">Nama lengkap</label><input id="acc-name" value={name} onChange={e => setName(e.target.value)} /></div>}<div className="field"><label htmlFor="acc-email">Email UGM</label><input id="acc-email" type="email" placeholder="nama@ugm.ac.id" value={email} onChange={e => setEmail(e.target.value)} /></div><div className="field"><label htmlFor="acc-password">Password</label><input id="acc-password" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div><button className="button auth-submit" onClick={submit}>{mode === 'login' ? 'Masuk' : 'Buat akun'}</button>{message && <Notice type={message.startsWith('Registrasi') ? 'info' : 'error'}>{message}</Notice>}</section></div>;
 }
 
 function AccreditationPage() {
-  const [data, setData] = useState<AccreditationResult | null>(null); const [user, setUser] = useState<{ id: number; email: string; nama: string; is_admin: boolean } | null>(null); const [error, setError] = useState('');
-  const [prodi, setProdi] = useState(''); const [document, setDocument] = useState<'LED' | 'LKPS'>('LED'); const [group, setGroup] = useState(''); const [file, setFile] = useState<File | null>(null); const [uploadMessage, setUploadMessage] = useState('');
-  useEffect(() => { getAccreditation().then(d => { setData(d); if (d.programs[0]) setProdi(String(d.programs[0].slug)); }).catch(() => setError('Data akreditasi belum dapat dimuat.')); const refresh = () => { accreditationMe().then(setUser); }; refresh(); window.addEventListener(AUTH_EVENT, refresh); return () => window.removeEventListener(AUTH_EVENT, refresh); }, []);
+  const [data, setData] = useState<AccreditationResult | null>(null); const [user, setUser] = useState<{ id: number; email: string; nama: string; is_admin: boolean } | null>(null); const [error, setError] = useState(''); const [peringatan, setPeringatan] = useState('');
+  // ?prodi=&dokumen= datang dari tombol "Lanjutkan" di halaman Profil Saya.
+  const [params] = useSearchParams();
+  const [prodi, setProdi] = useState(params.get('prodi') ?? ''); const [fakultas, setFakultas] = useState(''); const [document, setDocument] = useState<'LED' | 'LKPS'>(params.get('dokumen') === 'LKPS' ? 'LKPS' : 'LED'); const [group, setGroup] = useState(''); const [file, setFile] = useState<File | null>(null); const [uploadMessage, setUploadMessage] = useState('');
+  useEffect(() => {
+    getAccreditation().then(d => {
+      setData(d);
+      // Hormati pilihan dari URL; kalau kosong/tidak dikenal, pakai prodi pertama.
+      const diminta = params.get('prodi');
+      const ada = diminta && d.programs.some(p => String(p.slug) === diminta);
+      const awal = ada ? diminta! : (d.programs[0] ? String(d.programs[0].slug) : '');
+      setProdi(awal);
+      // Fakultas mengikuti prodi awal supaya kedua dropdown sinkron sejak halaman dibuka.
+      const prodiAwal = d.programs.find(p => String(p.slug) === awal);
+      if (prodiAwal) setFakultas(String(prodiAwal.fakultas_id));
+      // Prodi tanpa fakultas tidak akan terjangkau lewat dropdown berjenjang -- jangan
+      // diam-diam menghilangkannya; beri tahu supaya bisa dibetulkan di basis data.
+      const yatim = d.programs.filter(p => !p.fakultas_id || String(p.fakultas_id) === '').length;
+      if (yatim) setPeringatan(`${yatim} program studi belum terhubung ke fakultas mana pun, sehingga tidak muncul di pemilih. Perbaiki kolom fakultas_id pada tabel akreditasi_prodi.`);
+    }).catch(e => setError(pesanMuat(e, 'Data akreditasi')));
+    const refresh = () => { accreditationMe().then(setUser); }; refresh(); window.addEventListener(AUTH_EVENT, refresh); return () => window.removeEventListener(AUTH_EVENT, refresh);
+  }, []);
   if (error) return <AppShell><div className="content"><Notice type="error">{error}</Notice></div></AppShell>;
   if (!data) return <AppShell><div className="content loading">Memuat portal akreditasi...</div></AppShell>;
-  if (!user) return <AppShell><div className="content"><PageHeader title="Akreditasi" icon="certificate.png" caption="Portal kelengkapan data LED & LKPS." /><AccreditationLogin onUser={setUser} /></div></AppShell>;
+  if (!user) return <AppShell><div className="content"><PageHeader title="Akreditasi" icon="certificate.png" caption="Portal kelengkapan data LED & LKPS." /><AccreditationLogin onUser={setUser} next={params.get('next')} /></div></AppShell>;
   const items = document === 'LED' ? data.requirements.led : data.requirements.lkps; const groups = [...new Set(items.map(item => String(item.group)))]; const activeGroup = group || groups[0] || ''; const visible = items.filter(item => String(item.group) === activeGroup); const filled = new Set(data.manual.filter(row => String(row.prodi_id) === prodi).map(row => String(row.item_id))); const done = items.filter(item => filled.has(String(item.id))).length; const percent = items.length ? Math.round(done / items.length * 100) : 0;
+  // Dropdown dipisah: Fakultas dulu, baru Program Studi (mengikuti alur dashboard lama,
+  // render_prodi_selector). Prodi terkunci sampai fakultas dipilih supaya tidak ada
+  // kombinasi fakultas/prodi yang tidak nyambung.
+  const fakultasOpsi = data.faculties;
+  const semuaProdi = data.programs;   // disalin ke const supaya penyempitan tipe tetap berlaku di dalam fungsi
+  const prodiDariFakultas = semuaProdi.filter(p => String(p.fakultas_id) === fakultas);
+  // Jenjang sering sudah terkandung di nama (mis. "Doktor Ilmu Fisika"), jangan diulang.
+  function labelProdi(p: Record<string, unknown>): string {
+    const nama = String(p.nama); const jenjang = p.jenjang ? String(p.jenjang) : '';
+    return jenjang && !nama.toLowerCase().includes(jenjang.toLowerCase()) ? `${nama} — ${jenjang}` : nama;
+  }
+  function pilihFakultas(nilai: string) {
+    setFakultas(nilai);
+    const pertama = semuaProdi.find(p => String(p.fakultas_id) === nilai);
+    setProdi(pertama ? String(pertama.slug) : '');   // kosong = prodi di fakultas itu belum ada
+    setGroup(''); setUploadMessage('');
+  }
   async function upload() { if (!file || !prodi) return; try { await accreditationUpload(prodi, file); setUploadMessage('File berhasil disimpan.'); setFile(null); } catch (e) { setUploadMessage(e instanceof Error ? e.message : 'Upload gagal'); } }
-  return <AppShell><div className="content accreditation-workspace"><div className="workspace-head"><div><PageHeader title="Akreditasi" icon="certificate.png" caption="Kelengkapan data LED & LKPS — instrumen akreditasi Program Studi." /></div><div className="user-chip">{user.nama}<button onClick={async () => { await accreditationLogout(); setUser(null); }}>Keluar</button></div></div><section className="accreditation-selectors"><div className="field"><label>Fakultas & Program Studi</label><select value={prodi} onChange={e => setProdi(e.target.value)}>{data.programs.map(p => <option key={String(p.id)} value={String(p.slug)}>{String(p.fakultas)} — {String(p.nama)}</option>)}</select></div><div className="field"><label>Dokumen</label><select value={document} onChange={e => { setDocument(e.target.value as 'LED' | 'LKPS'); setGroup(''); }}><option value="LED">📘 LED — Laporan Evaluasi Diri</option><option value="LKPS">📗 LKPS — Laporan Kinerja Program Studi</option></select></div></section><section className="progress-overview"><div className="progress-card"><span>Total item</span><strong>{items.length}</strong><small>{document}</small></div><div className="progress-card"><span>Terisi</span><strong>{done}/{items.length}</strong><small>{percent}% kelengkapan</small></div><div className="progress-card"><span>Perlu verifikasi</span><strong>{items.length - done}</strong><small>review manual</small></div><div className="progress-card"><span>Upload</span><strong>{data.uploads.filter(row => String(row.prodi_id) === prodi).length}</strong><small>dokumen tersimpan</small></div></section><div className="completion-line"><div><b>Kelengkapan keseluruhan: {done}/{items.length} item ({percent}%)</b><span> · sumber data resmi tersimpan setelah konfirmasi</span></div><div className="progress-track"><div style={{ width: `${percent}%` }} /></div></div><section className="upload-workflow"><div><p className="section-kicker">Dokumen pendukung</p><h2>Upload File Pendukung</h2><p>PDF, DOCX, atau XLSX — maksimal 25 MB per file. Hasil ekstraksi akan menjadi preview dan tetap perlu diverifikasi sebelum menjadi data resmi.</p></div><div className="upload-controls"><input type="file" accept=".pdf,.docx,.xlsx" onChange={e => setFile(e.target.files?.[0] ?? null)} /><button className="button" disabled={!file} onClick={upload}>Upload</button>{uploadMessage && <span role="status">{uploadMessage}</span>}</div></section><section className="section requirement-section"><div className="section-title-row"><div><p className="section-kicker">Kelengkapan Data {document}</p><h2>Struktur dokumen akreditasi</h2></div><span className="status-pill">{done}/{items.length} terisi</span></div><div className="accreditation-tabs">{groups.map(g => <button key={g} className={g === activeGroup ? 'active' : ''} onClick={() => setGroup(g)}>{document === 'LED' ? `Kriteria ${g}` : `Bagian ${g}`}</button>)}</div><div className="requirement-list">{visible.map(item => <article className={`requirement-row ${filled.has(String(item.id)) ? 'complete' : ''}`} key={String(item.id)}><div className="requirement-status">{filled.has(String(item.id)) ? '✓' : '!'}</div><div><h3>{String(item.name)}</h3><p>{String(item.description)}</p><small>{String(item.type)} · {String(item.status)}</small></div><span className="requirement-action">{filled.has(String(item.id)) ? 'Tersimpan' : 'Perlu input'}</span></article>)}</div></section><Notice type="info">Fase ini sudah mengikuti alur referensi: selector dokumen, progress, upload, dan checklist per Kriteria/Bagian. Ekstraksi AI, tabel editable, review kutipan, dan generate Word menjadi tahap berikutnya.</Notice></div></AppShell>;
+  return <AppShell><div className="content accreditation-workspace"><div className="workspace-head"><div><PageHeader title="Akreditasi" icon="certificate.png" caption="Kelengkapan data LED & LKPS — instrumen akreditasi Program Studi." /></div><div className="user-chip">{user.nama}<button onClick={async () => { await accreditationLogout(); setUser(null); }}>Keluar</button></div></div>{peringatan && <Notice type="error">{peringatan}</Notice>}<section className="accreditation-selectors"><div className="field"><label htmlFor="ak-fakultas">Fakultas (wajib)</label><select id="ak-fakultas" value={fakultas} onChange={e => pilihFakultas(e.target.value)}><option value="">Pilih fakultas…</option>{fakultasOpsi.map(f => { const n = semuaProdi.filter(p => String(p.fakultas_id) === String(f.id)).length; return <option key={String(f.id)} value={String(f.id)}>{String(f.nama)}{n ? ` (${n} prodi)` : ' (belum ada prodi)'}</option>; })}</select><small className="field-hint">{fakultas ? (prodiDariFakultas.length ? `${prodiDariFakultas.length} program studi terdaftar` : 'Belum ada program studi terdaftar di fakultas ini') : 'Nama fakultas panjang bisa terpotong — buka daftar untuk melihat lengkap.'}</small></div><div className="field"><label htmlFor="ak-prodi">Program Studi (wajib)</label><select id="ak-prodi" value={prodi} disabled={!fakultas || prodiDariFakultas.length === 0} onChange={e => { setProdi(e.target.value); setGroup(''); setUploadMessage(''); }}>{prodiDariFakultas.length === 0 ? <option value="">{fakultas ? 'Belum ada prodi di fakultas ini' : 'Pilih fakultas dulu'}</option> : prodiDariFakultas.map(p => <option key={String(p.id)} value={String(p.slug)}>{labelProdi(p)}</option>)}</select></div><div className="field"><label>Dokumen</label><select value={document} onChange={e => { setDocument(e.target.value as 'LED' | 'LKPS'); setGroup(''); }}><option value="LED">📘 LED — Laporan Evaluasi Diri</option><option value="LKPS">📗 LKPS — Laporan Kinerja Program Studi</option></select></div></section><section className="progress-overview"><div className="progress-card"><span>Total item</span><strong>{items.length}</strong><small>{document}</small></div><div className="progress-card"><span>Terisi</span><strong>{done}/{items.length}</strong><small>{percent}% kelengkapan</small></div><div className="progress-card"><span>Perlu verifikasi</span><strong>{items.length - done}</strong><small>review manual</small></div><div className="progress-card"><span>Upload</span><strong>{data.uploads.filter(row => String(row.prodi_id) === prodi).length}</strong><small>dokumen tersimpan</small></div></section><div className="completion-line"><div><b>Kelengkapan keseluruhan: {done}/{items.length} item ({percent}%)</b><span> · sumber data resmi tersimpan setelah konfirmasi</span></div><div className="progress-track"><div style={{ width: `${percent}%` }} /></div></div><section className="upload-workflow"><div><p className="section-kicker">Dokumen pendukung</p><h2>Upload File Pendukung</h2><p>PDF, DOCX, atau XLSX — maksimal 25 MB per file. Hasil ekstraksi akan menjadi preview dan tetap perlu diverifikasi sebelum menjadi data resmi.</p></div><div className="upload-controls"><input type="file" accept=".pdf,.docx,.xlsx" onChange={e => setFile(e.target.files?.[0] ?? null)} /><button className="button" disabled={!file} onClick={upload}>Upload</button>{uploadMessage && <span role="status">{uploadMessage}</span>}</div></section><section className="section requirement-section"><div className="section-title-row"><div><p className="section-kicker">Kelengkapan Data {document}</p><h2>Struktur dokumen akreditasi</h2></div><span className="status-pill">{done}/{items.length} terisi</span></div><div className="accreditation-tabs">{groups.map(g => <button key={g} className={g === activeGroup ? 'active' : ''} onClick={() => setGroup(g)}>{document === 'LED' ? `Kriteria ${g}` : `Bagian ${g}`}</button>)}</div><div className="requirement-list">{visible.map(item => <article className={`requirement-row ${filled.has(String(item.id)) ? 'complete' : ''}`} key={String(item.id)}><div className="requirement-status">{filled.has(String(item.id)) ? '✓' : '!'}</div><div><h3>{String(item.name)}</h3><p>{String(item.description)}</p><small>{String(item.type)} · {String(item.status)}</small></div><span className="requirement-action">{filled.has(String(item.id)) ? 'Tersimpan' : 'Perlu input'}</span></article>)}</div></section><Notice type="info">Fase ini sudah mengikuti alur referensi: selector dokumen, progress, upload, dan checklist per Kriteria/Bagian. Ekstraksi AI, tabel editable, review kutipan, dan generate Word menjadi tahap berikutnya.</Notice></div></AppShell>;
 }
 
-export default function App() { return <Routes><Route path="/" element={<ScrollReport />} /><Route path="/dampak" element={<ScrollReport target="dampak" />} /><Route path="/dampak-sdgs" element={<ScrollReport target="dampak-sdgs" />} /><Route path="/sdgs" element={<ScrollReport target="sdgs" />} /><Route path="/akreditasi" element={<AccreditationPage />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes>; }
+export default function App() {
+  return <Routes>
+    <Route path="/" element={<ScrollReport />} />
+    {/* Route lama tetap hidup supaya tautan/bookmark lama tidak mati, tapi dialihkan ke
+        anchor bagian di laporan satu halaman — dulu ini halaman terpisah, kini satu halaman. */}
+    <Route path="/dampak" element={<Navigate to={{ pathname: '/', hash: '#dampak' }} replace />} />
+    <Route path="/dampak-sdgs" element={<Navigate to={{ pathname: '/', hash: '#dampak-sdgs' }} replace />} />
+    <Route path="/sdgs" element={<Navigate to={{ pathname: '/', hash: '#sdgs' }} replace />} />
+    <Route path="/akreditasi" element={<AccreditationPage />} />
+    <Route path="/profil" element={<AppShell><ProfilePage /></AppShell>} />
+    <Route path="/admin" element={<AppShell><AdminPage /></AppShell>} />
+    <Route path="*" element={<Navigate to="/" replace />} />
+  </Routes>;
+}

@@ -6,7 +6,7 @@ import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from app.services.sqlcompat import url_key
+from app.services.sqlcompat import pipe_list_contains, url_key
 
 
 class NewsService:
@@ -70,7 +70,7 @@ class NewsService:
                 for index, sdg in enumerate(sdgs):
                     name = f"impact_sdg{index}"
                     params[name] = str(sdg)
-                    sdg_conditions.append(f":{name} = ANY(string_to_array(replace(COALESCE(bk.sdg, ''), '|', ','), ','))")
+                    sdg_conditions.append(pipe_list_contains(self.engine, "bk.sdg", name))
                 where.append("(" + " OR ".join(sdg_conditions) + ")")
             if units:
                 unit_sql = self._in_clause(units, "unit", params)

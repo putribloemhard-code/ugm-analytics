@@ -14,6 +14,10 @@ export const reportSections = [
   { id: 'metodologi', label: 'Data & metodologi' },
 ];
 
+const reportSectionIds = reportSections.map(section => section.id);
+/** Laporan hanya hidup di pathname '/'; route lama (/dampak dst.) kini sekadar dialihkan ke anchor. */
+const isReportLocation = (pathname: string, hash: string) => pathname === '/' && (!hash || reportSectionIds.some(id => `#${id}` === hash));
+
 const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /** True begitu elemen pernah mendekati viewport (sekali saja) -- dipakai untuk lazy-load data tiap bagian. */
@@ -115,7 +119,9 @@ function SiteHeader() {
   const progress = useReadingProgress();
   const active = useActiveSection(location.pathname, headerSectionIds);
   const user = useAuthUser();
-  const onReport = location.pathname !== '/akreditasi';
+  const onReport = isReportLocation(location.pathname, location.hash);
+  // Tidak ada tombol "Masuk" di header: login hanya lewat portal Akreditasi (gerbangnya sendiri).
+  // Saat sudah login, nama pengguna menjadi tautan ke halaman akunnya.
   return <header className="site-header">
     <div className="reading-progress" role="progressbar" aria-label="Kemajuan membaca" aria-valuemin={0} aria-valuemax={100} aria-valuenow={0}><div ref={progress} /></div>
     <div className="site-header__inner">
@@ -124,9 +130,11 @@ function SiteHeader() {
         {reportSections.map(section => <Link key={section.id} to={{ pathname: '/', hash: `#${section.id}` }} className={onReport && active === section.id ? 'active' : ''} aria-current={onReport && active === section.id ? 'location' : undefined}>{section.label}</Link>)}
       </nav>
       <NavLink to="/akreditasi" className={({ isActive }) => `site-header__tab ${isActive ? 'active' : ''}`}>Akreditasi</NavLink>
-      {user
-        ? <span className="auth-chip"><Link to="/akreditasi" title={user.email}>{user.nama}</Link><button type="button" onClick={() => { void accreditationLogout(); }}>Keluar</button></span>
-        : <Link className="auth-link" to="/akreditasi">Masuk</Link>}
+      {user && <span className="auth-chip">
+        <Link to="/profil" title={user.email}>{user.nama}</Link>
+        {user.is_admin && <Link className="auth-chip__admin" to="/admin" title="Kelola akun pengguna">Admin</Link>}
+        <button type="button" onClick={() => { void accreditationLogout(); }}>Keluar</button>
+      </span>}
       <button className="theme-toggle" type="button" aria-pressed={theme === 'dark'} onClick={toggle}>{theme === 'dark' ? 'Mode terang' : 'Mode gelap'}</button>
     </div>
   </header>;
@@ -169,6 +177,9 @@ export function SiteFooter() {
 }
 
 export function SiteShell({ children }: { children: ReactNode }) {
-  const onReport = useLocation().pathname !== '/akreditasi';
+  // Peta laporan hanya untuk halaman laporan; portal Akreditasi, Profil, dan Admin punya
+  // navigasi sendiri sehingga rail di kanan justru mengganggu.
+  const { pathname, hash } = useLocation();
+  const onReport = isReportLocation(pathname, hash);
   return <div className="site"><a className="skip-link" href="#main-content">Lewati ke konten utama</a><SiteHeader />{onReport && <SectionRail />}<main id="main-content">{children}</main><SiteFooter /></div>;
 }

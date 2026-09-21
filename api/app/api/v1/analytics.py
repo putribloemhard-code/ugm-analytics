@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
 from fastapi.responses import JSONResponse
@@ -121,10 +122,47 @@ def accreditation_logout(request: Request, api: AnalyticsService = Depends(servi
     return response
 
 
+def _account_service(api: AnalyticsService):
+    from app.services.accreditation_account import AccreditationAccountService
+    return AccreditationAccountService(api.engine)
+
+
+@router.get("/accreditation/profile")
+def accreditation_profile(request: Request, api: AnalyticsService = Depends(service)):
+    """Profil akun sendiri + pekerjaan berjalan + riwayat laporan (padanan page_profil.py)."""
+    user = _auth_user(request, api)
+    return _account_service(api).profile(user)
+
+
+@router.get("/accreditation/admin/users")
+def accreditation_admin_users(request: Request, api: AnalyticsService = Depends(service)):
+    """Daftar seluruh akun + ringkasan; hanya admin (padanan page_admin.py)."""
+    user = _auth_user(request, api)
+    from app.services.accreditation_account import AksiDitolak
+    try:
+        return _account_service(api).admin_overview(user)
+    except AksiDitolak as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+@router.post("/accreditation/admin/users/{target_id}/action")
+def accreditation_admin_action(target_id: int, payload: dict[str, Any], request: Request,
+                              api: AnalyticsService = Depends(service)):
+    """Blokir/buka blokir, beri/cabut admin, atau hapus akun. Cek ulang di service, bukan di UI."""
+    user = _auth_user(request, api)
+    from app.services.accreditation_account import AksiDitolak
+    action = str(payload.get("action", ""))
+    value = payload.get("value")
+    try:
+        return _account_service(api).admin_action(
+            user, action, target_id, None if value is None else bool(value))
+    except AksiDitolak as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
 @router.post("/accreditation/uploads")
 async def accreditation_upload(request: Request, prodi_id: str = Form(...), file: UploadFile = File(...), api: AnalyticsService = Depends(service)):
     user = _auth_user(request, api)
-    from app.config import settings
     from app.services.accreditation_upload import MAX_UPLOAD_BYTES, UploadError, save_upload
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:

@@ -5,10 +5,12 @@ from functools import lru_cache
 from sqlalchemy import URL, create_engine
 from sqlalchemy.engine import Engine
 
-from app.config import settings
+from app.config import load_settings
 
 
 def build_database_url() -> URL:
+    # Dibaca saat dipanggil (bukan saat impor) supaya perubahan env setelah impor ikut terbaca.
+    settings = load_settings()
     settings.require_postgres()
     return URL.create(
         "postgresql+psycopg",

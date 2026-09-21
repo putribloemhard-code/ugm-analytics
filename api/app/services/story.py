@@ -38,6 +38,7 @@ PILLARS = ("Lingkungan", "Ekonomi", "Sosial")
 MODE_LABEL = {"impact": "Berdampak", "impact-sdgs": "Berdampak × SDGs"}
 MAX_ROWS = 200
 CACHE_TTL_SECONDS = 300
+_CACHE_MAX_ENGINES = 8
 
 STOPWORDS = set(
     """dan di ke dari yang untuk dengan pada dalam sebagai oleh ini itu atau
@@ -1092,11 +1093,20 @@ def build_story(frames: StoryFrames, filters: FilterParams, mode: str = "impact"
 class StoryService:
     """Memuat data (SELECT sederhana, portabel) dan memanggil `build_story()`."""
 
-    _cache: dict[int, tuple[float, StoryFrames]] = {}
+    # Kunci cache = objek engine itu sendiri, bukan id(engine): id() bisa didaur ulang Python
+    # setelah engine lama di-GC, sehingga permintaan bisa menyajikan data dari engine lain
+    # (mis. MySQL pratinjau vs Postgres produksi).
+    _cache: dict[Any, tuple[float, StoryFrames]] = {}
     _lock = threading.Lock()
 
     def __init__(self, engine: Engine):
         self.engine = engine
+
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Buang cache semua engine -- dipakai test dan saat pindah sumber data."""
+        with cls._lock:
+            cls._cache.clear()
 
     def _read(self, sql: str) -> pd.DataFrame:
         return pd.read_sql(text(sql), self.engine)
@@ -1120,14 +1130,18 @@ class StoryService:
         )
 
     def frames(self) -> StoryFrames:
-        key = id(self.engine)
         now = time.monotonic()
         with self._lock:
-            cached = self._cache.get(key)
+            cached = self._cache.get(self.engine)
             if cached and now - cached[0] < CACHE_TTL_SECONDS:
                 return cached[1]
             frames = self._load()
-            self._cache[key] = (now, frames)
+            self._cache[self.engine] = (now, frames)
+            # Aplikasi hanya punya satu engine (get_engine() di-cache), jadi batas ini sekadar
+            # jaring supaya cache tidak menumpuk kalau engine dibuat berulang (mis. di test).
+            while len(self._cache) > _CACHE_MAX_ENGINES:
+                tertua = min(self._cache, key=lambda key: self._cache[key][0])
+                self._cache.pop(tertua, None)
             return frames
 
     def story(self, filters: FilterParams, mode: str, pillar: str | None = None, topic: str | None = None) -> dict[str, Any]:

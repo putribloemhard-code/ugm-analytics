@@ -32,8 +32,18 @@ function toQuery(params: Record<string, QueryValue>) {
 
 async function get<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`);
-  if (!response.ok) throw new Error(`API request failed (${response.status})`);
+  if (!response.ok) throw new Error(await pesanError(response));
   return response.json() as Promise<T>;
+}
+
+/** Ambil pesan `detail` dari API supaya penyebabnya terlihat di layar, bukan hanya kode status.
+ *  Contoh: "Basis data tidak dapat dihubungi..." saat servis MySQL belum menyala. */
+async function pesanError(response: Response): Promise<string> {
+  try {
+    const body = await response.json();
+    if (typeof body?.detail === 'string' && body.detail) return body.detail;
+  } catch { /* respons bukan JSON — pakai kode status saja */ }
+  return `Permintaan ke API gagal (${response.status}).`;
 }
 
 export type AccreditationResult = {
@@ -86,6 +96,27 @@ export async function accreditationLogin(email: string, password: string) { cons
 export async function accreditationRegister(email: string, name: string, password: string) { const response = await fetch(`${API_BASE}/analytics/accreditation/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name, password }) }); const body = await response.json(); if (!response.ok) throw new Error(body.detail ?? 'Registrasi gagal'); return body; }
 export async function accreditationLogout() { await fetch(`${API_BASE}/analytics/accreditation/auth/logout`, { method: 'POST', credentials: 'include' }); notifyAuthChanged(); }
 export async function accreditationUpload(prodiId: string, file: File) { const form = new FormData(); form.append('prodi_id', prodiId); form.append('file', file); const response = await fetch(`${API_BASE}/analytics/accreditation/uploads`, { method: 'POST', credentials: 'include', body: form }); const body = await response.json(); if (!response.ok) throw new Error(body.detail ?? 'Upload gagal'); return body; }
+
+/* ---- Profil Saya & Admin (padanan page_profil.py + page_admin.py dashboard lama) ---- */
+export type ProfileUser = { id: number; email: string; nama: string; is_admin: boolean; created_at: string | null; last_login_at: string | null; terdaftar: string | null; login_terakhir: string | null };
+export type OngoingWork = { prodi_id: string; nama_prodi: string; nama_fakultas: string | null; dokumen: string; item_milik_user: number; lengkap: number; total: number; persen: number };
+export type RiwayatRow = { id: number; prodi_id: string; nama_prodi: string; jenis_dokumen: string; generated_at: string | null; digenerate: string | null };
+export type ProfileResult = { user: ProfileUser; stats: { dokumen_digenerate: number; dokumen_diupload: number }; ongoing: OngoingWork[]; riwayat: { total: number; batas: number; rows: RiwayatRow[] } };
+export type AdminUserRow = { id: number; nama: string; email: string; is_admin: boolean; is_blocked: boolean; terdaftar: string | null; login_terakhir: string | null; n_generate: number; diri_sendiri: boolean };
+export type AdminOverview = { summary: { total_akun: number; admin: number; diblokir: number }; users: AdminUserRow[] };
+
+async function kirim<T>(path: string, method: string, body?: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, { method, credentials: 'include', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
+  const hasil = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(hasil.detail ?? `Permintaan gagal (${response.status})`);
+  return hasil as T;
+}
+
+export function accreditationProfile() { return kirim<ProfileResult>('/analytics/accreditation/profile', 'GET'); }
+export function accreditationAdminUsers() { return kirim<AdminOverview>('/analytics/accreditation/admin/users', 'GET'); }
+export function accreditationAdminAction(targetId: number, action: 'blokir' | 'admin' | 'hapus', value?: boolean) {
+  return kirim<{ message: string }>(`/analytics/accreditation/admin/users/${targetId}/action`, 'POST', { action, value });
+}
 export function getHomeSummary() { return get<Record<string, string | number | null>>('/analytics/home-summary'); }
 export function searchAnalytics(q: string) { return get<{ page: string; pillars: string[]; topics: string[]; sdgs: number[]; years: string[] | null; explanation: string }>(`/analytics/search?${toQuery({ q })}`); }
 export function getImpact(params: Record<string, QueryValue>, mode: 'impact' | 'impact-sdgs') { return get<AnalyticsResult>(`/analytics/impact?${toQuery({ ...params, mode })}`); }

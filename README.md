@@ -13,7 +13,7 @@ Terakhir disinkronkan: **2026-09-19**.
 | `berita-dampak/` | Analisis berita dampak ugm.ac.id (14 tema Kepmen, 3 pilar, SDG, 44 unit kerja) | **Aktif** — pipeline + multipage dashboard + laporan + update mingguan |
 | `akreditasi/` | Kelengkapan data LED & LKPS (LAM-INFOKOM) | **Aktif** — registry 49 item + peta status 61 item + 3 pipeline data live + ekstraksi dokumen (pattern & AI) + dashboard + generator Word + login domain UGM |
 | `matkul-sustainability/` | Mata kuliah terkait sustainability per fakultas/prodi | Selesai (2026-08-12) |
-| `web/` + `api/` + `deploy/` | Frontend publik React/Vite + API FastAPI + paket deploy terisolasi | **Dibangun (2026-09-19)**, belum dijalankan di mesin dev; deploy menunggu keputusan infra |
+| `web/` + `api/` + `deploy/` | Frontend publik React/Vite + API FastAPI + paket deploy terisolasi | **Aktif** — dashboard satu-halaman (Dampak / Dampak × SDGs / SDGs), portal Akreditasi + login, Profil Saya & Admin; `jalankan_web_baru.bat` untuk pratinjau MySQL lokal |
 | `kkn-desa-binaan/` | Sebaran KKN & desa binaan (data dari eLOK — belum ada) | Kosong, butuh akses eLOK |
 | `mahasiswa-afirmasi/` | Analisis kelompok afirmasi (data sensitif — belum ada) | Kosong, butuh akses resmi |
 
@@ -41,13 +41,21 @@ cd D:\ugm-analytics\akreditasi
 ..\venv\Scripts\streamlit run dashboard_akreditasi.py
 ```
 
-**frontend + API (jalur publik, belum aktif):**
+**frontend + API (jalur publik):**
 
 ```bash
+# Pratinjau lokal (MySQL yang sama dengan dashboard Streamlit) — cukup klik dua kali:
+jalankan_web_baru.bat                 # API :8000 + web :3000 (http://127.0.0.1:3000)
+
+# Manual:
 cd D:\ugm-analytics\web
-npm install && npm run dev            # http://127.0.0.1:3000 (butuh API jalan)
-# API: cd api && uvicorn app.main:app --reload  (butuh PostgreSQL, env POSTGRES_*)
+npm ci && npm run dev                 # http://127.0.0.1:3000 (butuh API jalan)
+# API memakai MySQL lokal: ..\.venv\Scripts\python.exe dev_api_mysql.py
+# API produksi: cd api && uvicorn app.main:app --reload  (butuh PostgreSQL, env POSTGRES_*)
 ```
+
+Catatan: ada DUA venv — `venv\` (pandas/plotly/streamlit, untuk subproyek Streamlit) dan
+`.venv\` (fastapi/uvicorn/pytest, untuk `api/` dan `jalankan_web_baru.bat`). Jangan tertukar.
 
 Deploy terisolasi (Compose: postgres + mysql-reader + api + web + edge nginx,
 subpath `/analytics/`) — lihat `deploy/README.md`; butuh Docker (belum terpasang
@@ -72,6 +80,7 @@ di mesin dev).
 - `docs/FRAMEWORK.md` — stack, peta repo, pipeline, konvensi, aturan MySQL/DuckDB
 - `docs/ARCHITECTURE-UGM-ANALYTICS-DAMPAK-vNEXT.md` — arsitektur lengkap per layer + temuan operasional
 - `docs/PRD_FRONTEND_NON_STREAMLIT.md` — PRD migrasi Streamlit → React/Vite + FastAPI
+- `docs/REVIEW_WEB_BARU_2026-09-21.md` — review dashboard web baru (temuan + perbaikan yang sudah dikerjakan)
 - `docs/listing-ide-analisis-dampak.md` — ide backlog
 - `berita-dampak/README.md` + `PIPELINE.md` + `DASHBOARD.md` + `docs/OUTPUT.md` — subproyek berita-dampak
 - `akreditasi/README.md` + `PIPELINE.md` + `DASHBOARD.md` — subproyek akreditasi
