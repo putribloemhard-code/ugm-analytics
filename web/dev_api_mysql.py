@@ -17,6 +17,11 @@ import os
 import sys
 from pathlib import Path
 
+# Laptop dengan RAM tipis: OpenBLAS/numpy mengalokasikan buffer per thread dan bisa gagal
+# ("Memory allocation still failed") sebelum API sempat menyala. Satu thread cukup untuk pratinjau.
+for _var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_var, "1")
+
 from dotenv import load_dotenv
 from sqlalchemy import URL, create_engine
 

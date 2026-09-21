@@ -29,8 +29,8 @@ if not exist "web\node_modules" (
 )
 
 echo [3/3] Menjalankan API dan web...
-start "UGM API (MySQL lokal)" cmd /k ""%~dp0.venv\Scripts\python.exe" "%~dp0web\dev_api_mysql.py""
-start "UGM Web baru" cmd /k "cd /d "%~dp0web" && npm run dev"
+start "UGM API (MySQL lokal)" /D "%~dp0" cmd /k ".venv\Scripts\python.exe web\dev_api_mysql.py"
+start "UGM Web baru" /D "%~dp0web" cmd /k "npm run dev"
 timeout /t 6 /nobreak >nul
 start "" http://127.0.0.1:3000/
 exit /b 0
