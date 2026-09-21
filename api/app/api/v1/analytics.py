@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
@@ -178,6 +179,31 @@ def sdgs(params: FilterParams = Depends(filters), api: AnalyticsService = Depend
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=503, detail="SDG data is unavailable") from exc
+
+
+@router.get("/story")
+def story(
+    mode: str = Query(default="impact", pattern="^(impact|impact-sdgs|sdgs)$"),
+    pillar: str | None = Query(default=None, pattern="^(Lingkungan|Ekonomi|Sosial)$"),
+    topic: str | None = Query(default=None),
+    params: FilterParams = Depends(filters),
+    api: AnalyticsService = Depends(service),
+):
+    """Seluruh chart + insight dashboard Streamlit lama dalam satu respons generik (lihat services/story.py)."""
+    from app.domain.source import kepmen
+    from app.services.story import StoryService
+
+    if topic and topic not in kepmen().TOPIK_KEPMEN_ALL:
+        raise HTTPException(status_code=422, detail="Unknown topic id")
+    try:
+        return StoryService(api.engine).story(params, mode, pillar, topic)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logging.getLogger(__name__).exception("story endpoint failed")
+        raise HTTPException(status_code=503, detail="Story data is unavailable") from exc
+
+
 @router.get("/news")
 def news(
     page: int = Query(default=1, ge=1),
