@@ -50,7 +50,8 @@ web/dist/
 /deploy/stage-manifest.sha256
 /deploy/remote-manifest.sha256
 
-# Local test/cache artifacts for the standalone API
+# Local test/cache artifacts
+.pytest_cache/
 api/.pytest_cache/
 api/**/__pycache__/
 
