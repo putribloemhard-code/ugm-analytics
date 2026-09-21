@@ -9,7 +9,7 @@ cd D:\ugm-analytics\berita-dampak
 
 Lalu buka http://localhost:8766 (atau dari laptop lain di jaringan yang sama —
 IP LAN bisa berubah, cek dengan `ipconfig` atau jalankan
-`D:\ugm-analytics\buka_akses_dashboard_admin.bat` yang mencetak IP aktif + memasang
+`D:\ugm-analytics\berita-dampak\buka_akses_dashboard_admin.bat` yang mencetak IP aktif + memasang
 firewall rule port 8766; untuk lintas jaringan pakai Tailscale).
 
 ## Sumber data

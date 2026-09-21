@@ -2,7 +2,7 @@
 Migrasi data UGM Impact Analytics dari DuckDB (dan CSV) ke MySQL.
 
 Jalankan dari root folder project:
-       python migrasi_ke_mysql.py
+       python deploy/legacy/migrasi_duckdb_ke_mysql.py
 
 """
 

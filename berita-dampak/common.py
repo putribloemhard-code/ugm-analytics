@@ -363,6 +363,7 @@ def load_data_or_stop():
             "Cek: (1) service MySQL sudah berjalan di host/port yang dikonfigurasi, "
             "(2) kredensial di .env (MYSQL_HOST/MYSQL_PORT/MYSQL_USER/MYSQL_PASSWORD/"
             "MYSQL_DB) sudah benar, (3) user MySQL sudah punya akses ke database "
-            "tsb, (4) tabel berprefix 'berita_' sudah ada (lihat migrasi_ke_mysql.py)."
+            "tsb, (4) tabel berprefix 'berita_' sudah ada (skrip migrasi lama: "
+            "deploy/legacy/migrasi_duckdb_ke_mysql.py)."
         )
         st.stop()

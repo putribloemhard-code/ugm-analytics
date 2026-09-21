@@ -4,7 +4,8 @@ Analisis dampak UGM berdasarkan Kepmendikti Saintek **361/M/KEP/2025**
 (Indikator Dampak Sosial, Ekonomi, dan Lingkungan Perguruan Tinggi) dan
 klaster **SDGs** — berbasis data publik yang bisa diambil offline.
 
-Terakhir disinkronkan: **2026-09-19**.
+Terakhir disinkronkan: **2026-09-21** (termasuk perapian struktur: file sisa dihapus, dump
+database & legacy dipindah — lihat "Struktur & kepemilikan sumber" di bawah).
 
 ## Subproyek
 
@@ -30,7 +31,7 @@ cd D:\ugm-analytics\berita-dampak
 
 Laporan statis (tanpa server): `berita-dampak/laporan_berita_dampak.html`.
 
-Akses dari laptop lain: jalankan `buka_akses_dashboard_admin.bat` (butuh admin —
+Akses dari laptop lain: jalankan `berita-dampak\buka_akses_dashboard_admin.bat` (butuh admin —
 memasang firewall rule + mencetak IP LAN aktif). IP LAN bisa berubah, jadi jangan
 hardcode; untuk lintas jaringan pakai Tailscale.
 
@@ -66,13 +67,33 @@ di mesin dev).
 | Folder | Isi |
 |---|---|
 | `berita-dampak/` · `akreditasi/` · `matkul-sustainability/` | Subproyek (lihat tabel di atas) |
-| `web/` · `api/` · `deploy/` | Lapisan aplikasi publik (React/Vite + FastAPI + Compose) |
+| `web/` · `api/` | Lapisan aplikasi publik (React/Vite + FastAPI) |
+| `deploy/` | Paket deploy terisolasi (Compose + Dockerfile + nginx). `deploy/legacy/` = file lama yang sudah tidak dipakai jalur aktif (compose MySQL-only, skrip migrasi DuckDB→MySQL, README deploy Streamlit) — disimpan untuk jejak, bukan untuk dijalankan |
 | `shared/` | **Dipakai bersama lintas subproyek**: `style.py` (CSS global Streamlit — penyamarataan tinggi kartu via flexbox, diverifikasi lewat DOM Streamlit 1.61.1: `stColumn` bukan `column`), `assets/logo/` (logo UGM + ikon tiap halaman), `siapkan_logo.py` |
 | `docs/` | Dokumen tingkat workspace (PERENCANAAN, FRAMEWORK, ARCHITECTURE, PRD, listing ide) |
-| `sumber/` | Referensi resmi: `UGM Analytics.xlsx`, Kepmen 361 (PDF scan), Buku IKU (PDF) |
-| `graphify-out/` | Output analisis graf kode (graph.html/json + GRAPH_REPORT.md) — **gitignored**, artefak lokal |
-| `venv/` | Virtualenv Python 3.11 proyek |
-| `kkn-desa-binaan/` · `mahasiswa-afirmasi/` | Subproyek kosong (menunggu akses data) |
+| `sumber/` | Referensi resmi (sharing, TIDAK boleh dihapus): `UGM Analytics.xlsx`, Kepmen 361 (PDF scan), Buku IKU (PDF), `picture/` (gambar mentah) |
+| `venv/` · `.venv/` | Virtualenv Python (lihat catatan dua venv di atas) |
+| `kkn-desa-binaan/` · `mahasiswa-afirmasi/` | Subproyek kosong (menunggu akses data) — hanya `.gitkeep` di `data/` + `scripts/` |
+
+## Struktur & kepemilikan sumber (aturan 2026-09-21)
+
+Aturan yang dipakai setelah perapian struktur:
+
+1. **Sumber sharing** ada di dalam repo, di folder bersama: `sumber/` (dokumen & gambar mentah
+   resmi), `shared/` (kode + aset Streamlit bersama), `web/public/` (aset web publik).
+2. **Sumber per use case** ada di dalam folder use case masing-masing: `berita-dampak/`,
+   `akreditasi/`, `matkul-sustainability/` — termasuk skrip, data, dashboard, dan dokumen.
+3. **Duplikasi aset yang disengaja** (jangan "dirapikan" tanpa alasan):
+   - logo: `sumber/picture/` (mentah) → `shared/assets/logo/` (Streamlit) → `web/public/logo/`
+     (React). Isi `shared/assets/logo/` dan `web/public/logo/` IDENTIK (terverifikasi md5);
+     `sumber/picture/` resolusinya beda (mentah). Yang dipakai kode: `shared/` + `web/public/`.
+   - `hero_bg.jpg`: `berita-dampak/static/` (Streamlit, static serving) + `web/public/`
+     (React). Isinya identik (md5) — dua app, dua folder aset, memang harus begitu.
+4. **Ketergantungan runtime API → skrip subproyek** (sengaja, jangan dipindah):
+   `api/app/domain/source.py` memuat modul dari `berita-dampak/scripts/` (`kepmen_sdg.py`,
+   `unit_kerja.py`, `keywords.py`, `narasi_logic.py`, `sdg_keywords.py`) dan
+   `akreditasi/scripts/`. Memindahkan file itu akan mematahkan `/analytics/story`.
+5. **Dump database & secret TIDAK disimpan di repo** — lihat "Arsip di luar repo" di bawah.
 
 ## Dokumentasi
 
@@ -86,6 +107,26 @@ di mesin dev).
 - `akreditasi/README.md` + `PIPELINE.md` + `DASHBOARD.md` — subproyek akreditasi
 - `matkul-sustainability/README.md` + `PIPELINE.md` + `DASHBOARD.md` — subproyek matkul
 - `deploy/README.md` — paket deploy terisolasi (batas, kontrak env, gate pra-deploy)
+- `deploy/legacy/README-streamlit-mysql.md` — arsip cara deploy lama (Streamlit + MySQL), lihat folder `legacy/`
+
+## Arsip di luar repo
+
+Sejak perapian 2026-09-21, file besar dan kredensial **tidak lagi disimpan di repo**:
+
+| Dulu | Sekarang | Alasan |
+|---|---|---|
+| `ugm_analytics_dump.sql` (root, 23 MB) | `D:\ugm-analytics-arsip\database\ugm_analytics_dump_2026-08-29.sql` | Dump MySQL 29 Agu 2026 (18 tabel) — snapshot lama, bisa dibuat ulang dari DB live |
+| `berita-dampak/data/analytics.sql` (155 MB) | `D:\ugm-analytics-arsip\database\analytics_2026-09-18.sql` | Dump MySQL 18 Sep 2026 (33 tabel) — duplikat isi DB live; bukan file yang dipakai `deploy/compose.yml` |
+| `client_secret.json` (root) | `D:\ugm-analytics-arsip\secrets\client_secret.json` | Kredensial OAuth Google, belum dipakai fitur apa pun (login Google masih rencana) |
+| `graphify-out/` | dihapus | Artefak tool analisis graf, bisa di-generate ulang |
+| `push_log4.txt`, `tailscale_login.txt`, `.claude/` (kosong) | dihapus | Sampah sisa sesi |
+
+`D:\ugm-analytics-arsip\README.md` menjelaskan isi + cara regenerasi. Folder itu DI LUAR git —
+hapus saja kalau sudah tidak perlu.
+
+Catatan: `deploy/compose.yml` mengharapkan `../migration-input/analytics.reader.sql`, dan folder
+`migration-input/` tidak ada di mesin dev. Untuk deploy, ekspor ulang dari MySQL live dengan nama
+itu — jangan mengandalkan dump di folder arsip.
 
 ## Referensi resmi (folder `sumber/`)
 

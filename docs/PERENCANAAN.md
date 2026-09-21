@@ -74,7 +74,7 @@ di mesin dev.
 | 2026-08-19 | Tagging Kepmen/SDG resmi; bagian "Peta Kepmen & SDGs"; filter pilar; akses dashboard dari laptop lain (firewall 8766 + Tailscale) |
 | 2026-08-20 | 14 tema lengkap + SDG dari sheet #Ref; perluasan keyword berbasis validasi sampel (1.181 → 1.969 berita unik); update otomatis (`update_mingguan.py` + lock + tombol + cron Sabtu 06:00); dokumentasi lengkap + Git repo |
 | 2026-08-21 | Re-tag keyword bersumber detailing tabel Kepmen (OCR); mode "SDGs saja" (mapping langsung seluruh sitemap); fix heatmap plotly imshow |
-| 2026-08-24 | Konvensi penjelasan chart (`💡 penjelasan` + tooltip) di dashboard & laporan; IP LAN dinamis di `buka_akses_dashboard_admin.bat` |
+| 2026-08-24 | Konvensi penjelasan chart (`💡 penjelasan` + tooltip) di dashboard & laporan; IP LAN dinamis di `buka_akses_dashboard_admin.bat` (sejak 2026-09-21 dipindah ke `berita-dampak/`) |
 | 2026-08-28 | Handover deployment report (`docs/HANDOVER_DEPLOYMENT_REPORT_UGM_ANALYTICS_20260828.pdf`) |
 | 2026-08-29 | **Migrasi penuh DuckDB → MySQL** (9 script pipeline baca/tulis langsung MySQL; upsert batch + retry + PK url; `sync_mysql.py` dihapus) |
 | 2026-09-01 | **Isi lengkap artikel** (`fetch_backlog.py`, selector `div.inner-content` + fallback `<div>` template lama; `kredit` dipisah; `fetch_gagal_count` cap 3x) → 32.190/32.191 isi terisi (99,99%); `normalisasi.py` auto-passthrough kolom baru; **tagging 44 fakultas/sekolah/unit kerja** (`tag_unit_kerja.py` + guard leakage lintas-universitas) |

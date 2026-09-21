@@ -211,7 +211,7 @@ pakai DuckDB lokal). `berita-dampak` dan `akreditasi` sudah MySQL.
 - ugm.ac.id: wp-json diblokir (401); sitemap + RSS adalah sumber sah;
   situs sering timeout → retry wajib di semua fetch.
 - Dashboard Streamlit dari laptop lain: firewall rule port 8766
-  (`buka_akses_dashboard_admin.bat`, cetak IP IPv4 aktif), atau Tailscale untuk
+  (`berita-dampak/buka_akses_dashboard_admin.bat`, cetak IP IPv4 aktif), atau Tailscale untuk
   lintas jaringan. IP LAN bisa berubah — cek `ipconfig` dulu, jangan hardcode.
 - Laporan HTML statis bisa dikirim tanpa server (render offline).
 - Frontend React: `web/vite.config.ts` dev server 127.0.0.1:3000; build statis

@@ -335,7 +335,8 @@ def generate_lkps_docx(engine=None) -> bytes:
 
 
 if __name__ == "__main__":
-    out_dir = Path(__file__).resolve().parents[1]
+    out_dir = Path(__file__).resolve().parents[1] / "data" / "generated"
+    out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "Laporan_LED_live_percobaan.docx").write_bytes(generate_led_docx())
     (out_dir / "Laporan_LKPS_live_percobaan.docx").write_bytes(generate_lkps_docx())
     print(f"OK -- {out_dir / 'Laporan_LED_live_percobaan.docx'}")

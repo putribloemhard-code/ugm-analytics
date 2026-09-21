@@ -37,6 +37,7 @@ push_log*.txt
 /graphify-out/20*/
 
 # Dump database - jangan commit
+# (sejak 2026-09-21 dump TIDAK lagi disimpan di repo; dipindah ke D:\ugm-analytics-arsip\database\)
 ugm_analytics_dump.sql
 
 # Standalone frontend build artifacts

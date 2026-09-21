@@ -174,7 +174,7 @@ Uploads API disimpan ke `ACCREDITATION_UPLOAD_DIR` (di container: volume
 | Database (pipeline/dashboard) | **MySQL** `ugm_analytics` — SQLAlchemy `pool_pre_ping=True` + `pool_recycle=3600`; upsert batch kecil + retry 3x; ringkasan full-replace |
 | Database (API publik) | **PostgreSQL 16** (`deploy/compose.yml` service `postgres`, `postgres:16-alpine`) — diisi dari dump MySQL lewat `mysql-reader` + `migrate_mysql_to_postgres.py` |
 | Database (matkul) | DuckDB file lokal — satu koneksi tulis mengunci TOTAL file di Windows → dashboard `read_only=True` + retry 10×1s |
-| Serving analis | Streamlit port 8766, headless; LAN via firewall rule (`buka_akses_dashboard_admin.bat`); lintas jaringan via Tailscale |
+| Serving analis | Streamlit port 8766, headless; LAN via firewall rule (`berita-dampak/buka_akses_dashboard_admin.bat`); lintas jaringan via Tailscale |
 | Serving publik | Nginx (edge + web) di dalam Compose, bind default `127.0.0.1` (`UGM_ANALYTICS_BIND_ADDRESS`), subpath `/analytics/` |
 | Scheduling | Hermes cron `update_berita_dampak.sh` Sabtu 06:00 (`0 6 * * 6`); `fetch_backlog.py` TIDAK termasuk jadwal ini |
 | Versioning | Git repo PRIVATE `putribloemhard-code/ugm-analytics` (auth `~/.git-credentials`; collaborator baca: dedieko-priyadi) |

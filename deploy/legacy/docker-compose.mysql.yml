@@ -3,7 +3,7 @@
 # Repo dev ini belum punya definisi service aplikasi (Streamlit) / Dockerfile
 # -- deployment container app dikelola terpisah oleh tim infra (lihat
 # deploy/README.md). File ini baru berisi service MySQL 8.0 (hasil migrasi
-# dari DuckDB, lihat migrasi_ke_mysql.py).
+# dari DuckDB, lihat deploy/legacy/migrasi_duckdb_ke_mysql.py).
 #
 # Kalau service app digabung ke compose file ini (atau di-merge ke compose
 # file tim infra), pastikan dia ikut network "default" yang sama supaya bisa

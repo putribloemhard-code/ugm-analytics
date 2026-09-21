@@ -18,6 +18,7 @@ Paket ini menjalankan frontend React/Vite, FastAPI read-only, dan MySQL baru dal
 - `web.Dockerfile` — build statis React/Vite dan runtime Nginx.
 - `nginx.conf` — SPA fallback, `/api/` proxy internal, dan health endpoint.
 - `.env.example` — kontrak environment target tanpa secret nyata.
+- `legacy/` — file jalur lama yang SUDAH tidak dipakai: `docker-compose.mysql.yml` (MySQL-only, dulu di root), `migrasi_duckdb_ke_mysql.py` (dulu `migrasi_ke_mysql.py` di root), `README-streamlit-mysql.md` (arsip deploy Streamlit + MySQL). Disimpan untuk jejak; jangan dijalankan sebagai paket deploy.
 
 ## Kontrak environment
 
