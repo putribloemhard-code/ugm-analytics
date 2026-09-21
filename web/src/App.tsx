@@ -131,7 +131,7 @@ function Hero({ summary, error }: { summary: Record<string, string | number | nu
     { label: 'Berita berdampak', value: summary.n_dampak },
     { label: 'Cakupan', value: `${Number(summary.cakupan_pct ?? 0).toFixed(1)}%` },
   ] : [];
-  return <section className="cold-open" aria-labelledby="cold-open-title"><div className="cold-open__inner">
+  return <section className="cold-open" id="pembuka" aria-labelledby="cold-open-title"><div className="cold-open__inner">
     <p className="eyebrow">Universitas Gadjah Mada · Kepmen 361/M/KEP/2025</p>
     {error ? <Notice type="error">{error}</Notice> : <ul className="cold-open__stats" aria-label="Ringkasan data">{summary ? stats.map(stat => <li key={stat.label}><span className="cold-open__number"><CountUp value={stat.value} /></span><span className="cold-open__label">{stat.label}</span></li>) : <li className="cold-open__loading" role="status">Memuat ringkasan data...</li>}</ul>}
     <h1 id="cold-open-title">Analisis <span>Dampak UGM</span></h1>

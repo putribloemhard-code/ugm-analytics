@@ -72,15 +72,26 @@ function useReadingProgress() {
   return bar;
 }
 
-function useActiveSection(pathname: string) {
+const headerSectionIds = reportSections.map(section => section.id);
+
+function useActiveSection(pathname: string, ids: string[]) {
   const [active, setActive] = useState('');
   useEffect(() => {
-    const elements = reportSections.map(section => document.getElementById(section.id)).filter((el): el is HTMLElement => !!el);
+    const elements = ids.map(id => document.getElementById(id)).filter((el): el is HTMLElement => !!el);
     if (!elements.length || typeof IntersectionObserver === 'undefined') { setActive(''); return; }
-    const observer = new IntersectionObserver(entries => { const hit = entries.filter(entry => entry.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]; if (hit) setActive(hit.target.id); }, { rootMargin: '-25% 0px -65% 0px' });
+    // Bagian terakhir pendek dan tidak bisa naik ke pita deteksi; di dasar halaman anggap ia yang aktif.
+    const last = elements[elements.length - 1].id;
+    const atBottom = () => window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+    const observer = new IntersectionObserver(entries => {
+      if (atBottom()) { setActive(last); return; }
+      const hit = entries.filter(entry => entry.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (hit) setActive(hit.target.id);
+    }, { rootMargin: '-25% 0px -65% 0px' });
     elements.forEach(el => observer.observe(el));
-    return () => observer.disconnect();
-  }, [pathname]);
+    function onScroll() { if (atBottom()) setActive(last); }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => { observer.disconnect(); window.removeEventListener('scroll', onScroll); };
+  }, [pathname, ids]);
   return active;
 }
 
@@ -88,7 +99,7 @@ function SiteHeader() {
   const location = useLocation();
   const { theme, toggle } = useTheme();
   const progress = useReadingProgress();
-  const active = useActiveSection(location.pathname);
+  const active = useActiveSection(location.pathname, headerSectionIds);
   const onReport = location.pathname !== '/akreditasi';
   return <header className="site-header">
     <div className="reading-progress" role="progressbar" aria-label="Kemajuan membaca" aria-valuemin={0} aria-valuemax={100} aria-valuenow={0}><div ref={progress} /></div>
@@ -103,10 +114,43 @@ function SiteHeader() {
   </header>;
 }
 
+/** Peta scroll melayang di sisi kanan: posisi baca, lompat antar bagian, ke atas/bawah. */
+const railItems = [
+  { id: 'pembuka', node: '↑', caption: 'Orientasi', title: 'Pembuka & ringkasan data' },
+  { id: 'ringkasan', node: '01', caption: 'Bagian I', title: 'Tiga jalur membaca dampak' },
+  { id: 'dampak', node: '02', caption: 'Analisis 1 / 3', title: 'Dampak' },
+  { id: 'dampak-sdgs', node: '03', caption: 'Analisis 2 / 3', title: 'Dampak × SDGs' },
+  { id: 'sdgs', node: '04', caption: 'Analisis 3 / 3', title: 'SDGs' },
+  { id: 'metodologi', node: '05', caption: 'Bagian III', title: 'Data & metodologi' },
+];
+const railIds = railItems.map(item => item.id);
+
+function SectionRail() {
+  const location = useLocation();
+  const active = useActiveSection(location.pathname, railIds) || 'pembuka';
+  const activeIndex = railIds.indexOf(active);
+  return <nav className="rail" aria-label="Peta laporan">
+    <p className="rail__heading">Jelajahi laporan</p>
+    <ol className="rail__list">
+      {railItems.map((item, index) => {
+        const state = index === activeIndex ? 'is-active' : index < activeIndex ? 'is-past' : '';
+        return <li key={item.id} className={`rail__item ${state}`}>
+          <Link to={{ pathname: '/', hash: `#${item.id}` }} aria-current={index === activeIndex ? 'location' : undefined} aria-label={`${item.caption}: ${item.title}`}>
+            <span className="rail__label"><small>{item.caption}</small><strong>{item.title}</strong></span>
+            <span className="rail__node" aria-hidden="true">{item.node}</span>
+          </Link>
+        </li>;
+      })}
+    </ol>
+    <button className="rail__end" type="button" aria-label="Ke bagian akhir laporan" onClick={() => window.scrollTo({ top: document.documentElement.scrollHeight })}>↓</button>
+  </nav>;
+}
+
 export function SiteFooter() {
   return <footer className="site-footer"><div className="site-footer__inner"><strong>UGM Analytics</strong><span>Analisis dampak UGM berdasarkan Kepmen 361/M/KEP/2025 dan SDGs. Angka adalah lower-bound berbasis keyword dan sumber yang tersedia.</span></div></footer>;
 }
 
 export function SiteShell({ children }: { children: ReactNode }) {
-  return <div className="site"><a className="skip-link" href="#main-content">Lewati ke konten utama</a><SiteHeader /><main id="main-content">{children}</main><SiteFooter /></div>;
+  const onReport = useLocation().pathname !== '/akreditasi';
+  return <div className="site"><a className="skip-link" href="#main-content">Lewati ke konten utama</a><SiteHeader />{onReport && <SectionRail />}<main id="main-content">{children}</main><SiteFooter /></div>;
 }

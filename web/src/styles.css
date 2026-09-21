@@ -286,6 +286,32 @@ td { line-height: 1.45; }
 .tab.active { border-bottom-color: var(--gold); color: var(--text); font-weight: 700; }
 .footer-note { margin-top: 28px; color: var(--text-muted); font-size: .82rem; line-height: 1.55; }
 
+/* ---------- Peta scroll (SectionRail) ---------- */
+.rail { display: none; }
+@media (min-width: 1340px) {
+  .rail { position: fixed; z-index: 20; right: 12px; top: 50%; display: flex; flex-direction: column; align-items: flex-end; padding: 12px 10px 8px; border: 1px solid var(--border-subtle); border-radius: 16px; background: color-mix(in srgb, var(--surface-page) 92%, transparent); backdrop-filter: blur(6px); transform: translateY(-50%); }
+}
+.rail__heading { position: absolute; right: 0; bottom: calc(100% + 8px); margin: 0; padding: 5px 12px; border: 1px solid var(--border-subtle); border-radius: 999px; color: var(--text-muted); background: color-mix(in srgb, var(--surface-page) 92%, transparent); font-size: .66rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; backdrop-filter: blur(6px); }
+.rail__list { margin: 0; padding: 0; list-style: none; }
+.rail__item { position: relative; }
+.rail__item a { position: relative; display: flex; align-items: center; justify-content: flex-end; min-height: 0; padding: 10px 0; text-decoration: none; }
+/* garis penghubung ke node berikutnya: gelap bila sudah dilewati */
+.rail__item:not(:last-child)::after { content: ""; position: absolute; right: 15px; top: calc(50% + 16px); bottom: calc(-50% + 16px); width: 2px; background: var(--border); }
+.rail__item.is-past:not(:last-child)::after { background: var(--chart-primary); }
+.rail__item.is-active:not(:last-child)::after { background: var(--border); }
+.rail__node { display: grid; flex: none; width: 32px; height: 32px; place-items: center; border: 1.5px solid var(--border); border-radius: 50%; color: var(--text-muted); background: var(--surface-page); font-size: .72rem; font-weight: 800; font-variant-numeric: tabular-nums; transition: background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease; }
+.rail__item.is-past .rail__node { border-color: var(--chart-primary); color: var(--text-heading); }
+.rail__item.is-active .rail__node { border-color: var(--chart-primary); color: #fff; background: var(--chart-primary); box-shadow: 0 0 0 3px var(--surface-page), 0 0 0 5px var(--gold); }
+.rail__item a:hover .rail__node, .rail__item a:focus-visible .rail__node { border-color: var(--text-link); }
+.rail__label { position: absolute; top: 50%; right: calc(100% + 14px); display: flex; flex-direction: column; align-items: flex-end; width: max-content; max-width: 220px; padding: 7px 12px; border-radius: 6px; background: var(--surface-tint); box-shadow: 0 4px 14px rgba(0,0,0,.18); text-align: right; opacity: 0; pointer-events: none; transform: translateY(-50%); transition: opacity .15s ease; }
+.rail__label small { color: var(--text-muted); font-size: .66rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.rail__label strong { color: var(--text-heading); font-size: .84rem; line-height: 1.25; }
+.rail__item.is-active .rail__label, .rail__item a:hover .rail__label, .rail__item a:focus-visible .rail__label { opacity: 1; }
+.rail__end { display: grid; width: 32px; min-height: 0; height: 28px; margin-top: 6px; place-items: center; border: 0; color: var(--text-muted); background: transparent; font-size: 1rem; cursor: pointer; }
+.rail__end:hover { color: var(--text-heading); }
+@media (prefers-reduced-motion: reduce) { .rail__node, .rail__label { transition: none; } }
+@media print { .rail { display: none !important; } }
+
 /* ---------- Footer ---------- */
 .site-footer { color: var(--text-on-dark-muted); background: var(--surface-hero); }
 .site-footer__inner { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 24px; width: min(var(--page-width), calc(100% - 32px)); margin: 0 auto; padding: 28px 0; font-size: .85rem; }
