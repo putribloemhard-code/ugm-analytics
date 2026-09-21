@@ -114,6 +114,12 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .site-header__tab { display: inline-flex; align-items: center; flex: none; min-height: var(--header-height); padding: 0 14px; border-bottom: 3px solid transparent; color: var(--text-on-dark-muted); font-size: .92rem; font-weight: 700; text-decoration: none; }
 .site-header__tab:hover { color: #fff; }
 .site-header__tab.active { border-bottom-color: var(--gold); color: #fff; }
+.auth-link { display: inline-flex; align-items: center; flex: none; min-height: 36px; padding: 0 16px; border-radius: 999px; color: var(--ugm-blue); background: var(--gold); font-size: .85rem; font-weight: 800; text-decoration: none; }
+.auth-link:hover { background: var(--gold-hover); }
+.auth-chip { display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 0 4px 0 12px; border: 1px solid #ffffff59; border-radius: 999px; font-size: .85rem; font-weight: 600; }
+.auth-chip a { display: inline-block; max-width: 160px; min-height: 36px; overflow: hidden; line-height: 36px; text-overflow: ellipsis; white-space: nowrap; text-decoration: none; }
+.auth-chip button { min-height: 28px; padding: 0 10px; border: 0; border-radius: 999px; color: #fff; background: #ffffff1f; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.auth-chip button:hover { background: #ffffff33; }
 .theme-toggle { flex: none; padding: 0 14px; border: 1px solid #ffffff59; border-radius: 999px; color: #fff; background: transparent; font-size: .85rem; font-weight: 600; cursor: pointer; }
 .theme-toggle:hover { background: #ffffff1f; }
 
@@ -374,6 +380,7 @@ td { line-height: 1.45; }
   .site-header__inner { gap: 10px; }
   .site-header__brand span { display: none; }
   .theme-toggle { padding: 0 10px; }
+  .auth-link, .auth-chip { display: none; }
   .site-header__tab { padding: 0 8px; }
   .cold-open { min-height: auto; }
   .hero-search { flex-direction: column; }

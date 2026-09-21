@@ -6,6 +6,8 @@ import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from app.services.sqlcompat import url_key
+
 
 class NewsService:
     def __init__(self, engine: Engine):
@@ -51,8 +53,7 @@ class NewsService:
                 where.append(
                     "EXISTS (SELECT 1 FROM berita_unit_kerja unit_filter "
                     "WHERE unit_filter.unit_kerja IN (" + unit_sql + ") "
-                    "AND regexp_replace(split_part(unit_filter.url, '?', 1), '/+$', '') = "
-                    "regexp_replace(split_part(s.url, '?', 1), '/+$', ''))"
+                    f"AND {url_key(self.engine, 'unit_filter.url')} = {url_key(self.engine, 's.url')})"
                 )
             where_sql = " AND ".join(where)
             count_sql = f"SELECT COUNT(DISTINCT s.url) AS total {from_sql} WHERE {where_sql}"

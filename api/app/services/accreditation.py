@@ -6,6 +6,8 @@ import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from app.services.sqlcompat import desc_nulls_last
+
 
 class AccreditationService:
     """Read-only projection of the migrated accreditation catalog."""
@@ -61,28 +63,28 @@ class AccreditationService:
             """
         ).fillna("").to_dict(orient="records")
         manual = self._read(
-            """
+            f"""
             SELECT id, prodi_id, item_id, baris_ke, kolom, tahun, nilai,
                    link_bukti, updated_at
             FROM akreditasi_data_manual
-            ORDER BY updated_at DESC NULLS LAST, id DESC
+            ORDER BY {desc_nulls_last('updated_at')}, id DESC
             LIMIT 100
             """
         ).fillna("").to_dict(orient="records")
         publications = self._read(
-            """
+            f"""
             SELECT link, dosen, sinta_id, platform, judul, tahun, sumber, fetched_at
             FROM akreditasi_publikasi_dosen
-            ORDER BY tahun DESC NULLS LAST, fetched_at DESC NULLS LAST
+            ORDER BY {desc_nulls_last('tahun')}, {desc_nulls_last('fetched_at')}
             LIMIT 100
             """
         ).fillna("").to_dict(orient="records")
         uploads = self._read(
-            """
+            f"""
             SELECT id, prodi_id, nama_file, tipe_file, ukuran_bytes, status,
                    uploaded_at, diekstrak_at
             FROM akreditasi_upload_file
-            ORDER BY uploaded_at DESC NULLS LAST, id DESC
+            ORDER BY {desc_nulls_last('uploaded_at')}, id DESC
             LIMIT 100
             """
         ).fillna("").to_dict(orient="records")

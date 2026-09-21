@@ -49,10 +49,14 @@ export type AccreditationResult = {
 export function getMetadata() { return get<Metadata>('/analytics/metadata'); }
 export function getAccreditation() { return get<AccreditationResult>('/analytics/accreditation'); }
 
+export type AuthUser = { id: number; email: string; nama: string; is_admin: boolean };
+/** Header dan halaman Akreditasi sama-sama mendengarkan event ini untuk menyegarkan status login. */
+export const AUTH_EVENT = 'ugm-auth-changed';
+function notifyAuthChanged() { window.dispatchEvent(new Event(AUTH_EVENT)); }
 export async function accreditationMe() { const response = await fetch(`${API_BASE}/analytics/accreditation/auth/me`, { credentials: 'include' }); if (!response.ok) return null; return (await response.json()).user as { id: number; email: string; nama: string; is_admin: boolean }; }
-export async function accreditationLogin(email: string, password: string) { const response = await fetch(`${API_BASE}/analytics/accreditation/auth/login`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }); const body = await response.json(); if (!response.ok) throw new Error(body.detail ?? 'Login gagal'); return body.user; }
+export async function accreditationLogin(email: string, password: string) { const response = await fetch(`${API_BASE}/analytics/accreditation/auth/login`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }); const body = await response.json(); if (!response.ok) throw new Error(body.detail ?? 'Login gagal'); notifyAuthChanged(); return body.user; }
 export async function accreditationRegister(email: string, name: string, password: string) { const response = await fetch(`${API_BASE}/analytics/accreditation/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name, password }) }); const body = await response.json(); if (!response.ok) throw new Error(body.detail ?? 'Registrasi gagal'); return body; }
-export async function accreditationLogout() { await fetch(`${API_BASE}/analytics/accreditation/auth/logout`, { method: 'POST', credentials: 'include' }); }
+export async function accreditationLogout() { await fetch(`${API_BASE}/analytics/accreditation/auth/logout`, { method: 'POST', credentials: 'include' }); notifyAuthChanged(); }
 export async function accreditationUpload(prodiId: string, file: File) { const form = new FormData(); form.append('prodi_id', prodiId); form.append('file', file); const response = await fetch(`${API_BASE}/analytics/accreditation/uploads`, { method: 'POST', credentials: 'include', body: form }); const body = await response.json(); if (!response.ok) throw new Error(body.detail ?? 'Upload gagal'); return body; }
 export function getHomeSummary() { return get<Record<string, string | number | null>>('/analytics/home-summary'); }
 export function searchAnalytics(q: string) { return get<{ page: string; pillars: string[]; topics: string[]; sdgs: number[]; years: string[] | null; explanation: string }>(`/analytics/search?${toQuery({ q })}`); }

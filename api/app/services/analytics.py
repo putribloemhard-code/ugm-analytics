@@ -10,6 +10,7 @@ from sqlalchemy.engine import Engine
 
 from app.domain.models import FilterParams
 from app.domain.source import kepmen, units
+from app.services.sqlcompat import url_key
 
 
 class AnalyticsService:
@@ -257,8 +258,7 @@ class AnalyticsService:
             unit_clause = (
                 " AND EXISTS (SELECT 1 FROM berita_unit_kerja uk "
                 "WHERE uk.unit_kerja IN (" + unit_sql + ") "
-                "AND regexp_replace(split_part(uk.url, '?', 1), '/+$', '') = "
-                "regexp_replace(split_part(s.url, '?', 1), '/+$', ''))"
+                f"AND {url_key(self.engine, 'uk.url')} = {url_key(self.engine, 's.url')})"
             )
         sitemap_sql = (
             "SELECT s.url, s.lastmod FROM berita_sitemap s "

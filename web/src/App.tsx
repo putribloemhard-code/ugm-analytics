@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
-import { accreditationLogin, accreditationLogout, accreditationMe, accreditationRegister, accreditationUpload, downloadReport, getAccreditation, getHomeSummary, getImpact, getMetadata, getNews, getSdgs, searchAnalytics, type AccreditationResult, type AnalyticsResult, type Metadata } from './lib/api';
+import { AUTH_EVENT, accreditationLogin, accreditationLogout, accreditationMe, accreditationRegister, accreditationUpload, downloadReport, getAccreditation, getHomeSummary, getImpact, getMetadata, getNews, getSdgs, searchAnalytics, type AccreditationResult, type AnalyticsResult, type Metadata } from './lib/api';
 import { assetUrl, CountUp, SiteShell, useInView } from './shell';
 import { MultiSelect } from './multiselect';
 
@@ -92,7 +92,8 @@ function AnalyticsContent({ result }: { result: AnalyticsResult }) {
   const [page, setPage] = useState(1);
   const [reportError, setReportError] = useState('');
   const [reportBusy, setReportBusy] = useState(false);
-  const tabs = Object.keys(result.tables);
+  // Daftar berita sudah tampil di bagian bawah Ringkasan, jadi tab 'news' dan tabel kosong tidak ditampilkan.
+  const tabs = Object.keys(result.tables).filter(name => name !== 'news' && (result.tables[name] ?? []).length > 0);
   useEffect(() => { setPage(1); }, [result]);
   useEffect(() => { setNews(null); setNewsError(''); getNews({ mode: result.mode, year_from: result.filters.year_from as string, year_to: result.filters.year_to as string, pillars: result.filters.pillars as string[], topics: result.filters.topics as string[], sdgs: result.filters.sdgs as number[], units: result.filters.units as string[] }, page, NEWS_PAGE_SIZE).then(setNews).catch(() => setNewsError('Daftar berita belum dapat dimuat.')); }, [result, page]);
   const totalPages = news ? Math.max(1, Math.ceil(news.total / NEWS_PAGE_SIZE)) : 1;
@@ -213,7 +214,7 @@ function AccreditationLogin({ onUser }: { onUser: (user: { id: number; email: st
 function AccreditationPage() {
   const [data, setData] = useState<AccreditationResult | null>(null); const [user, setUser] = useState<{ id: number; email: string; nama: string; is_admin: boolean } | null>(null); const [error, setError] = useState('');
   const [prodi, setProdi] = useState(''); const [document, setDocument] = useState<'LED' | 'LKPS'>('LED'); const [group, setGroup] = useState(''); const [file, setFile] = useState<File | null>(null); const [uploadMessage, setUploadMessage] = useState('');
-  useEffect(() => { getAccreditation().then(d => { setData(d); if (d.programs[0]) setProdi(String(d.programs[0].slug)); }).catch(() => setError('Data akreditasi belum dapat dimuat.')); accreditationMe().then(setUser); }, []);
+  useEffect(() => { getAccreditation().then(d => { setData(d); if (d.programs[0]) setProdi(String(d.programs[0].slug)); }).catch(() => setError('Data akreditasi belum dapat dimuat.')); const refresh = () => { accreditationMe().then(setUser); }; refresh(); window.addEventListener(AUTH_EVENT, refresh); return () => window.removeEventListener(AUTH_EVENT, refresh); }, []);
   if (error) return <AppShell><div className="content"><Notice type="error">{error}</Notice></div></AppShell>;
   if (!data) return <AppShell><div className="content loading">Memuat portal akreditasi...</div></AppShell>;
   if (!user) return <AppShell><div className="content"><PageHeader title="Akreditasi" icon="certificate.png" caption="Portal kelengkapan data LED & LKPS." /><AccreditationLogin onUser={setUser} /></div></AppShell>;

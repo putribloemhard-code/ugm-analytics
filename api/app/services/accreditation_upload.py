@@ -42,12 +42,16 @@ def save_upload(engine: Engine, root: Path, prodi_id: str, filename: str, conten
     now = datetime.now()
     try:
         with engine.begin() as conn:
-            row = conn.execute(text("""
+            conn.execute(text("""
                 INSERT INTO akreditasi_upload_file
                   (prodi_id, nama_file, path_lokal, tipe_file, ukuran_bytes, status, diupload_oleh, uploaded_at)
                 VALUES (:prodi, :name, :path, :type, :size, 'belum_diekstrak', :user, :now)
-                RETURNING id, prodi_id, nama_file, tipe_file, ukuran_bytes, status, uploaded_at, diekstrak_at
-            """), {"prodi": prodi_id, "name": original, "path": str(stored), "type": file_type, "size": len(data), "user": user_email, "now": now}).mappings().one()
+            """), {"prodi": prodi_id, "name": original, "path": str(stored), "type": file_type, "size": len(data), "user": user_email, "now": now})
+            # SELECT, bukan RETURNING (tidak dikenal MySQL); path_lokal memuat stempel waktu mikrodetik sehingga unik.
+            row = conn.execute(text("""
+                SELECT id, prodi_id, nama_file, tipe_file, ukuran_bytes, status, uploaded_at, diekstrak_at
+                FROM akreditasi_upload_file WHERE path_lokal = :path
+            """), {"path": str(stored)}).mappings().one()
     except Exception:
         stored.unlink(missing_ok=True)
         raise

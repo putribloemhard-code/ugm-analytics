@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 
+import { AUTH_EVENT, accreditationLogout, accreditationMe, type AuthUser } from './lib/api';
+
 export const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\//, '')}`;
 
 /** Bagian-bagian laporan satu halaman; id dipakai sebagai anchor dan scrollspy. */
@@ -95,11 +97,24 @@ function useActiveSection(pathname: string, ids: string[]) {
   return active;
 }
 
+function useAuthUser() {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const refresh = () => { accreditationMe().then(value => { if (alive) setUser(value); }).catch(() => { if (alive) setUser(null); }); };
+    refresh();
+    window.addEventListener(AUTH_EVENT, refresh);
+    return () => { alive = false; window.removeEventListener(AUTH_EVENT, refresh); };
+  }, []);
+  return user;
+}
+
 function SiteHeader() {
   const location = useLocation();
   const { theme, toggle } = useTheme();
   const progress = useReadingProgress();
   const active = useActiveSection(location.pathname, headerSectionIds);
+  const user = useAuthUser();
   const onReport = location.pathname !== '/akreditasi';
   return <header className="site-header">
     <div className="reading-progress" role="progressbar" aria-label="Kemajuan membaca" aria-valuemin={0} aria-valuemax={100} aria-valuenow={0}><div ref={progress} /></div>
@@ -109,6 +124,9 @@ function SiteHeader() {
         {reportSections.map(section => <Link key={section.id} to={{ pathname: '/', hash: `#${section.id}` }} className={onReport && active === section.id ? 'active' : ''} aria-current={onReport && active === section.id ? 'location' : undefined}>{section.label}</Link>)}
       </nav>
       <NavLink to="/akreditasi" className={({ isActive }) => `site-header__tab ${isActive ? 'active' : ''}`}>Akreditasi</NavLink>
+      {user
+        ? <span className="auth-chip"><Link to="/akreditasi" title={user.email}>{user.nama}</Link><button type="button" onClick={() => { void accreditationLogout(); }}>Keluar</button></span>
+        : <Link className="auth-link" to="/akreditasi">Masuk</Link>}
       <button className="theme-toggle" type="button" aria-pressed={theme === 'dark'} onClick={toggle}>{theme === 'dark' ? 'Mode terang' : 'Mode gelap'}</button>
     </div>
   </header>;

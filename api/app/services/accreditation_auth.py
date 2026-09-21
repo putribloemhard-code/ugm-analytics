@@ -79,10 +79,12 @@ def register(engine: Engine, email: str, name: str, password: str) -> tuple[bool
     now = datetime.now()
     try:
         with engine.begin() as conn:
-            new_id = conn.execute(text("""
+            conn.execute(text("""
                 INSERT INTO akreditasi_users (email, nama, password_hash, auth_provider, is_admin, is_blocked, created_at)
-                VALUES (:email, :name, :hash, 'local', FALSE, FALSE, :now) RETURNING id
-            """), {"email": email, "name": name, "hash": bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(), "now": now}).scalar_one()
+                VALUES (:email, :name, :hash, 'local', FALSE, FALSE, :now)
+            """), {"email": email, "name": name, "hash": bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(), "now": now})
+            # SELECT, bukan RETURNING: RETURNING tidak dikenal MySQL. Email unik, jadi baris ini pasti yang baru.
+            new_id = conn.execute(text("SELECT id FROM akreditasi_users WHERE email = :email"), {"email": email}).scalar_one()
             if conn.execute(text("SELECT MIN(id) FROM akreditasi_users")).scalar() == new_id:
                 conn.execute(text("UPDATE akreditasi_users SET is_admin = TRUE WHERE id = :id"), {"id": new_id})
     except Exception as exc:
