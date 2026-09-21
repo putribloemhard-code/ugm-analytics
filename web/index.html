@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Analisis dampak UGM berdasarkan Kepmen 361/M/KEP/2025 dan SDGs." />
     <title>UGM Analytics</title>
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Terapkan tema tersimpan (atau preferensi sistem) sebelum render agar tidak berkedip.
+      (function () {
+        var theme = null;
+        try { theme = localStorage.getItem('ugm-analytics-theme'); } catch (e) {}
+        if (theme !== 'light' && theme !== 'dark') theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
