@@ -11,6 +11,8 @@ import bcrypt
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from app.services import sqlcompat
+
 COOKIE_NAME = "akreditasi_sid"
 SESSION_AGE = timedelta(hours=12)
 ALLOWED_DOMAINS = {"ugm.ac.id", "mail.ugm.ac.id"}
@@ -88,7 +90,7 @@ def register(engine: Engine, email: str, name: str, password: str) -> tuple[bool
             if conn.execute(text("SELECT MIN(id) FROM akreditasi_users")).scalar() == new_id:
                 conn.execute(text("UPDATE akreditasi_users SET is_admin = TRUE WHERE id = :id"), {"id": new_id})
     except Exception as exc:
-        if "duplicate" in str(exc).lower() or "unique" in str(exc).lower(): return False, "Email sudah terdaftar."
+        if sqlcompat.is_duplicate_entry_error(exc): return False, "Email sudah terdaftar."
         raise
     return True, "Registrasi berhasil. Silakan login."
 

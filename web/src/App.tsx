@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
-import { AUTH_EVENT, accreditationLogin, accreditationLogout, accreditationMe, accreditationRegister, accreditationUpload, downloadReport, getAccreditation, getHomeSummary, getMetadata, getNews, getStory, searchAnalytics, type AccreditationResult, type Metadata, type PillarDetail, type Story, type TopicOption } from './lib/api';
+import { AUTH_EVENT, DAMPAK_AUTH_EVENT, accreditationLogin, accreditationLogout, accreditationMe, accreditationRegister, accreditationUpload, dampakLogin, dampakLogout, dampakMe, dampakRegister, downloadReport, getAccreditation, getHomeSummary, getMetadata, getNews, getStory, searchAnalytics, type AccreditationResult, type AuthUser, type Metadata, type PillarDetail, type Story, type TopicOption } from './lib/api';
 import { assetUrl, CountUp, SiteShell, useInView } from './shell';
 import { MultiSelect } from './multiselect';
 import { ChartGrid, Insight, StoryTableView } from './story';
@@ -11,7 +11,7 @@ import { AdminPage, ProfilePage } from './account';
 type FilterState = { yearFrom: string; yearTo: string; pillars: string[]; topics: string[]; sdgs: number[]; units: string[] };
 const emptyFilters: FilterState = { yearFrom: '', yearTo: '', pillars: [], topics: [], sdgs: [], units: [] };
 
-function AppShell({ children }: { children: React.ReactNode }) { return <SiteShell>{children}</SiteShell>; }
+function AppShell({ children, plain }: { children: React.ReactNode; plain?: boolean }) { return <SiteShell plain={plain}>{children}</SiteShell>; }
 
 /** Pesan kegagalan muat: pakai pesan asli dari API bila ada (mis. "Basis data tidak dapat
  *  dihubungi...") supaya pengguna tahu penyebabnya, bukan hanya "belum dapat dimuat". */
@@ -157,7 +157,8 @@ function Hero({ summary, error }: { summary: Record<string, string | number | nu
       if (result.pillars.length) params.set('pillars', result.pillars.join(','));
       if (result.topics.length) params.set('topics', result.topics.join(','));
       if (result.sdgs.length) params.set('sdgs', result.sdgs.join(','));
-      navigate(`/${result.page}?${params.toString()}`);
+      // Semua hasil pencarian bermuara ke bagian dalam halaman Dampak (dulu halaman terpisah per pilar).
+      navigate(`/dampak?${params.toString()}#${result.page}`);
     } catch { setExplanation('Pencarian belum dapat diproses. Periksa koneksi API.'); }
   }
   const stats = summary ? [
@@ -174,7 +175,7 @@ function Hero({ summary, error }: { summary: Record<string, string | number | nu
     <p className="hero-hint">Cari tema, pilar, SDG, atau tahun. Hasil akan membuka bagian analisis dengan filter terkait.</p>
     {explanation && <p className="hero-note" role="status">{explanation}</p>}
     {summary && <p className="cold-open__context">Data terakhir: {summary.updated_at ?? 'waktu pembaruan belum tersedia'}.</p>}
-    <Link className="cold-open__continue" to={{ pathname: '/', hash: '#ringkasan' }}>Jelajahi laporan selengkapnya <span aria-hidden="true">↓</span></Link>
+    <Link className="cold-open__continue" to={{ pathname: '/dampak', hash: '#ringkasan' }}>Jelajahi laporan selengkapnya <span aria-hidden="true">↓</span></Link>
   </div></section>;
 }
 
@@ -229,7 +230,7 @@ function ScrollReport({ target }: { target?: AnalysisDef['id'] }) {
   }, [location.key, location.hash, target]);
   return <AppShell><Hero summary={summary} error={summaryError} />
     <ChapterIntro id="ringkasan" number="Bagian I" title="Tiga Jalur untuk Membaca Dampak" description="Setiap jalur memakai sumber dan metode yang berbeda. Pilih jalur yang paling sesuai dengan pertanyaan Anda, bukan sekadar grafik yang ingin dilihat.">
-      <div className="route-grid">{analysisSections.map(def => <Link className={`route-card ${def.accent}`} to={{ pathname: '/', hash: `#${def.id}` }} key={def.id}><div className="route-card-top"><img src={assetUrl(`logo/${def.icon}`)} alt="" /><span>{def.eyebrow}</span></div><h3>{routeTitle[def.id]}</h3><p>{def.description}</p><span className="route-action">Buka bagian ini <b aria-hidden="true">↓</b></span></Link>)}</div>
+      <div className="route-grid">{analysisSections.map(def => <Link className={`route-card ${def.accent}`} to={{ pathname: '/dampak', hash: `#${def.id}` }} key={def.id}><div className="route-card-top"><img src={assetUrl(`logo/${def.icon}`)} alt="" /><span>{def.eyebrow}</span></div><h3>{routeTitle[def.id]}</h3><p>{def.description}</p><span className="route-action">Buka bagian ini <b aria-hidden="true">↓</b></span></Link>)}</div>
     </ChapterIntro>
     <ChapterIntro number="Bagian II" title="Analisis Data Berita" description="Tiap bagian punya filter sendiri. Angka, grafik, tabel, dan laporan Word mengikuti filter yang aktif." />
     {analysisSections.map((def, index) => <AnalysisScene key={def.id} def={def} metadata={metadata} metadataError={metadataError} seeded={target === def.id} seedKey={location.key} tint={index % 2 === 1} />)}
@@ -238,6 +239,62 @@ function ScrollReport({ target }: { target?: AnalysisDef['id'] }) {
       <Link className="chapter-cta" to="/akreditasi">Buka Portal Akreditasi <span aria-hidden="true">›</span></Link>
     </ChapterIntro>
   </AppShell>;
+}
+
+function LandingPage() {
+  return <AppShell>
+    <section className="cold-open cold-open--landing" aria-labelledby="landing-title"><div className="cold-open__inner">
+      <p className="eyebrow">Universitas Gadjah Mada</p>
+      <h1 id="landing-title">UGM <span>Analytics</span></h1>
+      <p className="cold-open__statement">Satu pintu untuk dua layanan: membaca jejak dampak sosial, ekonomi, dan lingkungan UGM lewat pemberitaan publik dan kerangka SDGs, serta mengelola kelengkapan data akreditasi Program Studi (LED & LKPS). Pilih salah satu untuk memulai.</p>
+      <a className="cold-open__continue" href="#pilihan">Pilih menu untuk mulai <span aria-hidden="true">↓</span></a>
+    </div></section>
+    <ChapterIntro id="pilihan" number="Mulai dari sini" title="Pilih Jalur Anda" description="Analisis Dampak dan Akreditasi memakai akun masing-masing yang terpisah. Anda akan diminta masuk atau daftar akun saat membuka salah satu di bawah.">
+      <div className="route-grid route-grid--pair">
+        <Link className="route-card green" to="/dampak">
+          <div className="route-card-top"><img src={assetUrl('logo/dampak.png')} alt="" /><span>Analisis data</span></div>
+          <h3>Analisis Dampak</h3>
+          <p>Telaah dampak Lingkungan, Ekonomi, dan Sosial UGM lewat pemberitaan publik dan kerangka SDGs resmi Kepmen 361/M/KEP/2025.</p>
+          <span className="route-action">Buka Analisis Dampak <b aria-hidden="true">→</b></span>
+        </Link>
+        <Link className="route-card orange" to="/akreditasi">
+          <div className="route-card-top"><img src={assetUrl('logo/certificate.png')} alt="" /><span>Akreditasi</span></div>
+          <h3>Portal Akreditasi</h3>
+          <p>Kelola kelengkapan data LED & LKPS, ekstrak dokumen pendukung, dan susun laporan akreditasi Program Studi.</p>
+          <span className="route-action">Buka Akreditasi <b aria-hidden="true">→</b></span>
+        </Link>
+      </div>
+    </ChapterIntro>
+  </AppShell>;
+}
+
+function DampakLogin({ onUser, next }: { onUser: (user: AuthUser) => void; next?: string | null }) {
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [email, setEmail] = useState(''); const [name, setName] = useState(''); const [password, setPassword] = useState(''); const [message, setMessage] = useState('');
+  const navigate = useNavigate();
+  async function submit() {
+    setMessage('');
+    try {
+      if (mode === 'register') { await dampakRegister(email, name, password); setMode('login'); setMessage('Registrasi berhasil. Silakan masuk.'); return; }
+      onUser(await dampakLogin(email, password));
+      if (next && next.startsWith('/')) navigate(next, { replace: true });
+    } catch (e) { setMessage(e instanceof Error ? e.message : 'Autentikasi gagal'); }
+  }
+  return <div className="accreditation-gate"><section className="accreditation-hero dampak"><div className="brand-chip"><img src={assetUrl('logo/LogoUGM.png')} alt="" /> Universitas Gadjah Mada</div><h1>Analisis <span>Dampak UGM</span></h1><p>Telaah jejak dampak sosial, ekonomi, dan lingkungan UGM melalui pemberitaan publik dan kerangka SDGs resmi Kepmen 361/M/KEP/2025.</p></section><section className="auth-panel"><p className="section-kicker">Selamat datang 👋</p><h2>Masuk untuk melanjutkan</h2><p className="section-note">Akun Analisis Dampak terpisah dari akun Akreditasi.</p><div className="auth-tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Masuk</button><button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Daftar akun baru</button></div>{mode === 'register' && <div className="field"><label htmlFor="dp-name">Nama lengkap</label><input id="dp-name" value={name} onChange={e => setName(e.target.value)} /></div>}<div className="field"><label htmlFor="dp-email">Email UGM</label><input id="dp-email" type="email" placeholder="nama@ugm.ac.id" value={email} onChange={e => setEmail(e.target.value)} /></div><div className="field"><label htmlFor="dp-password">Password</label><input id="dp-password" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div><button className="button auth-submit" onClick={submit}>{mode === 'login' ? 'Masuk' : 'Buat akun'}</button>{message && <Notice type={message.startsWith('Registrasi') ? 'info' : 'error'}>{message}</Notice>}</section></div>;
+}
+
+function DampakPage() {
+  const [user, setUser] = useState<AuthUser | null | undefined>(undefined);
+  const [params] = useSearchParams();
+  useEffect(() => {
+    const refresh = () => { dampakMe().then(setUser).catch(() => setUser(null)); };
+    refresh();
+    window.addEventListener(DAMPAK_AUTH_EVENT, refresh);
+    return () => window.removeEventListener(DAMPAK_AUTH_EVENT, refresh);
+  }, []);
+  if (user === undefined) return <AppShell plain><div className="content loading">Memuat...</div></AppShell>;
+  if (!user) return <AppShell plain><div className="content"><DampakLogin onUser={setUser} next={params.get('next')} /></div></AppShell>;
+  return <ScrollReport />;
 }
 
 function AccreditationLogin({ onUser, next }: { onUser: (user: { id: number; email: string; nama: string; is_admin: boolean }) => void; next?: string | null }) {
@@ -253,7 +310,7 @@ function AccreditationLogin({ onUser, next }: { onUser: (user: { id: number; ema
       if (next && next.startsWith('/')) navigate(next, { replace: true });
     } catch (e) { setMessage(e instanceof Error ? e.message : 'Autentikasi gagal'); }
   }
-  return <div className="accreditation-gate"><section className="accreditation-hero"><div className="brand-chip"><img src={assetUrl('logo/LogoUGM.png')} alt="" /> Universitas Gadjah Mada</div><h1>Portal <span>Akreditasi</span></h1><p>Kelola kelengkapan data LED & LKPS, ekstrak dokumen pendukung, dan susun laporan akreditasi program studi dalam satu tempat.</p></section><section className="auth-panel"><p className="section-kicker">Selamat datang 👋</p><h2>Masuk untuk melanjutkan</h2><p className="section-note">Gunakan akun UGM Anda untuk mengelola dokumen akreditasi.</p><div className="auth-tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Masuk</button><button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Daftar akun baru</button></div>{mode === 'register' && <div className="field"><label htmlFor="acc-name">Nama lengkap</label><input id="acc-name" value={name} onChange={e => setName(e.target.value)} /></div>}<div className="field"><label htmlFor="acc-email">Email UGM</label><input id="acc-email" type="email" placeholder="nama@ugm.ac.id" value={email} onChange={e => setEmail(e.target.value)} /></div><div className="field"><label htmlFor="acc-password">Password</label><input id="acc-password" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div><button className="button auth-submit" onClick={submit}>{mode === 'login' ? 'Masuk' : 'Buat akun'}</button>{message && <Notice type={message.startsWith('Registrasi') ? 'info' : 'error'}>{message}</Notice>}</section></div>;
+  return <div className="accreditation-gate"><section className="accreditation-hero akreditasi"><div className="brand-chip"><img src={assetUrl('logo/LogoUGM.png')} alt="" /> Universitas Gadjah Mada</div><h1>Portal <span>Akreditasi</span></h1><p>Kelola kelengkapan data LED & LKPS, ekstrak dokumen pendukung, dan susun laporan akreditasi program studi dalam satu tempat.</p></section><section className="auth-panel"><p className="section-kicker">Selamat datang 👋</p><h2>Masuk untuk melanjutkan</h2><p className="section-note">Gunakan akun UGM Anda untuk mengelola dokumen akreditasi.</p><div className="auth-tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Masuk</button><button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Daftar akun baru</button></div>{mode === 'register' && <div className="field"><label htmlFor="acc-name">Nama lengkap</label><input id="acc-name" value={name} onChange={e => setName(e.target.value)} /></div>}<div className="field"><label htmlFor="acc-email">Email UGM</label><input id="acc-email" type="email" placeholder="nama@ugm.ac.id" value={email} onChange={e => setEmail(e.target.value)} /></div><div className="field"><label htmlFor="acc-password">Password</label><input id="acc-password" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div><button className="button auth-submit" onClick={submit}>{mode === 'login' ? 'Masuk' : 'Buat akun'}</button>{message && <Notice type={message.startsWith('Registrasi') ? 'info' : 'error'}>{message}</Notice>}</section></div>;
 }
 
 function AccreditationPage() {
@@ -281,7 +338,7 @@ function AccreditationPage() {
   }, []);
   if (error) return <AppShell><div className="content"><Notice type="error">{error}</Notice></div></AppShell>;
   if (!data) return <AppShell><div className="content loading">Memuat portal akreditasi...</div></AppShell>;
-  if (!user) return <AppShell><div className="content"><PageHeader title="Akreditasi" icon="certificate.png" caption="Portal kelengkapan data LED & LKPS." /><AccreditationLogin onUser={setUser} next={params.get('next')} /></div></AppShell>;
+  if (!user) return <AppShell><div className="content"><AccreditationLogin onUser={setUser} next={params.get('next')} /></div></AppShell>;
   const items = document === 'LED' ? data.requirements.led : data.requirements.lkps; const groups = [...new Set(items.map(item => String(item.group)))]; const activeGroup = group || groups[0] || ''; const visible = items.filter(item => String(item.group) === activeGroup); const filled = new Set(data.manual.filter(row => String(row.prodi_id) === prodi).map(row => String(row.item_id))); const done = items.filter(item => filled.has(String(item.id))).length; const percent = items.length ? Math.round(done / items.length * 100) : 0;
   // Dropdown dipisah: Fakultas dulu, baru Program Studi (mengikuti alur dashboard lama,
   // render_prodi_selector). Prodi terkunci sampai fakultas dipilih supaya tidak ada
@@ -306,12 +363,12 @@ function AccreditationPage() {
 
 export default function App() {
   return <Routes>
-    <Route path="/" element={<ScrollReport />} />
+    <Route path="/" element={<LandingPage />} />
+    <Route path="/dampak" element={<DampakPage />} />
     {/* Route lama tetap hidup supaya tautan/bookmark lama tidak mati, tapi dialihkan ke
-        anchor bagian di laporan satu halaman — dulu ini halaman terpisah, kini satu halaman. */}
-    <Route path="/dampak" element={<Navigate to={{ pathname: '/', hash: '#dampak' }} replace />} />
-    <Route path="/dampak-sdgs" element={<Navigate to={{ pathname: '/', hash: '#dampak-sdgs' }} replace />} />
-    <Route path="/sdgs" element={<Navigate to={{ pathname: '/', hash: '#sdgs' }} replace />} />
+        anchor bagian di dalam halaman Dampak — dulu ini halaman terpisah, kini satu halaman. */}
+    <Route path="/dampak-sdgs" element={<Navigate to={{ pathname: '/dampak', hash: '#dampak-sdgs' }} replace />} />
+    <Route path="/sdgs" element={<Navigate to={{ pathname: '/dampak', hash: '#sdgs' }} replace />} />
     <Route path="/akreditasi" element={<AccreditationPage />} />
     <Route path="/profil" element={<AppShell><ProfilePage /></AppShell>} />
     <Route path="/admin" element={<AppShell><AdminPage /></AppShell>} />

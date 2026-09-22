@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
-import { AUTH_EVENT, accreditationLogout, accreditationMe, type AuthUser } from './lib/api';
+import { AUTH_EVENT, DAMPAK_AUTH_EVENT, accreditationLogout, accreditationMe, dampakLogout, dampakMe, type AuthUser } from './lib/api';
 
 export const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\//, '')}`;
 
-/** Bagian-bagian laporan satu halaman; id dipakai sebagai anchor dan scrollspy. */
+/** Bagian-bagian laporan Analisis Dampak (satu halaman panjang); id dipakai sebagai anchor dan scrollspy. */
 export const reportSections = [
   { id: 'ringkasan', label: 'Ringkasan' },
   { id: 'dampak', label: 'Dampak' },
@@ -15,8 +15,10 @@ export const reportSections = [
 ];
 
 const reportSectionIds = reportSections.map(section => section.id);
-/** Laporan hanya hidup di pathname '/'; route lama (/dampak dst.) kini sekadar dialihkan ke anchor. */
-const isReportLocation = (pathname: string, hash: string) => pathname === '/' && (!hash || reportSectionIds.some(id => `#${id}` === hash));
+/** Laporan hanya hidup di pathname '/dampak' (di balik login); '/' kini beranda/landing page. */
+const isReportLocation = (pathname: string, hash: string) => pathname === '/dampak' && (!hash || reportSectionIds.some(id => `#${id}` === hash));
+/** Halaman-halaman milik portal Akreditasi -- dipakai untuk menentukan kapan chip akun & nav akreditasi tampil. */
+const accreditationPaths = ['/akreditasi', '/profil', '/admin'];
 
 const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -113,26 +115,50 @@ function useAuthUser() {
   return user;
 }
 
+function useDampakAuthUser() {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const refresh = () => { dampakMe().then(value => { if (alive) setUser(value); }).catch(() => { if (alive) setUser(null); }); };
+    refresh();
+    window.addEventListener(DAMPAK_AUTH_EVENT, refresh);
+    return () => { alive = false; window.removeEventListener(DAMPAK_AUTH_EVENT, refresh); };
+  }, []);
+  return user;
+}
+
 function SiteHeader() {
   const location = useLocation();
   const { theme, toggle } = useTheme();
   const progress = useReadingProgress();
   const active = useActiveSection(location.pathname, headerSectionIds);
-  const user = useAuthUser();
+  const accUser = useAuthUser();
+  const dampakUser = useDampakAuthUser();
+  const onLanding = location.pathname === '/';
+  const onDampak = location.pathname === '/dampak';
   const onReport = isReportLocation(location.pathname, location.hash);
-  // Tidak ada tombol "Masuk" di header: login hanya lewat portal Akreditasi (gerbangnya sendiri).
-  // Saat sudah login, nama pengguna menjadi tautan ke halaman akunnya.
+  const onAccreditation = accreditationPaths.includes(location.pathname);
+  const showReportNav = onReport && dampakUser;
+  // "Beranda" dan "Akreditasi" selalu tampil di header supaya orang bisa pindah portal kapan
+  // saja -- termasuk dari gerbang login. "Analisis Dampak" jadi nav bagian laporan begitu
+  // sudah login dan berada di /dampak; kalau belum, tetap satu tautan biasa ke sana.
   return <header className="site-header">
     <div className="reading-progress" role="progressbar" aria-label="Kemajuan membaca" aria-valuemin={0} aria-valuemax={100} aria-valuenow={0}><div ref={progress} /></div>
     <div className="site-header__inner">
       <Link className="site-header__brand" to="/" aria-label="UGM Analytics — beranda"><img src={assetUrl('logo/LogoUGM.png')} alt="" /><span>UGM Analytics</span></Link>
       <nav className="site-header__nav" aria-label="Navigasi utama">
-        {reportSections.map(section => <Link key={section.id} to={{ pathname: '/', hash: `#${section.id}` }} className={onReport && active === section.id ? 'active' : ''} aria-current={onReport && active === section.id ? 'location' : undefined}>{section.label}</Link>)}
+        <Link to="/" className={onLanding ? 'active' : ''} aria-current={onLanding ? 'location' : undefined}>Beranda</Link>
+        {showReportNav ? reportSections.map(section => <Link key={section.id} to={{ pathname: '/dampak', hash: `#${section.id}` }} className={active === section.id ? 'active' : ''} aria-current={active === section.id ? 'location' : undefined}>{section.label}</Link>)
+          : <Link to="/dampak" className={onDampak ? 'active' : ''} aria-current={onDampak ? 'location' : undefined}>Analisis Dampak</Link>}
+        <Link to="/akreditasi" className={onAccreditation ? 'active' : ''} aria-current={onAccreditation ? 'location' : undefined}>Akreditasi</Link>
       </nav>
-      <NavLink to="/akreditasi" className={({ isActive }) => `site-header__tab ${isActive ? 'active' : ''}`}>Akreditasi</NavLink>
-      {user && <span className="auth-chip">
-        <Link to="/profil" title={user.email}>{user.nama}</Link>
-        {user.is_admin && <Link className="auth-chip__admin" to="/admin" title="Kelola akun pengguna">Admin</Link>}
+      {onDampak && dampakUser && <span className="auth-chip">
+        <span className="auth-chip__name">{dampakUser.nama}</span>
+        <button type="button" onClick={() => { void dampakLogout(); }}>Keluar</button>
+      </span>}
+      {onAccreditation && accUser && <span className="auth-chip">
+        <Link to="/profil" title={accUser.email}>{accUser.nama}</Link>
+        {accUser.is_admin && <Link className="auth-chip__admin" to="/admin" title="Kelola akun pengguna">Admin</Link>}
         <button type="button" onClick={() => { void accreditationLogout(); }}>Keluar</button>
       </span>}
       <button className="theme-toggle" type="button" aria-pressed={theme === 'dark'} onClick={toggle}>{theme === 'dark' ? 'Mode terang' : 'Mode gelap'}</button>
@@ -161,7 +187,7 @@ function SectionRail() {
       {railItems.map((item, index) => {
         const state = index === activeIndex ? 'is-active' : index < activeIndex ? 'is-past' : '';
         return <li key={item.id} className={`rail__item ${state}`}>
-          <Link to={{ pathname: '/', hash: `#${item.id}` }} aria-current={index === activeIndex ? 'location' : undefined} aria-label={`${item.caption}: ${item.title}`}>
+          <Link to={{ pathname: '/dampak', hash: `#${item.id}` }} aria-current={index === activeIndex ? 'location' : undefined} aria-label={`${item.caption}: ${item.title}`}>
             <span className="rail__label"><small>{item.caption}</small><strong>{item.title}</strong></span>
             <span className="rail__node" aria-hidden="true">{item.node}</span>
           </Link>
@@ -176,10 +202,10 @@ export function SiteFooter() {
   return <footer className="site-footer"><div className="site-footer__inner"><strong>UGM Analytics</strong><span>Analisis dampak UGM berdasarkan Kepmen 361/M/KEP/2025 dan SDGs. Angka adalah lower-bound berbasis keyword dan sumber yang tersedia.</span></div></footer>;
 }
 
-export function SiteShell({ children }: { children: ReactNode }) {
-  // Peta laporan hanya untuk halaman laporan; portal Akreditasi, Profil, dan Admin punya
-  // navigasi sendiri sehingga rail di kanan justru mengganggu.
+export function SiteShell({ children, plain }: { children: ReactNode; plain?: boolean }) {
+  // Peta laporan hanya untuk halaman laporan yang sudah login; beranda, gerbang login, portal
+  // Akreditasi, Profil, dan Admin punya navigasi sendiri sehingga rail di kanan justru mengganggu.
   const { pathname, hash } = useLocation();
-  const onReport = isReportLocation(pathname, hash);
+  const onReport = !plain && isReportLocation(pathname, hash);
   return <div className="site"><a className="skip-link" href="#main-content">Lewati ke konten utama</a><SiteHeader />{onReport && <SectionRail />}<main id="main-content">{children}</main><SiteFooter /></div>;
 }

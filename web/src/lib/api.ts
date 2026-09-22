@@ -46,6 +46,15 @@ async function pesanError(response: Response): Promise<string> {
   return `Permintaan ke API gagal (${response.status}).`;
 }
 
+/** Baca respons JSON endpoint auth/unggah; kalau gagal, lempar pesan `detail` dari API.
+ *  Tanpa ini respons 500 berbadan teks (mis. crash server) memunculkan galat parse JSON yang
+ *  membingungkan ("Unexpected token 'I'") alih-alih kode statusnya. */
+async function kirimJson<T>(response: Response, pesanDefault: string): Promise<T> {
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof body?.detail === 'string' && body.detail ? body.detail : `${pesanDefault} (${response.status}).`);
+  return body as T;
+}
+
 export type AccreditationResult = {
   summary: Record<string, number>;
   faculties: Record<string, unknown>[];
@@ -92,10 +101,19 @@ export type AuthUser = { id: number; email: string; nama: string; is_admin: bool
 export const AUTH_EVENT = 'ugm-auth-changed';
 function notifyAuthChanged() { window.dispatchEvent(new Event(AUTH_EVENT)); }
 export async function accreditationMe() { const response = await fetch(`${API_BASE}/analytics/accreditation/auth/me`, { credentials: 'include' }); if (!response.ok) return null; return (await response.json()).user as { id: number; email: string; nama: string; is_admin: boolean }; }
-export async function accreditationLogin(email: string, password: string) { const response = await fetch(`${API_BASE}/analytics/accreditation/auth/login`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }); const body = await response.json(); if (!response.ok) throw new Error(body.detail ?? 'Login gagal'); notifyAuthChanged(); return body.user; }
-export async function accreditationRegister(email: string, name: string, password: string) { const response = await fetch(`${API_BASE}/analytics/accreditation/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name, password }) }); const body = await response.json(); if (!response.ok) throw new Error(body.detail ?? 'Registrasi gagal'); return body; }
+export async function accreditationLogin(email: string, password: string) { const response = await fetch(`${API_BASE}/analytics/accreditation/auth/login`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }); const body = await kirimJson<{ user: AuthUser }>(response, 'Login gagal'); notifyAuthChanged(); return body.user; }
+export async function accreditationRegister(email: string, name: string, password: string) { const response = await fetch(`${API_BASE}/analytics/accreditation/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name, password }) }); return kirimJson<{ message: string }>(response, 'Registrasi gagal'); }
 export async function accreditationLogout() { await fetch(`${API_BASE}/analytics/accreditation/auth/logout`, { method: 'POST', credentials: 'include' }); notifyAuthChanged(); }
-export async function accreditationUpload(prodiId: string, file: File) { const form = new FormData(); form.append('prodi_id', prodiId); form.append('file', file); const response = await fetch(`${API_BASE}/analytics/accreditation/uploads`, { method: 'POST', credentials: 'include', body: form }); const body = await response.json(); if (!response.ok) throw new Error(body.detail ?? 'Upload gagal'); return body; }
+export async function accreditationUpload(prodiId: string, file: File) { const form = new FormData(); form.append('prodi_id', prodiId); form.append('file', file); const response = await fetch(`${API_BASE}/analytics/accreditation/uploads`, { method: 'POST', credentials: 'include', body: form }); return kirimJson<{ message?: string }>(response, 'Upload gagal'); }
+
+/* ---- Login Analisis Dampak: akun terpisah total dari akun Akreditasi (tabel, cookie, dan
+   event beda) supaya masuk ke satu portal tidak otomatis membuka portal yang lain. ---- */
+export const DAMPAK_AUTH_EVENT = 'ugm-dampak-auth-changed';
+function notifyDampakAuthChanged() { window.dispatchEvent(new Event(DAMPAK_AUTH_EVENT)); }
+export async function dampakMe() { const response = await fetch(`${API_BASE}/analytics/dampak/auth/me`, { credentials: 'include' }); if (!response.ok) return null; return (await response.json()).user as AuthUser; }
+export async function dampakLogin(email: string, password: string) { const response = await fetch(`${API_BASE}/analytics/dampak/auth/login`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }); const body = await kirimJson<{ user: AuthUser }>(response, 'Login gagal'); notifyDampakAuthChanged(); return body.user; }
+export async function dampakRegister(email: string, name: string, password: string) { const response = await fetch(`${API_BASE}/analytics/dampak/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name, password }) }); return kirimJson<{ message: string }>(response, 'Registrasi gagal'); }
+export async function dampakLogout() { await fetch(`${API_BASE}/analytics/dampak/auth/logout`, { method: 'POST', credentials: 'include' }); notifyDampakAuthChanged(); }
 
 /* ---- Profil Saya & Admin (padanan page_profil.py + page_admin.py dashboard lama) ---- */
 export type ProfileUser = { id: number; email: string; nama: string; is_admin: boolean; created_at: string | null; last_login_at: string | null; terdaftar: string | null; login_terakhir: string | null };

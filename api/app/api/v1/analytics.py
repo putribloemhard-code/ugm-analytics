@@ -122,6 +122,50 @@ def accreditation_logout(request: Request, api: AnalyticsService = Depends(servi
     return response
 
 
+def _dampak_auth_user(request: Request, api: AnalyticsService):
+    from app.services.dampak_auth import user_from_token, COOKIE_NAME
+    user = user_from_token(api.engine, request.cookies.get(COOKIE_NAME))
+    if not user:
+        raise HTTPException(status_code=401, detail="Login Analisis Dampak diperlukan")
+    return user
+
+
+@router.post("/dampak/auth/register")
+def dampak_register(payload: dict[str, str], api: AnalyticsService = Depends(service)):
+    from app.services.dampak_auth import ensure_schema, register
+    ensure_schema(api.engine)
+    ok, message = register(api.engine, payload.get("email", ""), payload.get("name", ""), payload.get("password", ""))
+    if not ok:
+        raise HTTPException(status_code=400, detail=message)
+    return {"message": message}
+
+
+@router.post("/dampak/auth/login")
+def dampak_login(payload: dict[str, str], api: AnalyticsService = Depends(service)):
+    from app.services.dampak_auth import COOKIE_NAME, ensure_schema, login
+    ensure_schema(api.engine)
+    user, message, token = login(api.engine, payload.get("email", ""), payload.get("password", ""))
+    if not user or not token:
+        raise HTTPException(status_code=401, detail=message or "Login gagal")
+    response = JSONResponse({"user": user})
+    response.set_cookie(COOKIE_NAME, token, max_age=43200, httponly=True, samesite="strict", secure=False, path="/")
+    return response
+
+
+@router.get("/dampak/auth/me")
+def dampak_me(request: Request, api: AnalyticsService = Depends(service)):
+    return {"user": _dampak_auth_user(request, api)}
+
+
+@router.post("/dampak/auth/logout")
+def dampak_logout(request: Request, api: AnalyticsService = Depends(service)):
+    from app.services.dampak_auth import COOKIE_NAME, logout
+    logout(api.engine, request.cookies.get(COOKIE_NAME))
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(COOKIE_NAME, path="/")
+    return response
+
+
 def _account_service(api: AnalyticsService):
     from app.services.accreditation_account import AccreditationAccountService
     return AccreditationAccountService(api.engine)

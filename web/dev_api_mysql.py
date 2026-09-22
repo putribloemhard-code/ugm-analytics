@@ -5,9 +5,12 @@ Streamlit ada di MySQL (.env di root repo: MYSQL_HOST/PORT/USER/PASSWORD/DB). Sk
 mengganti engine-nya ke MySQL tanpa mengubah kode api/, supaya web React baru bisa
 dilihat dengan data yang sama dengan Streamlit.
 
-Batasan: query analitik (Dampak, Dampak x SDGs, SDGs, berita, laporan Word) dan login
-akreditasi memakai SQL standar; REGISTRASI akun baru dan UPLOAD file akreditasi memakai
-`RETURNING` (khusus Postgres) sehingga tidak jalan di MySQL. Buat akun lewat Streamlit.
+Batasan: jalur analitik (Dampak, Dampak x SDGs, SDGs, berita, laporan Word), login, dan
+REGISTRASI akun (akreditasi + Analisis Dampak) memakai SQL standar dan sudah terbukti jalan di
+MySQL. Perbaikan 2026-09-22: `dampak_auth.ensure_schema` dulu memakai `CREATE INDEX IF NOT
+EXISTS` (khusus Postgres) sehingga registrasi/login Analisis Dampak gagal 500 di MySQL.
+Unggah file akreditasi menulis ke `ACCREDITATION_UPLOAD_DIR` (default `/app/data/...`) yang di
+laptop menjadi `D:\app\data\...` -- set env itu kalau ingin berkasnya rapi.
 
 Jangan dipakai di server/produksi.
 """

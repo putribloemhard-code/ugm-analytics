@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -8,7 +11,22 @@ from sqlalchemy.exc import InterfaceError, OperationalError
 from app.api.v1.analytics import router as analytics_router
 from app.config import settings
 
-app = FastAPI(title="UGM Analytics API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    # Siapkan tabel akun login Analisis Dampak (independen dari akreditasi_users/sessions).
+    try:
+        from app.db import get_engine
+        from app.services.dampak_auth import ensure_schema
+        ensure_schema(get_engine())
+    except Exception:
+        # DB belum menyala saat start -- biarkan; endpoint /dampak/auth/* akan tetap gagal
+        # dengan 503 seperti biasa (lihat database_unreachable di bawah), bukan meng-crash proses API.
+        pass
+    yield
+
+
+app = FastAPI(title="UGM Analytics API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(settings.api_cors_origins),
