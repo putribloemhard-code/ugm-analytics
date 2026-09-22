@@ -1,13 +1,22 @@
 name: ugm-analytics
 
+# Kontrak variabel: SEMUA variabel di bawah WAJIB ada di deploy/.env.
+# Sintaks ${VAR:?pesan} di tiap pemakaian membuat `docker compose config/up` GAGAL
+# dengan pesan jelas kalau nilainya kosong, alih-alih diam-diam memakai string kosong
+# (dulu berujung postgres gagal boot tanpa sebab yang terbaca).
+#   COMPOSE_PROJECT_NAME  UGM_ANALYTICS_BIND_ADDRESS  UGM_ANALYTICS_PORT  PUBLIC_ORIGIN
+#   VITE_API_BASE_URL  VITE_APP_BASE_PATH
+#   POSTGRES_DB  POSTGRES_USER  POSTGRES_PASSWORD
+#   SOURCE_MYSQL_DB  SOURCE_MYSQL_USER  SOURCE_MYSQL_PASSWORD  SOURCE_MYSQL_ROOT_PASSWORD
+
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB belum diisi di deploy/.env}"
+      POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER belum diisi di deploy/.env}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD belum diisi di deploy/.env}"
     volumes:
       - ../runtime/postgres:/var/lib/postgresql/data
     networks:
@@ -23,10 +32,10 @@ services:
     image: mysql:8.0
     restart: "no"
     environment:
-      MYSQL_DATABASE: ${SOURCE_MYSQL_DB}
-      MYSQL_USER: ${SOURCE_MYSQL_USER}
-      MYSQL_PASSWORD: ${SOURCE_MYSQL_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${SOURCE_MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: "${SOURCE_MYSQL_DB:?SOURCE_MYSQL_DB belum diisi di deploy/.env}"
+      MYSQL_USER: "${SOURCE_MYSQL_USER:?SOURCE_MYSQL_USER belum diisi di deploy/.env}"
+      MYSQL_PASSWORD: "${SOURCE_MYSQL_PASSWORD:?SOURCE_MYSQL_PASSWORD belum diisi di deploy/.env}"
+      MYSQL_ROOT_PASSWORD: "${SOURCE_MYSQL_ROOT_PASSWORD:?SOURCE_MYSQL_ROOT_PASSWORD belum diisi di deploy/.env}"
     volumes:
       - ../runtime/mysql-reader-v2:/var/lib/mysql
       - ../migration-input/analytics.reader.sql:/docker-entrypoint-initdb.d/analytics.sql:ro
@@ -47,10 +56,10 @@ services:
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      API_CORS_ORIGINS: ${PUBLIC_ORIGIN}
+      POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER belum diisi di deploy/.env}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD belum diisi di deploy/.env}"
+      POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB belum diisi di deploy/.env}"
+      API_CORS_ORIGINS: "${PUBLIC_ORIGIN:?PUBLIC_ORIGIN belum diisi di deploy/.env}"
       ACCREDITATION_UPLOAD_DIR: /app/data/accreditation/uploads
     volumes:
       - ../runtime/accreditation-uploads:/app/data/accreditation/uploads
@@ -71,8 +80,8 @@ services:
       context: ..
       dockerfile: deploy/web.Dockerfile
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
-        VITE_APP_BASE_PATH: ${VITE_APP_BASE_PATH}
+        VITE_API_BASE_URL: "${VITE_API_BASE_URL:?VITE_API_BASE_URL belum diisi di deploy/.env}"
+        VITE_APP_BASE_PATH: "${VITE_APP_BASE_PATH:?VITE_APP_BASE_PATH belum diisi di deploy/.env}"
     restart: unless-stopped
     depends_on:
       api:
@@ -93,7 +102,7 @@ services:
       web:
         condition: service_healthy
     ports:
-      - "${UGM_ANALYTICS_BIND_ADDRESS}:${UGM_ANALYTICS_PORT}:8092"
+      - "${UGM_ANALYTICS_BIND_ADDRESS:?UGM_ANALYTICS_BIND_ADDRESS belum diisi di deploy/.env}:${UGM_ANALYTICS_PORT:?UGM_ANALYTICS_PORT belum diisi di deploy/.env}:8092"
     volumes:
       - ./edge-nginx.conf.template:/etc/nginx/conf.d/default.conf:ro
     networks:
@@ -107,5 +116,5 @@ services:
 
 networks:
   internal:
-    name: ${COMPOSE_PROJECT_NAME}_internal
+    name: "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME belum diisi di deploy/.env}_internal"
     driver: bridge

@@ -50,6 +50,13 @@ web/dist/
 /deploy/stage-manifest.sha256
 /deploy/remote-manifest.sha256
 
+# Runtime state compose (volume host: ../runtime/postgres, ../runtime/mysql-reader-v2,
+# ../runtime/accreditation-uploads) — data DB tidak pernah masuk git.
+/runtime/
+
+# Dump MySQL sumber migrasi (155 MB) — disiapkan operator di server, bukan artefak repo.
+/migration-input/
+
 # Local test/cache artifacts
 .pytest_cache/
 api/.pytest_cache/
