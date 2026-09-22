@@ -50,6 +50,19 @@ eksperimen baru, finalkan environment sebelum lifecycle pertama.
 
 - folder `migration-input/` dan dump di dalamnya **wajib ada sebelum `up` pertama**; keduanya
   gitignored dan disiapkan operator di server, bukan diambil dari repo;
+- file dump WAJIB berupa **file biasa, bukan direktori** — kalau path itu sebuah folder,
+  import mati dengan
+  `ERROR: Can't initialize batch_readline - may be the input source is a directory or a block
+  device.` (terjadi di BTD 2026-09-22: `mkdir analytics.reader.sql` tanpa isi). Cek:
+  `file ../migration-input/analytics.reader.sql` harus "ASCII text", bukan "directory";
+- isi minimal dump: SEMUA tabel yang dirujuk `api/app/` — `berita_berita`,
+  `berita_berita_kepmen_all`, `berita_berita_sdg_all`, `berita_ringkasan_pilar`,
+  `berita_sitemap`, `berita_sitemap_sdg`, `berita_unit_kerja`, `akreditasi_fakultas`,
+  `akreditasi_prodi`, `akreditasi_data_manual`, `akreditasi_item_tersedia`,
+  `akreditasi_publikasi_dosen`, `akreditasi_riwayat_generate`, `akreditasi_upload_file`,
+  `akreditasi_users`, `akreditasi_sessions`, `akreditasi_login_attempts`.
+  `dampak_users`/`dampak_sessions` TIDAK perlu: tabelnya dibuat sendiri oleh `ensure_schema`
+  saat `api` pertama jalan (auto-migrate);
 - kalau volume `runtime/mysql-reader-v2` sudah terisi dari `up` sebelumnya, skrip init di
   `docker-entrypoint-initdb.d` **tidak dijalankan ulang** — isi ulang dump berarti
   `docker compose down -v` (menghapus volume) atau impor manual lewat `stdin`.
@@ -95,6 +108,29 @@ dan setelah selesai membuat indeks `berita_berita(tanggal)`, `berita_berita_kepm
 `berita_sitemap_sdg(url)`, `berita_unit_kerja(url)`. Karena `mysql-reader` sudah memuat dump yang
 sama, langkah ini hanya perlu kalau data diambil langsung dari MySQL sumber — dan `mysql-reader`
 memang sudah dijalankan lebih dulu (`api` menunggu `mysql-reader` healthy).
+
+## Pemulihan: `mysql-reader` mati saat import dump
+
+Gejala (BTD 2026-09-22): entrypoint membuat database + user dengan benar, lalu berhenti di
+`running /docker-entrypoint-initdb.d/analytics.sql` dengan
+`ERROR: Can't initialize batch_readline - may be the input source is a directory or a block device.`
+Penyebab di kasus itu: `../migration-input/analytics.reader.sql` dibuat sebagai **direktori**
+(`mkdir analytics.reader.sql`), bukan file dump.
+
+Perbaikan:
+
+1. Pastikan path-nya file biasa berisi dump:
+   `ls -l ../migration-input/analytics.reader.sql && file ../migration-input/analytics.reader.sql`
+   → harus `-rw-...` dan "ASCII text" (atau "MySQL dump"). Bukan `drwx`.
+2. Impor bisa diuji tanpa menghapus volume Postgres:
+   `docker compose down -v` lalu `docker compose up -d` akan mengulang init MySQL dari nol.
+   Kalau hanya ingin mengulang MySQL: `docker compose rm -sfv mysql-reader` tidak cukup (volume
+   tetap) — yang benar `docker compose down -v` untuk seluruh project, atau impor manual:
+   `docker compose exec -T mysql-reader mysql -uroot -p"$SOURCE_MYSQL_ROOT_PASSWORD" "$SOURCE_MYSQL_DB" < ../migration-input/analytics.reader.sql`
+   (jalankan dari host; jangan tempel password ke riwayat shell di mesin bersama).
+3. Verifikasi hasil impor:
+   `docker compose exec mysql-reader mysql -uugm_reader -p"$SOURCE_MYSQL_PASSWORD" "$SOURCE_MYSQL_DB" -e "SHOW TABLES;"`
+   → harus memuat tabel `berita_*` dan `akreditasi_*` (lihat daftar minimal di bagian Kontrak environment).
 
 ## Pemulihan: WARN "variable is not set" + postgres unhealthy
 
