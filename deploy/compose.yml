@@ -61,10 +61,19 @@ services:
       POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB belum diisi di deploy/.env}"
       API_CORS_ORIGINS: "${PUBLIC_ORIGIN:?PUBLIC_ORIGIN belum diisi di deploy/.env}"
       ACCREDITATION_UPLOAD_DIR: /app/data/accreditation/uploads
+      # Untuk migrate_mysql_to_postgres.py yang dijalankan via `docker compose run`:
+      # api wajib tahu kredensial sumber MySQL, bukan cuma target Postgres.
+      SOURCE_MYSQL_HOST: mysql-reader
+      SOURCE_MYSQL_PORT: "3306"
+      SOURCE_MYSQL_DB: "${SOURCE_MYSQL_DB:?SOURCE_MYSQL_DB belum diisi di deploy/.env}"
+      SOURCE_MYSQL_USER: "${SOURCE_MYSQL_USER:?SOURCE_MYSQL_USER belum diisi di deploy/.env}"
+      SOURCE_MYSQL_PASSWORD: "${SOURCE_MYSQL_PASSWORD:?SOURCE_MYSQL_PASSWORD belum diisi di deploy/.env}"
     volumes:
       - ../runtime/accreditation-uploads:/app/data/accreditation/uploads
     depends_on:
       postgres:
+        condition: service_healthy
+      mysql-reader:
         condition: service_healthy
     networks:
       - internal

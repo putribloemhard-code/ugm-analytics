@@ -83,8 +83,9 @@ Urutan aman yang direncanakan:
 
 `deploy/migrate_mysql_to_postgres.py` menyalin tabel MySQL sumber ke PostgreSQL dalam container
 `api` (skripnya ada di `/app/migrate_mysql_to_postgres.py`, image sudah memuat `pandas`,
-`pymysql`, dan `psycopg`). Env yang dibaca: `SOURCE_MYSQL_{HOST,PORT,USER,PASSWORD,DB}` dan
-`POSTGRES_{HOST,PORT,USER,PASSWORD,DB}` — jadi jalankan dari dalam jaringan internal, mis.:
+`pymysql`, dan `psycopg`). Container `api` sudah membawa seluruh env yang dibutuhkan:
+`POSTGRES_*` (target) dan `SOURCE_MYSQL_*` dengan `SOURCE_MYSQL_HOST=mysql-reader`,
+`SOURCE_MYSQL_PORT=3306` (sumber), jadi tidak perlu menambah `-e` manual:
 
     docker compose -f deploy/compose.yml run --rm --entrypoint python api \
       /app/migrate_mysql_to_postgres.py
@@ -92,7 +93,8 @@ Urutan aman yang direncanakan:
 Skrip menolak berjalan kalau PostgreSQL tujuan sudah berisi `berita_berita` (proteksi overwrite),
 dan setelah selesai membuat indeks `berita_berita(tanggal)`, `berita_berita_kepmen_all(url)`,
 `berita_sitemap_sdg(url)`, `berita_unit_kerja(url)`. Karena `mysql-reader` sudah memuat dump yang
-sama, langkah ini hanya perlu kalau data diambil langsung dari MySQL sumber.
+sama, langkah ini hanya perlu kalau data diambil langsung dari MySQL sumber — dan `mysql-reader`
+memang sudah dijalankan lebih dulu (`api` menunggu `mysql-reader` healthy).
 
 ## Pemulihan: WARN "variable is not set" + postgres unhealthy
 
