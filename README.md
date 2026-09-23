@@ -179,25 +179,35 @@ dan dikaitkan ke tema Kepmen:
 - Payload `mata_kuliah` bawa `kriteria_resmi` (jumlah MK resmi per kriteria a-j:
   a=165, b=116, c=42, d=59, e=33, f=142, g=127, h=35, i=117, j=130) dan
   `catatan_metode` — keduanya tampil di panel web (detail Angka resmi + Catatan metode).
-- **Kaitan ke tema**: indikator *jumlah MK/modul yang memuat materi sustainability dan
-  biodiversitas* adalah tema **4.5 Pendidikan dan Penelitian** (Dampak Lingkungan) —
-  jadi **semua** MK substansial terkait tema itu. Kriteria a–j di PDF Ringkasan persis
-  kriteria tema tsb. Pemetaan kriteria → tema lain (c=Energi, d/e=Limbah,
-  f/g/h/i=Konservasi & Rehabilitasi lingkungan) adalah **perluasan analitik**, ditandai
-  eksplisit di catatan UI — bukan klaim pelaporan resmi. Kriteria a, b, j sengaja tidak
-  dipetakan ke tema lain (terlalu lintas-tema).
-- API: kunci `mata_kuliah` di `GET /analytics/story` (kontrak lama utuh; `tersedia:false`
-  bila CSV tak ada, sehingga endpoint berita tetap hidup). Loader: `api/app/services/matkul.py`
-  (`load_matkul`, `tema_dari_kriteria`, `KRITERIA_LABEL`); builder: `mata_kuliah_section()` /
-  `mata_kuliah_blok()` di `story.py`; dimuat sekali di `StoryService._load()` (ikut cache frame).
-  Blok mengikuti filter: `pillar`/`topic` pada mode `impact`, dan klaster `sdgs` pada mode
-  `impact-sdgs` (chart tambahan `matkul_sdg`). Pilar Sosial/Ekonomi → blok kosong (normal).
-- Tabel **Daftar mata kuliah substansial** menampilkan **seluruh** MK unik (bukan dibatasi
-  `MAX_ROWS=200` berita — parameter `max_rows` baru di `_table()`), 10 baris/halaman.
-- Frontend: komponen `MataKuliahPanel` di `web/src/laporan.tsx` (CSS `.laporan-matkul`),
-  dirender di akhir blok laporan (mode `impact`) dan di scene **Dampak × SDGs** (`impact-sdgs`).
-- Verifikasi live 2026-09-23: payload 453/511/142; pager "1–10 dari 453 · halaman 1/46";
-  UI headless (Edge CDP) desktop 1440px + 390px tanpa overflow horizontal.
+- **Tagging ke 14 tema Kepmen (2026-09-24)** — `tag_tema()` di `api/app/services/matkul.py`,
+  satu baris per (MK unik, tema) dengan kolom `dasar` supaya tiga jenis kaitan tidak tercampur:
+
+  | Dasar | Tema | Cara |
+  |---|---|---|
+  | Indikator resmi | 4.5 Pendidikan & Penelitian | semua MK Substansial (453) — **satu-satunya angka indikator resmi** |
+  | Kriteria a–j (kurasi manual) | 4.1 Energi (c), 4.2 Konsumsi Bertanggung Jawab (d, e), 4.4 Keanekaragaman Hayati (f, g, h, i) | dari kolom `kriteria_kepmen_match` MK Substansial |
+  | Keyword kurikulum | 2.1 Pendidikan Inklusif, 2.2 Penelitian & Inovasi, 2.3 Pengabdian, 2.4 Kebijakan Publik, 3.2 Kolaborasi Riset, 3.3 Kewirausahaan, 4.3 Transportasi | `LEKSIKON_TEMA` (dari definisi indikator resmi, BUKAN keyword berita — "seminar"/"mata kuliah" menyeret hampir semua MK), awal-kata; diperiksa manual per MK |
+  | Tidak ada padanan | 3.1 Pengajaran & Pembelajaran, 3.4 Kunjungan Akademik, 3.5 Pengeluaran Institusi | indikator berupa pengeluaran (Rp) → 0 MK + alasan |
+
+  Pengecualian yang disengaja: Transportasi hanya dicocokkan ke **nama** MK ("transport
+  polutan", "Praktikum Ticketing" tidak masuk); "berkebutuhan khusus" di kedokteran gigi bukan
+  Pendidikan Inklusif. Hasil data asli: 659 MK unik terkait (Lingkungan 472 · Sosial 123 ·
+  Ekonomi 69) dari 26 fakultas/sekolah.
+- **Mode SDGs** — `tag_sdg()`: MK dicocokkan langsung ke 17 SDG dengan kamus yang SAMA dengan
+  berita (`sdg_keywords.py`, konvensi ≤5 huruf = kata utuh). Kamusnya luas (SDG 9 947 MK karena
+  "teknologi/penelitian") → ditandai indikatif di UI. Mode Dampak × SDGs memakai klaster SDG
+  tema-tema MK (mapping Kepmen), bukan keyword SDG.
+- API: kunci `mata_kuliah` di `GET /analytics/story` (`tersedia:false` bila CSV tak ada);
+  field baru `mode` (`tema`/`sdg`) dan `per_tema` (rekap 14 tema termasuk yang 0). Blok mengikuti
+  filter GLOBAL dampak/tema/SDG — bukan pilar yang dibuka di drill-down. Tiap sub-bab laporan
+  (2.1–4.5) membawa `mata_kuliah` {jumlah, dasar, catatan, fakultas, tabel}. Baris tabel hanya
+  membawa kolom yang ditampilkan (tanpa deskripsi) dan API kini memakai `GZipMiddleware`
+  (respons /story mode Dampak ±1,3 MB → ±260 KB).
+- Frontend (`web/src/laporan.tsx`): `MataKuliahPanel` tampil di ketiga bagian (akhir laporan
+  Dampak, Dampak × SDGs, SDGs); `KurikulumTemaPanel` = kotak "Mata kuliah terkait tema ini" di
+  setiap sub-bab, tetap tampil walau tema itu tanpa berita.
+- Verifikasi 2026-09-24: 92 tes API; UI headless dengan data MySQL asli (hanya baca) — 3 panel +
+  14 kotak sub-bab, desktop 1440px & HP 390px tanpa overflow/error.
 
 ## Dokumentasi
 

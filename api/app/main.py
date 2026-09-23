@@ -5,6 +5,7 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import InterfaceError, OperationalError
 
@@ -34,6 +35,8 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
+# /analytics/story bisa >1 MB JSON (bab laporan + mata kuliah); gzip memangkasnya ~80%.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.include_router(analytics_router, prefix=settings.api_prefix)
 
 

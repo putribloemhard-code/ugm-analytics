@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import type { Chapter, ChapterSection, MataKuliahBlok, Story } from './lib/api';
+import type { Chapter, ChapterSection, KurikulumTema, MataKuliahBlok, Story } from './lib/api';
 import { ChartGrid, Insight, StoryTableView } from './story';
 
 /* Komponen "Laporan dampak": tata letak mengikuti daftar isi resmi
@@ -78,6 +78,22 @@ function IndikatorPanel({ section }: { section: ChapterSection }) {
   </details>;
 }
 
+/* ------------------------------------------------ kurikulum per sub-bab ---- */
+/** Mata kuliah yang terpetakan ke tema sub-bab ini, dengan dasar pemetaannya (resmi / kurasi / keyword). */
+function KurikulumTemaPanel({ data }: { data: KurikulumTema }) {
+  return <div className={`laporan-kurikulum ${data.jumlah ? '' : 'is-empty'}`}>
+    <div className="laporan-kurikulum__head">
+      <span className="laporan-kurikulum__angka">{fmtValue(data.jumlah)}</span>
+      <div>
+        <strong>Mata kuliah terkait tema ini</strong>
+        <small>{data.jumlah ? `${fmtValue(data.fakultas)} fakultas/sekolah · ` : ''}dasar: {data.dasar}</small>
+      </div>
+    </div>
+    <p className="chart-note">{data.catatan}</p>
+    {data.tabel && <StoryTableView table={data.tabel} />}
+  </div>;
+}
+
 /* ------------------------------------------------------------- satu sub-bab ---- */
 function SubBab({ section, open, onToggle }: { section: ChapterSection; open: boolean; onToggle: () => void }) {
   const nBerita = jumlahBerita(section);
@@ -96,6 +112,7 @@ function SubBab({ section, open, onToggle }: { section: ChapterSection; open: bo
     </header>
     {open && <>
       <IndikatorPanel section={section} />
+      {section.mata_kuliah && <KurikulumTemaPanel data={section.mata_kuliah} />}
       {nBerita === 0
         ? <p className="chart-empty">Belum ada berita bertema ini pada filter saat ini — indikator resmi di atas tetap ditampilkan sebagai rujukan penilaian.</p>
         : <>
@@ -155,23 +172,28 @@ function Bab({ chapter }: { chapter: Chapter }) {
 export function MataKuliahPanel({ blok, pillar }: { blok: MataKuliahBlok; pillar?: string }) {
   if (!blok.tersedia) return null;
   const kosong = blok.metrics[0]?.value === 0 || blok.metrics[0]?.value === undefined;
-  return <section className="story-block laporan-matkul" aria-label="Data mata kuliah sustainability">
+  const sdg = blok.mode === 'sdg';
+  return <section className="story-block laporan-matkul" aria-label="Data mata kuliah terkait dampak">
     <div className="laporan-matkul__head">
       <div>
         <p className="section-kicker">Sumber data kedua — bukan berita</p>
-        <h3>Mata kuliah sustainability UGM</h3>
+        <h3>{sdg ? 'Mata kuliah UGM per SDG' : 'Mata kuliah UGM per tema dampak Kepmen'}</h3>
       </div>
-      <span className="laporan-matkul__badge">{fmtValue(blok.n_mk_unik)} MK unik</span>
+      <span className="laporan-matkul__badge" title="Angka indikator resmi Kepmen (MK unik berstatus Substansial)">{fmtValue(blok.n_mk_unik)} MK indikator resmi</span>
     </div>
     <Insight label="Dari mana angka ini">
-      Kurasi manual kurikulum UGM (Deskripsi Matkul Kepmen.csv): {fmtValue(blok.total_penawaran)} baris
-      penawaran mata kuliah diperiksa, {fmtValue(blok.n_substansial)} baris di antaranya
-      menyentuh sustainability secara substansial (menyinggung sepintas tidak dihitung), setara{" "}
-      <strong>{fmtValue(blok.n_mk_unik)} mata kuliah unik</strong> setelah dedup nama.
-      Indikator resmi Kepmen: <em>jumlah mata kuliah/modul yang memuat materi sustainability dan
-      biodiversitas</em> — temanya {pillar ? 'termasuk dalam dampak ini' : 'Pendidikan dan Penelitian (Dampak Lingkungan)'}.
-      Kaitan ke tema lain mengikuti kriteria a-j yang tercantum di tema itu, jadi ini perluasan
-      analitik, bukan klaim pelaporan resmi.
+      Kurasi kurikulum UGM (Deskripsi Matkul Kepmen.csv): {fmtValue(blok.total_penawaran)} baris penawaran
+      mata kuliah. Indikator resmi Kepmen untuk kurikulum hanya satu: <em>jumlah mata kuliah yang memuat
+      materi sustainability dan biodiversitas</em> (tema 4.5, Dampak Lingkungan) ={" "}
+      <strong>{fmtValue(blok.n_mk_unik)} MK unik</strong> berstatus Substansial.{" "}
+      {sdg
+        ? <>Di bagian SDGs, setiap MK dicocokkan langsung ke 17 SDG dengan kamus keyword yang sama dengan
+          berita (nama & deskripsi MK). Kamus ini luas, jadi angkanya indikatif — bukan indikator Kepmen.</>
+        : <>Pemetaan ke 14 tema memakai tiga dasar yang ditandai per baris: <strong>indikator resmi</strong> (tema
+          4.5), <strong>kriteria a-j hasil kurasi</strong> (Energi, Konsumsi Bertanggung Jawab, Keanekaragaman
+          Hayati), dan <strong>keyword kurikulum</strong> pada nama/deskripsi MK (tema sosial, ekonomi,
+          transportasi). Tiga tema berbasis pengeluaran (Rp) tidak punya padanan kurikulum. Selain tema 4.5,
+          angka ini keterkaitan topik — bukan klaim pelaporan resmi.</>}
     </Insight>
     <div className="analysis-summary-grid analysis-summary-grid--3">
       {blok.metrics.map(metric => <div className="metric" key={metric.label} title={metric.help ?? undefined}>
@@ -179,7 +201,7 @@ export function MataKuliahPanel({ blok, pillar }: { blok: MataKuliahBlok; pillar
         <div className="metric-value">{fmtValue(metric.value)}</div>
       </div>)}
     </div>
-    {kosong && <p className="chart-empty">Tidak ada mata kuliah yang terkait pilar ini — indikator mata kuliah terletak pada Dampak Lingkungan (tema Pendidikan dan Penelitian).</p>}
+    {kosong && <p className="chart-empty">{sdg ? 'Tidak ada mata kuliah yang cocok dengan SDG terpilih.' : 'Tidak ada mata kuliah yang terpetakan ke dampak/tema/SDG terpilih — lihat rekap per tema di bawah untuk alasannya.'}</p>}
     {Object.keys(blok.kriteria_resmi).length > 0 && <details className="laporan-indikator" open>
       <summary>Angka resmi Ringkasan Indikator Kepmen — seluruh {fmtValue(blok.n_mk_unik)} MK unik per kriteria a-j</summary>
       <div className="laporan-matkul__resmi">
@@ -200,10 +222,8 @@ export function MataKuliahPanel({ blok, pillar }: { blok: MataKuliahBlok; pillar
         {blok.catatan_metode.map((butir, i) => <li key={i}>{butir}</li>)}
       </ol>
     </details>}
-    {!kosong && <>
-      <ChartGrid charts={blok.charts} />
-      {blok.tables.map(table => <StoryTableView key={table.id} table={table} />)}
-    </>}
+    {!kosong && <ChartGrid charts={blok.charts} />}
+    {blok.tables.map(table => <StoryTableView key={table.id} table={table} />)}
     <p className="chart-note">{blok.note}</p>
   </section>;
 }

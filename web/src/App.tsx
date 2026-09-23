@@ -129,9 +129,10 @@ function AnalyticsContent({ story, pillar, onPickPillar, topic, onTopic, busy }:
     {/* Blok laporan berbab hanya di bagian "Analisis Dampak"; bagian "Dampak × SDGs" sudah
         punya tab SDG sendiri, jadi menaruhnya di sana akan menggandakan 14 sub-bab yang sama. */}
     {story.mode === 'impact' && <LaporanDampak story={story} />}
-    {/* Data mata kuliah (sumber kedua, bukan berita): panel khusus di laporan berbab dan
-        di mode Dampak × SDGs (di sana difilter + dipetakan ke klaster SDG pemetaan resmi). */}
-    {story.mode === 'impact-sdgs' && story.mata_kuliah && <MataKuliahPanel blok={story.mata_kuliah} />}
+    {/* Data mata kuliah (sumber kedua, bukan berita): di mode Dampak panelnya ada di akhir laporan
+        berbab (+ ringkasan per sub-bab); di Dampak × SDGs lewat klaster SDG tema; di SDGs lewat
+        tagging SDG langsung dengan kamus yang sama dengan berita. */}
+    {(story.mode === 'impact-sdgs' || story.mode === 'sdgs') && story.mata_kuliah && <MataKuliahPanel blok={story.mata_kuliah} />}
     {story.overview.length > 0 && <Overview story={story} pillar={pillar} onPick={onPickPillar} />}
     {story.pillar_detail && <PillarDetailView detail={story.pillar_detail} topic={topic} onTopic={onTopic} busy={busy} />}
     <CrossSection story={story} topic={topic} onTopic={onTopic} />

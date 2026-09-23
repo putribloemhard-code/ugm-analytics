@@ -100,7 +100,11 @@ export type ChapterSection = {
   metrics: StoryMetric[];
   charts: Chart[];
   tables: StoryTable[];
+  /** Kurikulum terkait tema ini (ada bila data mata kuliah tersedia). */
+  mata_kuliah?: KurikulumTema;
 };
+/** Ringkasan mata kuliah untuk satu tema Kepmen (sub-bab laporan). */
+export type KurikulumTema = { jumlah: number; dasar: string; catatan: string; fakultas: number; tabel: StoryTable | null };
 /** Bab laporan (BAB II Sosial, BAB III Ekonomi, BAB IV Lingkungan) mengikuti daftar isi LAPORAN DAMPAK UGM 2025. */
 export type Chapter = {
   pillar: string;
@@ -124,6 +128,10 @@ export type MataKuliahBlok = {
   kriteria_resmi: Record<string, number>;
   /** Catatan metode resmi (butir 1-7 Ringkasan Indikator Kepmen). */
   catatan_metode: string[];
+  /** 'tema' = dipetakan ke 14 tema Kepmen (mode Dampak / Dampak x SDGs); 'sdg' = tagging SDG langsung. */
+  mode: 'tema' | 'sdg';
+  /** Rekap per tema dalam cakupan filter (kosong pada mode 'sdg'). */
+  per_tema: { tema_id: string; tema: string; pilar: string; jumlah: number; dasar: string; catatan: string }[];
   note: string;
   metrics: StoryMetric[];
   charts: Chart[];

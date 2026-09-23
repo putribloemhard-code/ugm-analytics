@@ -603,7 +603,16 @@ td { line-height: 1.45; }
 .laporan-indikator__row dd { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
 .sdg-chip { display: inline-block; margin: 0 6px 4px 0; padding: 3px 9px; border-radius: 999px; color: var(--text-heading); background: var(--surface-tint); font-size: .78rem; font-weight: 700; }
 
-/* ---- panel mata kuliah sustainability (sumber data kedua, bukan berita) ---- */
+/* Kotak kurikulum per sub-bab laporan: jumlah MK tema + dasar pemetaan + tabel MK. */
+.laporan-kurikulum { margin: 0 18px 16px; padding: 14px 16px; border: 1px solid var(--border-subtle); border-left: 4px solid var(--ugm-blue-sky); border-radius: 10px; background: var(--surface-subtle); }
+.laporan-kurikulum.is-empty { border-left-color: var(--border); }
+.laporan-kurikulum__head { display: flex; align-items: center; gap: 14px; }
+.laporan-kurikulum__head strong { display: block; color: var(--text-heading); }
+.laporan-kurikulum__head small { color: var(--text-muted); font-size: .8rem; }
+.laporan-kurikulum__angka { min-width: 56px; color: var(--text-heading); font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.laporan-kurikulum .chart-note { margin: 8px 0 0; }
+.laporan-kurikulum .story-table-block { margin-top: 10px; }
+/* ---- panel mata kuliah (sumber data kedua, bukan berita) ---- */
 .laporan-matkul { border: 1px solid var(--border-subtle); border-left: 4px solid var(--ugm-blue); border-radius: 12px; background: var(--surface-card); padding: 22px 24px; }
 .laporan-matkul__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .laporan-matkul__head h3 { margin: 0; font-size: clamp(1.3rem, 2.4vw, 1.7rem); }

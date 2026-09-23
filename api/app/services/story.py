@@ -31,7 +31,10 @@ from sqlalchemy.engine import Engine
 
 from app.domain.models import FilterParams
 from app.domain.source import kepmen, keywords, load_module, units
-from app.services.matkul import KRITERIA_LABEL, MatkulFrames, load_matkul, meta_tema as meta_tema_matkul, tema_dari_kriteria
+from app.services.matkul import (
+    DASAR_KEYWORD, DASAR_KRITERIA, DASAR_RESMI, KRITERIA_LABEL, KRITERIA_TEMA, LEKSIKON_NAMA_SAJA, LEKSIKON_TEMA,
+    TEMA_INDIKATOR, TEMA_TANPA_PADANAN, MatkulFrames, huruf_kriteria, load_matkul, meta_tema as meta_tema_matkul,
+)
 from app.services.ringkasan_kepmen import CATATAN_METODE_RESMI
 
 logger = logging.getLogger(__name__)
@@ -459,8 +462,7 @@ def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str,
         "cross": {"title": "Analisis Lintas-Dampak", "charts": [], "tables": []},
         "pillar_detail": None,
         "chapters": [],
-        "mata_kuliah": mata_kuliah_blok(matkul, pillar, topic,
-                                        sdgs=tuple(filters.sdgs), sdg_mode=mode == "impact-sdgs"),
+        "mata_kuliah": mata_kuliah_blok(matkul, mode, tuple(filters.pillars), tuple(filters.topics), sdgs=tuple(filters.sdgs)),
         "tables": [],
     }
     if b.empty or t.empty:
@@ -504,8 +506,12 @@ def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str,
     # Bab laporan resmi: Sosial (BAB II) → Ekonomi (BAB III) → Lingkungan (BAB IV),
     # tiap bab berisi sub-bab per tema sesuai daftar isi LAPORAN DAMPAK UGM 2025.
     response["chapters"] = chapter_rows(ctx)
-    response["mata_kuliah"] = mata_kuliah_blok(matkul, pillar, topic,
-                                               sdgs=tuple(filters.sdgs), sdg_mode=mode == "impact-sdgs")
+    response["mata_kuliah"] = mata_kuliah_blok(matkul, mode, tuple(filters.pillars), tuple(filters.topics), sdgs=tuple(filters.sdgs))
+    # Tiap sub-bab laporan (satu tema Kepmen) membawa ringkasan kurikulum terkait tema itu.
+    if matkul is not None:
+        for chapter in response["chapters"]:
+            for section in chapter["subsections"]:
+                section["mata_kuliah"] = mata_kuliah_per_tema(matkul, section["topic"])
     if pillar:
         response["pillar_detail"] = _pillar_detail(ctx, pillar, topic)
     return response
@@ -719,194 +725,254 @@ CATATAN_MATKUL = (
 )
 
 
-def _matkul_rows(mk: pd.DataFrame) -> list[dict[str, Any]]:
-    """Baris tabel daftar MK: nama, fakultas, prodi, kriteria (label), keyword, deskripsi."""
+def _mk_meta_tema() -> dict[str, dict[str, Any]]:
+    """Metadata 14 tema (urut LABEL_TOPIC_ALL) untuk blok mata kuliah."""
+    mapping = kepmen()
+    semua = meta_tema_matkul()
+    return {tid: {**semua[tid], "label": mapping.LABEL_TOPIC_ALL.get(tid, tid)}
+            for tid in mapping.LABEL_TOPIC_ALL if tid in semua}
+
+
+def _dasar_tema(tema_id: str) -> str:
+    if tema_id == TEMA_INDIKATOR:
+        return DASAR_RESMI
+    if tema_id in KRITERIA_TEMA:
+        return DASAR_KRITERIA
+    if tema_id in TEMA_TANPA_PADANAN:
+        return "Tidak ada padanan kurikulum"
+    return DASAR_KEYWORD
+
+
+def _catatan_tema(tema_id: str) -> str:
+    if tema_id == TEMA_INDIKATOR:
+        return "Semua MK berstatus Substansial — angka indikator resmi Kepmen (453 MK unik)."
+    if tema_id in KRITERIA_TEMA:
+        huruf = ", ".join(f"{h} ({KRITERIA_LABEL[h]})" for h in sorted(KRITERIA_TEMA[tema_id]))
+        return f"MK Substansial yang kriteria kurasinya memuat {huruf}. Perluasan analitik, bukan indikator tema ini."
+    if tema_id in TEMA_TANPA_PADANAN:
+        return TEMA_TANPA_PADANAN[tema_id]
+    nama = " (nama MK saja)" if tema_id in LEKSIKON_NAMA_SAJA else ""
+    return (f"Keyword kurikulum{nama}: {', '.join(LEKSIKON_TEMA.get(tema_id, [])[:8])}… — "
+            "keterkaitan topik, bukan indikator tema ini.")
+
+
+def _mk_rows(df: pd.DataFrame, meta: dict[str, dict[str, Any]], kolom: list[str]) -> list[dict[str, Any]]:
+    """Baris tabel MK -- HANYA kolom yang ditampilkan (deskripsi panjang tidak dikirim: 1.000+
+    baris x deskripsi membuat respons /story membengkak ratusan KB)."""
     rows = []
-    for r in mk.to_dict("records"):
-        huruf = [h.strip().lower() for h in str(r["kriteria"]).split(",") if h.strip()]
-        rows.append({
-            "nama_mk": r["nama_mk"],
-            "fakultas": r["fakultas"],
-            "prodi": r["prodi"],
-            "kriteria": ", ".join(KRITERIA_LABEL.get(h, h) for h in huruf),
-            "keyword": r["keywords"],
-            "deskripsi": r["deskripsi"],
-        })
+    for r in df.to_dict("records"):
+        lengkap = {
+            "nama_mk": r["nama_mk"], "tema": meta.get(r["tema"], {}).get("label", r["tema"]),
+            "dasar": r["dasar"], "pemicu": r["pemicu"], "fakultas": r["fakultas"], "prodi": r["prodi"],
+        }
+        rows.append({k: lengkap[k] for k in kolom})
     return rows
 
 
-def mata_kuliah_section(mf: MatkulFrames, pilar: str | None = None,
-                        topik: str | None = None,
-                        sdgs: tuple[int, ...] = (), sdg_mode: bool = False) -> dict[str, Any]:
-    """Blok data mata kuliah untuk /analytics/story.
-
-    pilar=None -> ringkasan penuh (dipakai mode sdgs); pilar terisi -> MK difilter
-    ke tema-tema dalam dampak itu (tema indikator 4.5 hanya ada di Lingkungan, jadi
-    blok pilar Sosial/Ekonomi bisa kosong -- itu normal, bukan bug).
-    sdg_mode=True (mode Berdampak x SDGs) -> MK difilter ke klaster SDG terpilih dan
-    ditambah chart sebaran MK per SDG.
-    """
-    semua_meta = meta_tema_matkul()
-    tema_meta = {tid: m for tid, m in semua_meta.items() if pilar is None or m["dampak"] == pilar}
-    tema_aktif = [tid for tid in tema_meta if topik is None or tid == topik]
-
-    # MK terkait tema aktif: tema indikator 4.5 memuat SEMUA MK substansial; tema lain
-    # memuat MK yang kriterianya terpetakan ke tema itu (lihat matkul.py).
-    def mk_tema(tema_id: str) -> pd.DataFrame:
-        if tema_id == "pendidikan_dan_penelitian":
-            return mf.mk_unik
-        mask = mf.mk_unik["kriteria"].map(lambda k: tema_id in tema_dari_kriteria(k))
-        return mf.mk_unik[mask]
-
-    per_tema = {tid: mk_tema(tid) for tid in tema_aktif}
-    gabung_ids: set[int] = set()
-    for frame in per_tema.values():
-        gabung_ids.update(frame.index.tolist())
-    mk_gabung = mf.mk_unik.loc[sorted(gabung_ids)]
-
-    # Kaitan ke SDG: tema tiap MK (4.5 selalu + tema lain dari kriteria) -> klaster SDG tema.
-    def sdg_mk(kriteria: str) -> list[int]:
-        tema_ids = ["pendidikan_dan_penelitian", *tema_dari_kriteria(kriteria)]
-        sdg: list[int] = []
-        for tid in tema_ids:
-            for nomor in semua_meta.get(tid, {}).get("sdg", []):
-                if nomor not in sdg:
-                    sdg.append(nomor)
-        return sorted(sdg)
-
-    if sdg_mode:
-        peta_sdg = {idx: sdg_mk(row["kriteria"]) for idx, row in mk_gabung.iterrows()}
-        if sdgs:
-            mk_gabung = mk_gabung.loc[[idx for idx, daftar in peta_sdg.items() if set(daftar) & set(sdgs)]]
-            peta_sdg = {idx: daftar for idx, daftar in peta_sdg.items() if idx in set(mk_gabung.index)}
-    else:
-        peta_sdg = {}
-
-    # --- metrics ---
-    metrics = [
-        {"label": "MK unik substansial", "value": int(len(mk_gabung)),
-         "help": "Jumlah mata kuliah unik berstatus Substansial yang terkait dampak ini."},
-        {"label": "Baris penawaran (substansial)", "value": int(len(mf.substansial)),
-         "help": "Sebelum dedup nama MK -- satu MK bisa ditawarkan di beberapa prodi/kelas."},
-        {"label": "MK parsial (tak dihitung)", "value": int(mf.parsial),
-         "help": "Baris 'Parsial/bergantung topik - verifikasi RPS'; tidak masuk indikator."},
-    ]
-
-    # --- charts ---
-    charts: list[dict[str, Any]] = []
-    if len(mk_gabung):
-        # (1) MK unik per kriteria a-j (hanya kriteria yang muncul di MK terpilih).
-        hitung_kriteria: Counter = Counter()
-        for k in mk_gabung["kriteria"]:
-            hitung_kriteria.update(huruf.strip().lower() for huruf in str(k).split(",") if huruf.strip())
-        dist_k = pd.DataFrame(
-            [{"label": KRITERIA_LABEL.get(h, h), "jumlah": n} for h, n in hitung_kriteria.most_common()]
+def mata_kuliah_per_tema(mf: MatkulFrames, tema_id: str) -> dict[str, Any]:
+    """Ringkasan MK untuk satu sub-bab laporan (satu tema Kepmen)."""
+    meta = _mk_meta_tema()
+    df = mf.mk_tema[mf.mk_tema["tema"] == tema_id].sort_values(["fakultas", "nama_mk"], kind="stable")
+    tabel = None
+    if len(df):
+        tabel = _table(
+            f"matkul_tema_{tema_id}", "Mata kuliah terkait tema ini",
+            [("nama_mk", "Mata kuliah"), ("pemicu", "Dasar keterkaitan"), ("fakultas", "Fakultas/Sekolah"),
+             ("prodi", "Program studi")],
+            _mk_rows(df, meta, ["nama_mk", "pemicu", "fakultas", "prodi"]), note=_catatan_tema(tema_id),
+            page_size=5, max_rows=len(df),
         )
+    return {"jumlah": int(len(df)), "dasar": _dasar_tema(tema_id), "catatan": _catatan_tema(tema_id),
+            "fakultas": int(df["fakultas"].nunique()) if len(df) else 0, "tabel": tabel}
+
+
+def _sdg_tema(meta: dict[str, dict[str, Any]], tema_ids: pd.Series) -> pd.Series:
+    return tema_ids.map(lambda t: set(meta.get(t, {}).get("sdg", [])))
+
+
+def _mk_tema_section(mf: MatkulFrames, mode: str, pilars: tuple[str, ...], topiks: tuple[str, ...],
+                     sdgs: tuple[int, ...]) -> dict[str, Any]:
+    """Mode Dampak / Dampak x SDGs: MK per 14 tema Kepmen (dengan dasar pemetaan per baris).
+
+    Mengikuti filter GLOBAL (dampak/tema/SDG), bukan pilar yang sedang dibuka di drill-down:
+    panel ini berada di akhir laporan tiga bab, jadi harus mencakup semua bab yang terfilter."""
+    meta = _mk_meta_tema()
+    tema_scope = [tid for tid, m in meta.items()
+                  if (not pilars or m["dampak"] in pilars) and (not topiks or tid in topiks)]
+    df = mf.mk_tema[mf.mk_tema["tema"].isin(tema_scope)]
+    if mode == "impact-sdgs" and sdgs:
+        df = df[_sdg_tema(meta, df["tema"]).map(lambda s: bool(s & set(sdgs)))]
+    unik = df.drop_duplicates("nama_mk")
+    n_resmi = int((df["tema"] == TEMA_INDIKATOR).sum())
+    metrics = [
+        {"label": "MK unik terkait", "value": int(len(unik)),
+         "help": "Mata kuliah unik (dedup nama) yang terpetakan ke minimal satu tema dalam cakupan filter."},
+        {"label": "MK indikator resmi (tema 4.5)", "value": n_resmi,
+         "help": "MK berstatus Substansial — satu-satunya angka yang merupakan indikator resmi Kepmen untuk kurikulum."},
+        {"label": "Fakultas/sekolah terlibat", "value": int(unik["fakultas"].nunique()) if len(unik) else 0,
+         "help": "Fakultas/sekolah yang menawarkan MK terkait (dari MK unik)."},
+    ]
+    charts: list[dict[str, Any]] = []
+    tables: list[dict[str, Any]] = []
+    per_tema = df.groupby("tema")["nama_mk"].nunique().to_dict()
+    rekap = [{
+        "tema": meta[tid]["label"], "pilar": meta[tid]["dampak"], "jumlah": int(per_tema.get(tid, 0)),
+        "dasar": _dasar_tema(tid), "catatan": _catatan_tema(tid),
+    } for tid in tema_scope]
+    if len(df):
+        dist = pd.DataFrame([{"label": r["tema"], "jumlah": r["jumlah"], "pilar": r["pilar"]} for r in rekap])
         charts.append(_chart(
-            "matkul_kriteria", "bar", "Mata kuliah per kriteria Kepmen (a-j)",
-            _bar_data(dist_k, "label", "jumlah"),
-            insight=insight_top2(dist_k, "label", "jumlah", satuan="MK"),
-            note=("Kriteria a-j = topik indikator 'Pendidikan dan Penelitian' (tema 4.5): "
-                  "pembangunan berkelanjutan, perubahan iklim, energi terbarukan, pengelolaan limbah, "
-                  "ekonomi sirkular, konservasi lingkungan, keanekaragaman hayati, rehabilitasi/"
-                  "restorasi, pengelolaan SDA, topik lain relevan. Satu MK bisa memuat >1 topik, "
-                  "sehingga jumlah per kriteria > jumlah MK unik. Angka pada chart adalah hasil "
-                  "hitung MK terpilih; angka resmi seluruh 453 MK per kriteria tercantum di "
-                  "kriteria_resmi Ringkasan Indikator Kepmen."),
+            "matkul_tema", "bar", "Mata kuliah per tema Kepmen",
+            _bar_data(dist.sort_values("jumlah", ascending=False, kind="stable"), "label", "jumlah"),
+            insight=insight_top2(dist[dist["jumlah"] > 0], "label", "jumlah", satuan="MK"),
+            note=("Tiga dasar pemetaan: tema 4.5 = indikator resmi (semua MK Substansial); Energi/"
+                  "Konsumsi Bertanggung Jawab/Keanekaragaman Hayati = kriteria a-j hasil kurasi manual; "
+                  "tema sosial/ekonomi/transportasi = keyword kurikulum pada nama & deskripsi MK. Tiga tema "
+                  "berbasis pengeluaran (Rp) tidak punya padanan kurikulum (0). Satu MK bisa masuk >1 tema."),
             orientation="h",
         ))
-        # (2) MK unik per tema terkait (pemetaan kriteria -> tema; tema 4.5 = semua).
-        dist_t = pd.DataFrame(
-            [{"label": semua_meta[tid]["topik_kepmen"], "jumlah": len(frame)}
-             for tid, frame in sorted(per_tema.items(), key=lambda kv: -len(kv[1])) if len(frame)]
-        )
-        if len(dist_t):
+        if len({meta[t]["dampak"] for t in tema_scope}) > 1:
+            per_pilar = (df.assign(pilar=df["tema"].map(lambda t: meta[t]["dampak"]))
+                         .groupby("pilar")["nama_mk"].nunique().reindex(list(PILLARS), fill_value=0).reset_index())
+            per_pilar.columns = ["label", "jumlah"]
             charts.append(_chart(
-                "matkul_tema", "bar", "Mata kuliah per tema dampak terkait",
-                _bar_data(dist_t, "label", "jumlah"),
-                insight=insight_top2(dist_t, "label", "jumlah", satuan="MK"),
-                note=("Pemetaan analitik kriteria a-j ke tema dampak lain (c=energi, d/e=limbah, "
-                      "f/g/h/i=konservasi & rehabilitasi lingkungan). SEMUA MK substansial adalah "
-                      "tema resmi 4.5 'Pendidikan dan Penelitian' (Dampak Lingkungan) -- pemetaan ke "
-                      "tema lain adalah perluasan analitik, bukan klaim pelaporan resmi."),
+                "matkul_pilar", "bar", "Mata kuliah per dampak",
+                _bar_data(per_pilar, "label", "jumlah"),
+                insight=insight_top2(per_pilar[per_pilar["jumlah"] > 0], "label", "jumlah", satuan="MK"),
+                note="MK unik per dampak (Sosial/Ekonomi/Lingkungan); satu MK bisa terkait lebih dari satu dampak.",
+                orientation="v",
+            ))
+        fak = unik.groupby("fakultas")["nama_mk"].nunique().sort_values(ascending=False).head(10).reset_index()
+        fak.columns = ["label", "jumlah"]
+        charts.append(_chart(
+            "matkul_fakultas", "bar", "10 fakultas/sekolah dengan MK terkait terbanyak",
+            _bar_data(fak, "label", "jumlah"),
+            insight=insight_top2(fak, "label", "jumlah", satuan="MK"),
+            note="MK unik (dedup nama) per fakultas/sekolah penawar pertama; ikut filter dampak/tema/SDG.",
+            orientation="h",
+        ))
+        resmi = df[df["tema"] == TEMA_INDIKATOR]
+        if len(resmi):
+            hitung: Counter = Counter()
+            for k in resmi["kriteria"]:
+                hitung.update(huruf_kriteria(k))
+            dist_k = pd.DataFrame([{"label": KRITERIA_LABEL.get(h, h), "jumlah": n} for h, n in hitung.most_common()])
+            charts.append(_chart(
+                "matkul_kriteria", "bar", "MK indikator resmi per kriteria Kepmen (a-j)",
+                _bar_data(dist_k, "label", "jumlah"),
+                insight=insight_top2(dist_k, "label", "jumlah", satuan="MK"),
+                note=("Kriteria a-j = materi indikator tema 4.5 'Pendidikan dan Penelitian'. Satu MK bisa memuat "
+                      ">1 kriteria. Tanpa filter, angkanya sama dengan Ringkasan Indikator Kepmen."),
                 orientation="h",
             ))
-        # (3, khusus mode Berdampak x SDGs) sebaran MK per klaster SDG.
-        if sdg_mode:
+        if mode == "impact-sdgs":
             hitung_sdg: Counter = Counter()
-            for daftar in peta_sdg.values():
-                hitung_sdg.update(daftar)
-            dist_s = pd.DataFrame(
-                [{"label": f"SDG {nomor}", "jumlah": n} for nomor, n in sorted(hitung_sdg.items()) if n]
-            )
+            for nama, grp in df.groupby("nama_mk"):
+                s: set[int] = set()
+                for t in grp["tema"]:
+                    s |= set(meta[t]["sdg"])
+                hitung_sdg.update(s & set(sdgs) if sdgs else s)
+            dist_s = pd.DataFrame([{"label": f"SDG {n}", "jumlah": c} for n, c in sorted(hitung_sdg.items()) if c])
             if len(dist_s):
                 charts.append(_chart(
-                    "matkul_sdg", "bar", "Mata kuliah per klaster SDG",
+                    "matkul_sdg", "bar", "Mata kuliah per klaster SDG (lewat tema Kepmen)",
                     _bar_data(dist_s, "label", "jumlah"),
                     insight=insight_top2(dist_s, "label", "jumlah", satuan="MK"),
-                    note=("Klaster SDG dihitung dari tema resmi tiap MK (Pendidikan dan Penelitian = "
-                          "SDG 4 & 17, plus klaster tema lain dari kriteria a-j). Pemetaan tema-SDG "
-                          "mengikuti Kepmen 361/M/KEP/2025, sama seperti mode ini untuk berita."),
+                    note=("SDG tiap MK = gabungan klaster SDG tema-tema Kepmen tempat MK itu terpetakan "
+                          "(mapping tema→SDG Kepmen 361, sama seperti mode ini untuk berita)."),
                     orientation="v",
                 ))
-
-    # --- tables ---
-    tables: list[dict[str, Any]] = []
-    if len(mk_gabung):
-        # Tabel daftar MK tidak dibatasi MAX_ROWS (200): seluruh MK substansial harus
-        # tersaji supaya angka "MK unik substansial" dan isi tabel konsisten.
         tables.append(_table(
-            "matkul_daftar", "Daftar mata kuliah substansial",
-            [("nama_mk", "Mata kuliah"), ("fakultas", "Fakultas/Sekolah"), ("prodi", "Program studi"),
-             ("kriteria", "Kriteria Kepmen"), ("keyword", "Keyword match"), ("deskripsi", "Deskripsi")],
-            _matkul_rows(mk_gabung.sort_values(["fakultas", "nama_mk"], kind="stable")),
-            note=("Seluruh MK unik berstatus Substansial ditampilkan di sini. " + CATATAN_MATKUL),
-            page_size=10, max_rows=len(mk_gabung),
+            "matkul_daftar", "Daftar mata kuliah per tema Kepmen",
+            [("nama_mk", "Mata kuliah"), ("tema", "Tema Kepmen"), ("dasar", "Dasar pemetaan"),
+             ("pemicu", "Pemicu (kriteria/keyword)"), ("fakultas", "Fakultas/Sekolah"), ("prodi", "Program studi")],
+            _mk_rows(df.sort_values(["tema", "fakultas", "nama_mk"], kind="stable"), meta,
+                     ["nama_mk", "tema", "dasar", "pemicu", "fakultas", "prodi"]),
+            note="Satu baris per pasangan MK–tema (MK yang sama bisa muncul di beberapa tema). " + CATATAN_MATKUL,
+            page_size=10, max_rows=len(df),
         ))
-        rekap = (
-            mk_gabung.groupby("fakultas").agg(jumlah_mk=("nama_mk", "nunique")).reset_index()
-            .sort_values("jumlah_mk", ascending=False, kind="stable")
-        )
+        rekap_fak = (unik.groupby("fakultas").agg(jumlah_mk=("nama_mk", "nunique")).reset_index()
+                     .sort_values("jumlah_mk", ascending=False, kind="stable"))
         tables.append(_table(
             "matkul_rekap_fakultas", "Rekap mata kuliah per fakultas/sekolah",
             [("fakultas", "Fakultas/Sekolah"), ("jumlah_mk", "Jumlah MK unik")],
-            [{"fakultas": r["fakultas"], "jumlah_mk": int(r["jumlah_mk"])} for r in rekap.to_dict("records")],
-            note=("MK unik per fakultas/sekolah (dedup nama MK lintas prodi dalam fakultas itu). " + CATATAN_MATKUL),
-            page_size=5,
+            [{"fakultas": r["fakultas"], "jumlah_mk": int(r["jumlah_mk"])} for r in rekap_fak.to_dict("records")],
+            note="MK unik terkait (dedup nama) per fakultas/sekolah.", page_size=5,
         ))
-
-    return {
-        "sumber": mf.sumber,
-        "total_penawaran": mf.total_penawaran,
-        "n_substansial": mf.n_substansial,
-        "n_mk_unik": mf.n_mk_unik,
-        "parsial": mf.parsial,
-        "indikator_tema": "pendidikan_dan_penelitian",
-        "kriteria_resmi": dict(mf.kriteria_resmi),
-        "catatan_metode": list(CATATAN_METODE_RESMI),
-        "note": CATATAN_MATKUL,
-        "metrics": metrics,
-        "charts": charts,
-        "tables": tables,
-    }
+    tables.insert(0, _table(
+        "matkul_rekap_tema", "Rekap mata kuliah per tema Kepmen",
+        [("tema", "Tema Kepmen"), ("pilar", "Dampak"), ("jumlah", "MK unik"), ("dasar", "Dasar pemetaan"),
+         ("catatan", "Keterangan")],
+        rekap, note="Seluruh tema dalam cakupan filter ditampilkan, termasuk yang 0 MK beserta alasannya.",
+    ))
+    return {"mode": "tema", "metrics": metrics, "charts": charts, "tables": tables,
+            "per_tema": [{"tema_id": tid, **r} for tid, r in zip(tema_scope, rekap)]}
 
 
-def mata_kuliah_blok(matkul: MatkulFrames | None, pilar: str | None = None,
-                     topik: str | None = None, sdgs: tuple[int, ...] = (),
-                     sdg_mode: bool = False) -> dict[str, Any]:
+def _mk_sdg_section(mf: MatkulFrames, sdgs: tuple[int, ...]) -> dict[str, Any]:
+    """Mode SDGs saja: MK -> SDG langsung dengan kamus keyword yang sama dengan berita."""
+    df = mf.mk_sdg[mf.mk_sdg["sdg"].isin(sdgs)] if sdgs else mf.mk_sdg
+    unik = df.drop_duplicates("nama_mk")
+    per_sdg = df.groupby("sdg")["nama_mk"].nunique()
+    metrics = [
+        {"label": "MK unik ter-tag SDG", "value": int(len(unik)),
+         "help": "MK unik yang nama/deskripsinya memuat keyword minimal satu SDG terpilih."},
+        {"label": "SDG dengan MK", "value": int((per_sdg > 0).sum()),
+         "help": "Jumlah SDG (dari 17, atau dari SDG terpilih) yang punya minimal satu MK."},
+        {"label": "Fakultas/sekolah terlibat", "value": int(unik["fakultas"].nunique()) if len(unik) else 0,
+         "help": "Fakultas/sekolah yang menawarkan MK ter-tag SDG."},
+    ]
+    charts: list[dict[str, Any]] = []
+    tables: list[dict[str, Any]] = []
+    if len(df):
+        dist = pd.DataFrame([{"label": f"SDG {n}", "jumlah": int(c)} for n, c in per_sdg.sort_index().items()])
+        charts.append(_chart(
+            "matkul_sdg_langsung", "bar", "Mata kuliah per SDG (tagging langsung)",
+            _bar_data(dist, "label", "jumlah"),
+            insight=insight_top2(dist, "label", "jumlah", satuan="MK"),
+            note=("Kamus keyword SDG sama persis dengan berita mode ini (sdg_keywords.py), dicocokkan ke nama & "
+                  "deskripsi MK. Cakupannya luas (mis. 'teknologi/penelitian' → SDG 9, 'kesehatan' → SDG 3), "
+                  "jadi angka ini indikatif — bukan indikator Kepmen."),
+            orientation="v",
+        ))
+        fak = unik.groupby("fakultas")["nama_mk"].nunique().sort_values(ascending=False).head(10).reset_index()
+        fak.columns = ["label", "jumlah"]
+        charts.append(_chart(
+            "matkul_fakultas", "bar", "10 fakultas/sekolah dengan MK ter-tag SDG terbanyak",
+            _bar_data(fak, "label", "jumlah"), insight=insight_top2(fak, "label", "jumlah", satuan="MK"),
+            note="MK unik (dedup nama) per fakultas/sekolah; ikut filter SDG.", orientation="h",
+        ))
+        rows = [{"nama_mk": r["nama_mk"], "sdg": f"SDG {r['sdg']}", "pemicu": r["pemicu"], "fakultas": r["fakultas"],
+                 "prodi": r["prodi"]}
+                for r in df.sort_values(["sdg", "fakultas", "nama_mk"], kind="stable").to_dict("records")]
+        tables.append(_table(
+            "matkul_daftar", "Daftar mata kuliah per SDG",
+            [("nama_mk", "Mata kuliah"), ("sdg", "SDG"), ("pemicu", "Keyword SDG"), ("fakultas", "Fakultas/Sekolah"),
+             ("prodi", "Program studi")],
+            rows, note="Satu baris per pasangan MK–SDG. " + CATATAN_MATKUL, page_size=10, max_rows=len(rows),
+        ))
+    return {"mode": "sdg", "metrics": metrics, "charts": charts, "tables": tables, "per_tema": []}
+
+
+def mata_kuliah_blok(matkul: MatkulFrames | None, mode: str = "impact", pilars: tuple[str, ...] = (),
+                     topiks: tuple[str, ...] = (), sdgs: tuple[int, ...] = ()) -> dict[str, Any]:
     """Payload `mata_kuliah` respons; kontrak stabil walau data CSV tidak tersedia."""
+    dasar = {
+        "sumber": "", "total_penawaran": 0, "n_substansial": 0, "n_mk_unik": 0, "parsial": 0,
+        "indikator_tema": TEMA_INDIKATOR, "kriteria_resmi": {}, "catatan_metode": [],
+        "mode": "sdg" if mode == "sdgs" else "tema", "per_tema": [],
+    }
     if matkul is None:
-        return {
-            "tersedia": False,
-            "sumber": "", "total_penawaran": 0, "n_substansial": 0, "n_mk_unik": 0, "parsial": 0,
-            "indikator_tema": "pendidikan_dan_penelitian",
-            "kriteria_resmi": {}, "catatan_metode": [],
-            "note": "Data mata kuliah belum tersedia (Deskripsi Matkul Kepmen.csv tidak ditemukan).",
-            "metrics": [], "charts": [], "tables": [],
-        }
-    blok = mata_kuliah_section(matkul, pilar, topik, sdgs=sdgs, sdg_mode=sdg_mode)
-    blok["tersedia"] = True
-    return blok
+        return {**dasar, "tersedia": False, "metrics": [], "charts": [], "tables": [],
+                "note": "Data mata kuliah belum tersedia (Deskripsi Matkul Kepmen.csv tidak ditemukan)."}
+    isi = _mk_sdg_section(matkul, sdgs) if mode == "sdgs" else _mk_tema_section(matkul, mode, pilars, topiks, sdgs)
+    return {
+        **dasar, **isi, "tersedia": True,
+        "sumber": matkul.sumber, "total_penawaran": matkul.total_penawaran,
+        "n_substansial": matkul.n_substansial, "n_mk_unik": matkul.n_mk_unik, "parsial": matkul.parsial,
+        "kriteria_resmi": dict(matkul.kriteria_resmi), "catatan_metode": list(CATATAN_METODE_RESMI),
+        "note": CATATAN_MATKUL,
+    }
 
 
 def _pillar_detail(ctx: _Ctx, pilar: str, topic: str | None) -> dict[str, Any]:
@@ -1473,7 +1539,7 @@ def _story_sdgs(fr: StoryFrames, filters: FilterParams, start: str, end: str,
         "cross": {"title": "Analisis SDGs", "charts": [], "tables": []},
         "pillar_detail": None,
         "chapters": [],
-        "mata_kuliah": mata_kuliah_blok(matkul),
+        "mata_kuliah": mata_kuliah_blok(matkul, "sdgs", sdgs=tuple(filters.sdgs)),
         "tables": [],
     }
     if not len(ss_f):
