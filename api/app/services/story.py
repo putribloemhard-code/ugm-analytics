@@ -37,8 +37,61 @@ logger = logging.getLogger(__name__)
 PILLARS = ("Lingkungan", "Ekonomi", "Sosial")
 MODE_LABEL = {"impact": "Berdampak", "impact-sdgs": "Berdampak × SDGs"}
 MAX_ROWS = 200
+# Baris per halaman untuk tabel "Daftar berita" di web (tombol Sebelumnya/Berikutnya).
+# Tabel berita panjang (sampai MAX_ROWS) jadi 40 halaman; tabel ringkas tetap tampil utuh.
+NEWS_PAGE_SIZE = 5
 CACHE_TTL_SECONDS = 300
 _CACHE_MAX_ENGINES = 8
+
+# Urutan bab & sub-bab mengikuti LAPORAN DAMPAK SOSIAL, EKONOMI, DAN LINGKUNGAN UGM 2025
+# (daftar isi resmi: BAB II Sosial 4 tema, BAB III Ekonomi 5 tema, BAB IV Lingkungan 5 tema).
+# Nomor sub-bab dipakai untuk label "2.1", "3.4", dst. di dashboard; angka BAB II-IV karena
+# BAB I = Pendahuluan tidak punya tema. Topik di luar daftar ini (tidak ada saat ini) tetap
+# ditampilkan sebagai bab tambahan tanpa nomor supaya tidak ada data yang hilang.
+CHAPTER_ORDER = {
+    "Sosial": {
+        "bab": "BAB II", "judul": "Dampak Sosial",
+        "topics": [
+            ("pendidikan_inklusif", "2.1"),
+            ("penelitian_inovasi_sosial", "2.2"),
+            ("pengabdian_masyarakat", "2.3"),
+            ("instansi_publik", "2.4"),
+        ],
+    },
+    "Ekonomi": {
+        "bab": "BAB III", "judul": "Dampak Ekonomi",
+        "topics": [
+            ("pengajaran_pembelajaran", "3.1"),
+            ("kolaborasi_riset", "3.2"),
+            ("kewirausahaan", "3.3"),
+            ("kunjungan_akademik", "3.4"),
+            ("belanja_umkm", "3.5"),
+        ],
+    },
+    "Lingkungan": {
+        "bab": "BAB IV", "judul": "Dampak Lingkungan",
+        "topics": [
+            ("energi", "4.1"),
+            ("limbah", "4.2"),
+            ("transportasi", "4.3"),
+            ("rehabilitasi_lingkungan", "4.4"),
+            ("pendidikan_dan_penelitian", "4.5"),
+        ],
+    },
+}
+
+# Judul sub-bab PERSIS seperti daftar isi laporan resmi, dipakai di panel "Daftar isi" supaya
+# pembaca bisa mencocokkan 1:1 dengan dokumen. Sebagian berbeda dari nama tema Kepmen
+# (`TOPIK_KEPMEN_ALL[...]["topik_kepmen"]`) — mis. laporan memakai "Konsumsi Energi yang
+# Bertanggung Jawab" dan "…Pengunjung Nasional" (Kepmen: "Konsumsi yang Bertanggung Jawab",
+# "…Pengunjung"). Tema tanpa entri di sini judulnya sama dengan nama resmi Kepmen.
+REPORT_SUBSECTION_TITLES = {
+    "penelitian_inovasi_sosial": "Penelitian dan Inovasi",
+    "pengabdian_masyarakat": "Pengabdian dan Pengembangan Masyarakat",
+    "kolaborasi_riset": "Penelitian dan Pertukaran Pengetahuan",
+    "kunjungan_akademik": "Kunjungan Akademik dan Pengeluaran Pengunjung Nasional",
+    "limbah": "Konsumsi Energi yang Bertanggung Jawab",
+}
 
 STOPWORDS = set(
     """dan di ke dari yang untuk dengan pada dalam sebagai oleh ini itu atau
@@ -202,7 +255,8 @@ def _stacked_data(df: pd.DataFrame, x_col: str, series_col: str, value_col: str,
 
 
 def _table(table_id: str, title: str, columns: list[tuple[str, str]], rows: list[dict[str, Any]],
-           note: str | None = None, insight: str | None = None) -> dict[str, Any]:
+           note: str | None = None, insight: str | None = None,
+           page_size: int | None = None) -> dict[str, Any]:
     return {
         "id": table_id,
         "title": title,
@@ -210,6 +264,9 @@ def _table(table_id: str, title: str, columns: list[tuple[str, str]], rows: list
         "insight": plain(insight),
         "columns": [{"key": key, "label": label} for key, label in columns],
         "rows": rows[:MAX_ROWS],
+        # page_size: baris per halaman di UI (tabel daftar berita = NEWS_PAGE_SIZE).
+        # None = tabel ditampilkan utuh (tabel ringkas: distribusi, unit kerja, dsb).
+        "page_size": page_size,
     }
 
 
@@ -374,6 +431,7 @@ def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str,
         "overview": [],
         "cross": {"title": "Analisis Lintas-Dampak", "charts": [], "tables": []},
         "pillar_detail": None,
+        "chapters": [],
         "tables": [],
     }
     if b.empty or t.empty:
@@ -409,6 +467,9 @@ def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str,
     }
     response["overview"] = overview_rows(b, t, pillar_set)
     response["cross"] = _cross(ctx, fr, topic)
+    # Bab laporan resmi: Sosial (BAB II) → Ekonomi (BAB III) → Lingkungan (BAB IV),
+    # tiap bab berisi sub-bab per tema sesuai daftar isi LAPORAN DAMPAK UGM 2025.
+    response["chapters"] = chapter_rows(ctx)
     if pillar:
         response["pillar_detail"] = _pillar_detail(ctx, pillar, topic)
     return response
@@ -428,6 +489,183 @@ def overview_rows(b: pd.DataFrame, t: pd.DataFrame, pillar_set: tuple[str, ...])
             top_topic, top_n = label_topic.get(counts.index[0], counts.index[0]), int(counts.iloc[0])
         rows.append({"pillar": pilar, "total": total, "top_topic": top_topic, "top_topic_count": top_n})
     return rows
+
+
+def _chapter_subsection(ctx: _Ctx, topik: str, nomor: str) -> dict[str, Any]:
+    """Satu sub-bab laporan = satu tema resmi Kepmen (mis. 2.1 Pendidikan Inklusif).
+
+    Isi sub-bab = daftar indikator resmi (indikator/definisi/kriteria/formula/satuan + klaster SDG)
+    ditambah chart yang sudah ada di dashboard untuk tema ini. Chart yang tidak ada datanya tetap
+    dikirim (data kosong) supaya tiap sub-bab punya bentuk yang sama.
+    """
+    mapping = kepmen()
+    meta = mapping.TOPIK_KEPMEN_ALL[topik]
+    label = mapping.LABEL_TOPIC_ALL.get(topik, topik)
+
+    urls_tema = set(ctx.t.loc[ctx.t["topik"] == topik, "url"])
+    urls_nounit = set(ctx.t_nounit.loc[ctx.t_nounit["topik"] == topik, "url"])
+    berita_tema = ctx.b[ctx.b["url"].isin(urls_tema)]
+    pilar = meta["dampak"]
+    # Klaster SDG = atribut resmi TEMA (dari UGM Analytics.xlsx), bukan hasil pencocokan berita.
+    sdg_klaster = [int(s) for s in meta.get("sdg", [])]
+
+    charts: list[dict[str, Any]] = []
+
+    # 1. Tren tahunan tema ini (volume pemberitaan) — potret capaian per tahun.
+    tren = berita_tema.groupby("tahun")["url"].nunique().reset_index(name="jumlah").sort_values("tahun")
+    if len(tren):
+        awal, akhir = tren.iloc[0], tren.iloc[-1]
+        delta = int(akhir["jumlah"]) - int(awal["jumlah"])
+        puncak = tren.loc[tren["jumlah"].idxmax()]
+        charts.append(_chart(
+            f"chapter_{topik}_tren", "line", f"Tren pemberitaan tema {label} per tahun",
+            {"series": [{"name": "Jumlah berita", "points": [
+                {"x": str(x), "y": int(y)} for x, y in zip(tren["tahun"], tren["jumlah"])]}]},
+            insight=(f"Dari {int(awal['jumlah']):,} berita ({awal['tahun']}) menjadi {int(akhir['jumlah']):,} berita "
+                     f"({akhir['tahun']}) — {'naik' if delta >= 0 else 'turun'} {abs(delta):,} berita. "
+                     f"Puncak tertinggi: {puncak['tahun']} dengan {int(puncak['jumlah']):,} berita."),
+            note="Jumlah berita unik bertema ini per tahun (satu berita dihitung sekali walau match beberapa keyword).",
+        ))
+
+    # 2. Klaster SDG resmi tema ini + sebaran berita tema per SDG.
+    bs_tema = ctx.bs_f[ctx.bs_f["url"].isin(urls_tema)]
+    if len(bs_tema):
+        dist = bs_tema.groupby("sdg")["url"].nunique().reset_index(name="jumlah")
+        dist["label"] = dist["sdg"].map(lambda s: f"SDG {s}")
+        dist["nama"] = dist["sdg"].map(lambda s: mapping.sdg_label(int(s)))
+        charts.append(_chart(
+            f"chapter_{topik}_sdg", "bar", f"Berita tema {label} per SDG", _bar_data(dist, "label", "jumlah", detail_col="nama"),
+            insight=insight_top2(dist, "label", "jumlah"),
+            note=("Berita tema ini yang bertanda SDG (pemetaan resmi tema Kepmen → klaster SDGs); satu berita bisa "
+                  "masuk lebih dari satu SDG."),
+            orientation="v",
+        ))
+
+    # 3. Fakultas/unit kerja penyumbang berita tema ini (basis tanpa filter unit, seperti tab unit).
+    uk_tema, dist_unit = _unit_dist(ctx.uk, urls_nounit, units().UNIT_KERJA)
+    if len(uk_tema):
+        charts.append(_chart(
+            f"chapter_{topik}_unit", "bar", f"Fakultas/Unit Kerja penyumbang berita — {label}",
+            _bar_data(dist_unit, "nama", "jumlah", group_col="kategori"),
+            insight=insight_top2(dist_unit, "nama", "jumlah"),
+            note=("Hasil keyword matching nama resmi 44 fakultas/sekolah/unit kerja UGM pada judul + deskripsi berita -- "
+                  "lower-bound, bukan angka final kontribusi unit. Filter \"Fakultas / Unit Kerja\" di sidebar sengaja "
+                  "diabaikan di sini supaya rankingnya adil."),
+            orientation="h",
+        ))
+
+    latest = berita_tema.sort_values("tanggal", ascending=False, kind="stable").head(MAX_ROWS)
+    tables = [_table(
+        f"chapter_{topik}_berita", f"Daftar berita — {label}",
+        [("tanggal", "Tanggal"), ("judul", "Judul"), ("sumber", "Sumber"), ("url", "Tautan")],
+        _news_rows(latest, {"tanggal": "tanggal", "judul": "judul", "sumber": "sumber", "url": "url"}),
+        note=(f"{len(latest):,} berita terbaru tema ini (maks. {MAX_ROWS} baris, tampil {NEWS_PAGE_SIZE} per halaman). "
+              "Tabel ini dasar penelusuran angka "
+              "pada chart di atas."),
+        page_size=NEWS_PAGE_SIZE,
+    )]
+    return {
+        "id": topik,
+        "number": nomor,
+        "topic": topik,
+        "label": label,
+        "official_topic": meta["topik_kepmen"],
+        "report_title": REPORT_SUBSECTION_TITLES.get(topik, meta["topik_kepmen"]),
+        "pillar": pilar,
+        "indicator": meta.get("indikator", ""),
+        "definition": meta.get("definisi", ""),
+        "criteria": meta.get("kriteria", ""),
+        "formula": meta.get("formula", ""),
+        "unit": meta.get("satuan", ""),
+        "sdgs": sdg_klaster,
+        "sdg_labels": [{"id": s, "label": mapping.sdg_label(s)} for s in sdg_klaster],
+        "metrics": [
+            {"label": "Berita unik", "value": int(berita_tema["url"].nunique())},
+            {"label": "Tahun jangkauan", "value": (f"{berita_tema['tahun'].min()}–{berita_tema['tahun'].max()}"
+                                                    if len(berita_tema) else "—")},
+            {"label": "SDG terkait", "value": len(sdg_klaster)},
+        ],
+        "charts": charts,
+        "tables": tables,
+    }
+
+
+def chapter_rows(ctx: _Ctx) -> list[dict[str, Any]]:
+    """Susun 3 bab laporan (Sosial 4 tema, Ekonomi 5, Lingkungan 5) + sub-bab per tema.
+
+    Urutan bab = urutan daftar isi laporan (Sosial → Ekonomi → Lingkungan), bukan urutan
+    internal `PILLARS`. Semua tema yang lolos filter tetap ditampilkan walau berita nol supaya
+    bentuk bab/sub-bab tidak berubah-ubah; indikator resmi Kepmen tetap muncul sebagai rujukan
+    penilaian. Bab yang tidak punya satu pun sub-bab (mis. semua temanya tersaring filter tema)
+    dilewati supaya tidak ada judul bab kosong.
+    """
+    label_topic = kepmen().LABEL_TOPIC_ALL
+    meta = kepmen().TOPIK_KEPMEN_ALL
+    urutan_bab = list(CHAPTER_ORDER) + [p for p in ctx.pillar_set if p not in CHAPTER_ORDER]
+    chapters: list[dict[str, Any]] = []
+    for pilar in urutan_bab:
+        if pilar not in ctx.pillar_set:
+            continue
+        urutan = CHAPTER_ORDER.get(pilar)
+        if urutan is None:
+            # Pilar tanpa urutan resmi: tetap ditampilkan, sub-bab diurut label, tanpa nomor.
+            nomor_map = {k: "" for k in ctx.tampil if meta[k]["dampak"] == pilar}
+            bab, judul = pilar, f"Dampak {pilar}"
+        else:
+            nomor_map = dict(urutan["topics"])
+            bab, judul = urutan["bab"], urutan["judul"]
+        subsections = [
+            _chapter_subsection(ctx, k, nomor_map.get(k, ""))
+            for k in sorted((k for k in ctx.tampil if meta[k]["dampak"] == pilar),
+                            key=lambda k: (nomor_map.get(k) or "99", label_topic.get(k, k)))
+        ]
+        if not subsections:
+            continue
+        urls_bab = set(ctx.t.loc[ctx.t["dampak"] == pilar, "url"])
+        charts_bab: list[dict[str, Any]] = []
+
+        # (a) Distribusi tema dalam bab ini — posisi setiap tema satu sama lain.
+        tampil_pilar = [s["topic"] for s in subsections]
+        counts = ctx.t[ctx.t["dampak"] == pilar].groupby("topik")["url"].nunique().reindex(tampil_pilar, fill_value=0)
+        dist_pilar = counts.rename("jumlah").reset_index()
+        dist_pilar["label"] = dist_pilar["topik"].map(lambda k: label_topic.get(k, k))
+        dist_pilar = dist_pilar.sort_values("jumlah", ascending=False, kind="stable")
+        if len(dist_pilar):
+            charts_bab.append(_chart(
+                f"bab_{pilar.lower()}_tema", "bar", f"Distribusi tema dalam dampak {pilar}",
+                _bar_data(dist_pilar, "label", "jumlah"), insight=insight_top2(dist_pilar, "label", "jumlah"),
+                note=f"Jumlah berita unik tiap tema dalam dampak {pilar} pada filter saat ini.",
+                orientation="h",
+            ))
+
+        # (b) Heatmap tema × tahun dalam bab ini — tren relatif antar tema.
+        b_t_pilar = ctx.b_t[ctx.b_t["dampak"] == pilar]
+        piv = (
+            b_t_pilar.groupby(["topik", "tahun"])["url"].nunique().unstack(fill_value=0)
+            .reindex(index=tampil_pilar, fill_value=0)
+        )
+        if piv.shape[1]:
+            piv.index = [label_topic.get(i, i) for i in piv.index]
+            charts_bab.append(_chart(
+                f"bab_{pilar.lower()}_tema_tahun", "heatmap", f"Tema × Tahun — dampak {pilar}",
+                _heatmap_data(piv), insight=insight_heatmap(piv),
+                note="Baris gelap = tema yang konsisten diberitakan; kolom gelap = tahun dengan banyak aktivitas dampak ini.",
+            ))
+
+        chapters.append({
+            "pillar": pilar,
+            "chapter": bab,
+            "title": judul,
+            "total": len(urls_bab),
+            "charts": charts_bab,
+            "metrics": [
+                {"label": "Berita dampak", "value": len(urls_bab)},
+                {"label": "Tema", "value": len(subsections)},
+                {"label": "Tema teratas", "value": max(subsections, key=lambda s: s["metrics"][0]["value"])["label"]},
+            ],
+            "subsections": subsections,
+        })
+    return chapters
 
 
 # ---- Detail per dampak -------------------------------------------------------------
@@ -599,8 +837,9 @@ def _pillar_detail(ctx: _Ctx, pilar: str, topic: str | None) -> dict[str, Any]:
             [("tanggal", "Tanggal"), ("judul", "Judul"), ("tema_kepmen", "Tema Kepmen"), ("sdg", "SDG"),
              ("sumber", "Sumber"), ("url", "Tautan")], news_rows,
             note=(f"Berita terbaru: \"{terbaru['judul']}\" ({terbaru['tanggal']}). Daftar diurutkan dari yang terbaru "
-                  f"(maks. {MAX_ROWS} baris), lengkap dengan Tema Kepmen & SDG yang terdeteksi -- untuk menelusuri "
-                  "berita sumber di balik angka-angka pada tab lain."),
+                  f"(maks. {MAX_ROWS} baris, tampil {NEWS_PAGE_SIZE} per halaman), lengkap dengan Tema Kepmen & SDG "
+                  "yang terdeteksi -- untuk menelusuri berita sumber di balik angka-angka pada tab lain."),
+            page_size=NEWS_PAGE_SIZE,
         )],
     })
 
@@ -986,6 +1225,7 @@ def _story_sdgs(fr: StoryFrames, filters: FilterParams, start: str, end: str) ->
         "overview": [],
         "cross": {"title": "Analisis SDGs", "charts": [], "tables": []},
         "pillar_detail": None,
+        "chapters": [],
         "tables": [],
     }
     if not len(ss_f):

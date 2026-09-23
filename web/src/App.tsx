@@ -5,6 +5,7 @@ import { AUTH_EVENT, DAMPAK_AUTH_EVENT, accreditationLogin, accreditationLogout,
 import { assetUrl, CountUp, SiteShell, useInView } from './shell';
 import { MultiSelect } from './multiselect';
 import { ChartGrid, Insight, StoryTableView } from './story';
+import { LaporanDampak } from './laporan';
 import { Notice, PageHeader } from './ui';
 import { AdminPage, ProfilePage } from './account';
 
@@ -124,6 +125,9 @@ function AnalyticsContent({ story, pillar, onPickPillar, topic, onTopic, busy }:
   async function report() { setReportBusy(true); setReportError(''); try { const blob = await downloadReport({ mode: story.mode, ...story.filters }); const href = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = href; link.download = `Laporan_UGM_Analytics_${story.mode}.docx`; link.click(); URL.revokeObjectURL(href); } catch (e) { setReportError(pesanMuat(e, 'Laporan')); } finally { setReportBusy(false); } }
   return <div className={`analysis-dashboard ${busy ? 'is-busy' : ''}`} aria-busy={busy}>
     <Executive story={story} />
+    {/* Blok laporan berbab hanya di bagian "Analisis Dampak"; bagian "Dampak × SDGs" sudah
+        punya tab SDG sendiri, jadi menaruhnya di sana akan menggandakan 14 sub-bab yang sama. */}
+    {story.mode === 'impact' && <LaporanDampak story={story} />}
     {story.overview.length > 0 && <Overview story={story} pillar={pillar} onPick={onPickPillar} />}
     {story.pillar_detail && <PillarDetailView detail={story.pillar_detail} topic={topic} onTopic={onTopic} busy={busy} />}
     <CrossSection story={story} topic={topic} onTopic={onTopic} />

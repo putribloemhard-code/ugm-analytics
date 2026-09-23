@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type { Chart, StoryTable } from './lib/api';
 
@@ -68,10 +68,24 @@ export function downloadCsv(filename: string, columns: Column[], rows: Record<st
 }
 
 /* ------------------------------------------------------------- tabel data ---- */
-export function DataTable({ title, columns, rows, note, caption }: { title?: string; columns: Column[]; rows: Record<string, unknown>[]; note?: string | null; caption?: string }) {
+export function DataTable({ title, columns, rows, note, caption, pageSize }: { title?: string; columns: Column[]; rows: Record<string, unknown>[]; note?: string | null; caption?: string; pageSize?: number | null }) {
+  // pageSize diisi API untuk tabel panjang (Daftar berita) -> tampil per halaman + tombol
+  // navigasi. Tabel ringkas (distribusi, unit kerja) tidak diisi -> tampil utuh seperti semula.
+  const perPage = pageSize && pageSize > 0 ? pageSize : null;
+  const totalPages = perPage ? Math.max(1, Math.ceil(rows.length / perPage)) : 1;
+  const [page, setPage] = useState(1);
+  // Filter baru = daftar berita baru; mulai lagi dari halaman 1 supaya tidak nyangkut di halaman kosong.
+  useEffect(() => { setPage(1); }, [rows, perPage]);
+  const current = Math.min(page, totalPages);
+  const shown = perPage ? rows.slice((current - 1) * perPage, current * perPage) : rows.slice(0, 200);
   return <div className="story-table">
     {title && <h4>{title}</h4>}
-    {rows.length ? <div className="data-table-wrap"><table><caption className="sr-only">{caption ?? title}</caption><thead><tr>{columns.map(column => <th key={column.key}>{column.label}</th>)}</tr></thead><tbody>{rows.slice(0, 200).map((row, index) => <tr key={index}>{columns.map(column => <td key={column.key}>{fmt(row[column.key])}</td>)}</tr>)}</tbody></table></div> : <p className="chart-empty">Tidak ada data untuk bagian ini.</p>}
+    {rows.length ? <div className="data-table-wrap"><table><caption className="sr-only">{caption ?? title}</caption><thead><tr>{columns.map(column => <th key={column.key}>{column.label}</th>)}</tr></thead><tbody>{shown.map((row, index) => <tr key={index}>{columns.map(column => <td key={column.key}>{fmt(row[column.key])}</td>)}</tr>)}</tbody></table></div> : <p className="chart-empty">Tidak ada data untuk bagian ini.</p>}
+    {perPage && rows.length > perPage && <nav className="table-pager" aria-label={`Navigasi halaman ${title ?? 'tabel'}`}>
+      <button type="button" className="link-button" disabled={current <= 1} onClick={() => setPage(current - 1)}>‹ Sebelumnya</button>
+      <span className="table-pager__info">Menampilkan {(current - 1) * perPage + 1}–{Math.min(current * perPage, rows.length)} dari {rows.length.toLocaleString('id-ID')} · halaman {current} / {totalPages}</span>
+      <button type="button" className="link-button" disabled={current >= totalPages} onClick={() => setPage(current + 1)}>Berikutnya ›</button>
+    </nav>}
     {note && <p className="chart-note">{note}</p>}
   </div>;
 }
@@ -79,7 +93,7 @@ export function DataTable({ title, columns, rows, note, caption }: { title?: str
 export function StoryTableView({ table }: { table: StoryTable }) {
   const [open, setOpen] = useState(true);
   return <div className="story-table-block">
-    <DataTable title={open ? table.title : undefined} columns={table.columns} rows={table.rows} note={open ? table.note : null} caption={table.title} />
+    <DataTable title={open ? table.title : undefined} columns={table.columns} rows={table.rows} note={open ? table.note : null} caption={table.title} pageSize={table.page_size} />
     {table.insight && <Insight>{table.insight}</Insight>}
     <div className="chart-frame__actions"><button type="button" className="link-button" disabled={!table.rows.length} onClick={() => downloadCsv(`${table.id}.csv`, table.columns, table.rows)}>Unduh CSV</button></div>
   </div>;

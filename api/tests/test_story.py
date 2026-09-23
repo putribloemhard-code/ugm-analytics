@@ -107,7 +107,8 @@ def test_overview_empty_pillar_has_no_top_topic():
 def test_impact_story_top_level_contract_and_json():
     story = build_story(make_frames(), FilterParams(), "impact")
     json.dumps(story)  # tidak boleh ada tipe numpy
-    assert set(story) == {"mode", "filters", "data_as_of", "caveats", "executive", "overview", "cross", "pillar_detail", "tables"}
+    assert set(story) == {"mode", "filters", "data_as_of", "caveats", "executive", "overview",
+                          "cross", "pillar_detail", "chapters", "tables"}
     assert story["filters"]["year_from"] == "2023" and story["filters"]["year_to"] == "2025"
     metrics = {m["label"]: m for m in story["executive"]["metrics"]}
     assert metrics["Total berita dampak"]["value"] == 5  # u1..u5 unik, u6 tak bertema
@@ -203,12 +204,123 @@ def test_units_filter_narrows_news_but_unit_tab_ignores_it():
     assert [row["url"] for row in no_unit["rows"]] == ["u5"]
 
 
+def test_news_tables_are_paginated_but_summary_tables_are_not():
+    """Daftar berita tampil 5 baris per halaman; tabel ringkas tetap utuh (tanpa pager)."""
+    story = build_story(make_frames(), FilterParams(), "impact")
+
+    # Sub-bab laporan: daftar berita bertema.
+    sub = {s["topic"]: s for s in story["chapters"][0]["subsections"]}["pendidikan_inklusif"]
+    daftar = sub["tables"][0]
+    assert daftar["page_size"] == 5
+    assert "5 per halaman" in daftar["note"]
+    assert len(daftar["rows"]) == 2  # fixture: lebih sedikit dari page_size
+
+    # Tab "Kata Kunci & Berita" (mode impact, pillar_detail terisi saat pilar dipilih).
+    with_pillar = build_story(make_frames(), FilterParams(), "impact", pillar="Sosial")
+    detail = with_pillar["pillar_detail"]
+    kata_kunci = next(t for t in detail["tabs"] if t["id"] == "kata_kunci")
+    assert kata_kunci["tables"][0]["page_size"] == 5
+
+    # Tabel ringkas (lintas-dampak, SDG, dsb.) TIDAK ber-paginasi — tampil utuh.
+    ringkas = list(story["tables"]) + list(story["cross"]["tables"])
+    assert ringkas, "tidak ada tabel ringkas untuk diuji"
+    for table in ringkas:
+        assert table["page_size"] is None, table["id"]
+
+
 def test_year_range_and_empty_result():
     story = build_story(make_frames(), FilterParams(year_from="2030", year_to="2031"), "impact")
     assert story["executive"]["metrics"] == [] and story["cross"]["charts"] == []
+    assert story["chapters"] == []  # tidak ada data -> tidak ada bab palsu
     assert "Tidak ada data" in story["executive"]["narrative"]
     narrow = build_story(make_frames(), FilterParams(year_from="2024", year_to="2024"), "impact")
     assert narrow["executive"]["metrics"][0]["value"] == 2  # u2, u3
+
+
+# ---------------------------------------------------------------- bab laporan (daftar isi)
+def test_chapters_follow_report_table_of_contents():
+    """Urutan bab/sub-bab harus sama dengan daftar isi LAPORAN DAMPAK UGM 2025."""
+    story = build_story(make_frames(), FilterParams(), "impact")
+    chapters = story["chapters"]
+    assert [c["pillar"] for c in chapters] == ["Sosial", "Ekonomi", "Lingkungan"]
+    assert [c["chapter"] for c in chapters] == ["BAB II", "BAB III", "BAB IV"]
+    assert [c["title"] for c in chapters] == ["Dampak Sosial", "Dampak Ekonomi", "Dampak Lingkungan"]
+
+    sosial = chapters[0]
+    assert [(s["number"], s["label"]) for s in sosial["subsections"]] == [
+        ("2.1", "Pendidikan Inklusif"), ("2.2", "Penelitian & Inovasi"),
+        ("2.3", "Pengabdian Masyarakat"), ("2.4", "Kebijakan Publik"),
+    ]
+    ekonomi = chapters[1]
+    assert [(s["number"], s["label"]) for s in ekonomi["subsections"]] == [
+        ("3.1", "Pengajaran & Pembelajaran"), ("3.2", "Kolaborasi Riset"), ("3.3", "Kewirausahaan"),
+        ("3.4", "Kunjungan Akademik"), ("3.5", "Pengeluaran Institusi"),
+    ]
+    lingkungan = chapters[2]
+    assert [(s["number"], s["label"]) for s in lingkungan["subsections"]] == [
+        ("4.1", "Energi"), ("4.2", "Konsumsi yang Bertanggung Jawab"), ("4.3", "Transportasi"),
+        ("4.4", "Keanekaragaman Hayati"), ("4.5", "Pendidikan & Penelitian"),
+    ]
+
+    # Tiap bab punya 2 chart level-bab (distribusi tema + heatmap tema × tahun), id unik per bab.
+    for chapter in chapters:
+        ids = [chart["id"] for chart in chapter["charts"]]
+        assert ids == [f"bab_{chapter['pillar'].lower()}_tema", f"bab_{chapter['pillar'].lower()}_tema_tahun"]
+    assert {m["label"]: m["value"] for m in chapters[2]["metrics"]}["Berita dampak"] == 2
+
+
+def test_chapter_subsection_carries_indicator_and_keeps_zero_topics():
+    """Tiap sub-bab membawa indikator resmi Kepmen walau beritanya nol."""
+    story = build_story(make_frames(), FilterParams(), "impact")
+    lingkungan = story["chapters"][2]
+    by_topic = {s["topic"]: s for s in lingkungan["subsections"]}
+
+    # 4.4 Keanekaragaman Hayati: u1 + u2 (u1 juga masuk tema Energi, tetap 1 berita unik per tema)
+    hayati = by_topic["rehabilitasi_lingkungan"]
+    assert hayati["official_topic"] == "Keanekaragaman Hayati"
+    assert hayati["unit"] == "Program" and hayati["sdgs"] == [13, 14, 15]
+    assert hayati["indicator"].startswith("Jumlah program rehabilitasi")
+    assert hayati["definition"] and hayati["criteria"] and hayati["formula"]
+    assert {m["label"]: m["value"] for m in hayati["metrics"]}["Berita unik"] == 2
+    assert hayati["tables"][0]["rows"][0]["tanggal"] == "2024-03-10"  # terbaru dulu
+    assert all(chart["id"].startswith("chapter_rehabilitasi_lingkungan_") for chart in hayati["charts"])
+
+    # 4.2 Konsumsi Energi yang Bertanggung Jawab (limbah) tidak punya berita -> tetap tampil +
+    # indikatornya. Judul di daftar isi = judul laporan, nama tema Kepmen tetap yang resmi.
+    limbah = by_topic["limbah"]
+    assert {m["label"]: m["value"] for m in limbah["metrics"]}["Berita unik"] == 0
+    assert limbah["official_topic"] == "Konsumsi yang Bertanggung Jawab"
+    assert limbah["report_title"] == "Konsumsi Energi yang Bertanggung Jawab"
+    assert limbah["charts"] == [] and limbah["tables"][0]["rows"] == []
+    assert limbah["indicator"] and limbah["unit"]
+
+    # Judul laporan untuk tema yang berbeda dari nama Kepmen (uji daftar isi 1:1 dengan PDF).
+    assert by_topic["rehabilitasi_lingkungan"]["report_title"] == "Keanekaragaman Hayati"
+    ekonomi = {s["topic"]: s for s in story["chapters"][1]["subsections"]}
+    assert ekonomi["kunjungan_akademik"]["report_title"] == "Kunjungan Akademik dan Pengeluaran Pengunjung Nasional"
+    assert ekonomi["kolaborasi_riset"]["report_title"] == "Penelitian dan Pertukaran Pengetahuan"
+    assert ekonomi["kolaborasi_riset"]["official_topic"] == "Penelitian dan Pertukaran Pengetahuan"
+
+    # 2.1 Pendidikan Inklusif: u4 + u5
+    inklusif = {s["topic"]: s for s in story["chapters"][0]["subsections"]}["pendidikan_inklusif"]
+    assert {m["label"]: m["value"] for m in inklusif["metrics"]}["Berita unik"] == 2
+    assert inklusif["sdgs"] == [1, 4, 10]
+
+
+def test_chapters_respect_pillar_and_topic_filters():
+    story = build_story(make_frames(), FilterParams(pillars=("Sosial",)), "impact")
+    assert [c["pillar"] for c in story["chapters"]] == ["Sosial"]
+    # hanya sub-bab Sosial, urut tetap sesuai daftar isi
+    assert [s["number"] for s in story["chapters"][0]["subsections"]] == ["2.1", "2.2", "2.3", "2.4"]
+
+    sempit = build_story(make_frames(), FilterParams(topics=("energi",)), "impact")
+    assert [c["pillar"] for c in sempit["chapters"]] == ["Lingkungan"]
+    assert [s["number"] for s in sempit["chapters"][0]["subsections"]] == ["4.1"]
+
+
+def test_sdgs_mode_has_no_chapters():
+    story = build_story(make_frames(), FilterParams(), "sdgs")
+    assert story["chapters"] == []
 
 
 # ---------------------------------------------------------------- mode sdgs

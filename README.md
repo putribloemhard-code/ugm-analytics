@@ -95,6 +95,32 @@ Aturan yang dipakai setelah perapian struktur:
    `akreditasi/scripts/`. Memindahkan file itu akan mematahkan `/analytics/story`.
 5. **Dump database & secret TIDAK disimpan di repo** — lihat "Arsip di luar repo" di bawah.
 
+## Tata letak laporan dampak di web (2026-09-23)
+
+Bagian "Analisis Dampak" (`/dampak`, scene `dampak`) menampilkan blok **Laporan dampak per bab**
+yang tata letaknya mengikuti daftar isi resmi
+`sumber/LAPORAN DAMPAK SOSIAL, EKONOMI, DAN LINGKUNGAN UGM 2025.pdf`:
+panel Daftar isi (bab + sub-bab bertitik, bisa diklik untuk scroll) → BAB II Dampak Sosial
+(4 tema) → BAB III Dampak Ekonomi (5 tema) → BAB IV Dampak Lingkungan (5 tema).
+Tiap sub-bab = satu tema Kepmen bernomor (2.1–4.5) dengan panel **Indikator penilaian resmi
+Kepmen 361/M/KEP/2025** (indikator/definisi/kriteria/formula/satuan + klaster SDGs)
+di samping analisis berita tema itu (metrik, 3 chart, tabel).
+
+- API: payload `chapters` baru di `GET /analytics/story` (kunci lama tidak berubah;
+  hanya scene `mode=impact` yang merendernya — scene `dampak-sdgs` sudah punya tampilan SDG sendiri).
+  Urutan bab & nomor sub-bab: konstanta `CHAPTER_ORDER` di `api/app/services/story.py`;
+  metadata indikator diambil dari `berita-dampak/scripts/kepmen_sdg.py`.
+  Judul sub-bab di daftar isi memakai judul resmi laporan (field `report_title`, mis.
+  4.2 "Konsumsi Energi yang Bertanggung Jawab", 3.4 "Kunjungan Akademik dan Pengeluaran
+  Pengunjung Nasional") — bisa berbeda dari label pendek tema.
+- Frontend: `web/src/laporan.tsx` (+ CSS `laporan-*` di `web/src/styles.css`),
+  dipasang di `web/src/App.tsx` setelah Executive.
+- Tabel **Daftar berita** tampil 5 berita per halaman dengan tombol
+  ‹ Sebelumnya / Berikutnya (`page_size=5` dari API, diambil `NEWS_PAGE_SIZE`
+  di `story.py`; renderer pager di `DataTable` pada `web/src/story.tsx`,
+  CSS `.table-pager`). Tabel ringkas lain tetap tampil utuh; Unduh CSV tetap
+  mengunduh seluruh baris.
+
 ## Dokumentasi
 
 - `docs/PERENCANAAN.md` — tujuan, prinsip, backlog ide, milestone, status per subproyek

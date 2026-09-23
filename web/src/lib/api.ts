@@ -75,11 +75,42 @@ export type Chart = {
   orientation?: 'h' | 'v';
   data: unknown;
 };
-export type StoryTable = { id: string; title: string; note?: string | null; insight?: string | null; columns: { key: string; label: string }[]; rows: Record<string, unknown>[] };
+export type StoryTable = { id: string; title: string; note?: string | null; insight?: string | null; columns: { key: string; label: string }[]; rows: Record<string, unknown>[]; /** Baris per halaman jika tabel ber-paginasi (null = tampil utuh). */ page_size?: number | null };
 export type StoryMetric = { label: string; value: string | number; note?: string | null; help?: string | null };
 export type StoryTab = { id: string; label: string; note?: string | null; charts: Chart[]; tables: StoryTable[] };
 export type TopicOption = { value: string; label: string };
 export type PillarDetail = { pillar: string; narrative: string; metrics: StoryMetric[]; tabs: StoryTab[]; topic_options: TopicOption[]; selected_topic: string };
+/** Sub-bab laporan = satu tema resmi Kepmen (mis. 2.1 Pendidikan Inklusif) beserta indikator resminya. */
+export type ChapterSection = {
+  id: string;
+  number: string;
+  topic: string;
+  label: string;
+  official_topic: string;
+  /** Judul sub-bab persis daftar isi laporan resmi (bisa beda dari nama tema Kepmen). */
+  report_title: string;
+  pillar: string;
+  indicator: string;
+  definition: string;
+  criteria: string;
+  formula: string;
+  unit: string;
+  sdgs: number[];
+  sdg_labels: { id: number; label: string }[];
+  metrics: StoryMetric[];
+  charts: Chart[];
+  tables: StoryTable[];
+};
+/** Bab laporan (BAB II Sosial, BAB III Ekonomi, BAB IV Lingkungan) mengikuti daftar isi LAPORAN DAMPAK UGM 2025. */
+export type Chapter = {
+  pillar: string;
+  chapter: string;
+  title: string;
+  total: number;
+  charts: Chart[];
+  metrics: StoryMetric[];
+  subsections: ChapterSection[];
+};
 export type Story = {
   mode: string;
   filters: Record<string, unknown>;
@@ -89,6 +120,7 @@ export type Story = {
   overview: { pillar: string; total: number; top_topic: string | null; top_topic_count: number }[];
   cross: { title: string; charts: Chart[]; tables: StoryTable[]; topic_options?: TopicOption[]; selected_topic?: string };
   pillar_detail: PillarDetail | null;
+  chapters: Chapter[];
   tables: StoryTable[];
 };
 export function getStory(params: Record<string, QueryValue>) { return get<Story>(`/analytics/story?${toQuery(params)}`); }

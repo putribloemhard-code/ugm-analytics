@@ -306,6 +306,12 @@ GET  /api/v1/analytics/refresh-status
 GET  /healthz
 ```
 
+Sudah terimplementasi (bukan lagi usulan): `GET /api/v1/analytics/story` — satu respons berisi
+seluruh chart+insight dashboard (dipakai SPA React). Sejak 2026-09-23 respons itu juga membawa
+payload `chapters`: 3 bab laporan dampak (Sosial 4 tema, Ekonomi 5, Lingkungan 5) + indikator
+resmi Kepmen 361/M/KEP/2025 per sub-bab, untuk tata letak "Laporan dampak per bab" di `/dampak`
+(lihat `docs/ARCHITECTURE-UGM-ANALYTICS-DAMPAK-vNEXT.md` dan README root §"Tata letak laporan dampak di web").
+
 Payload fields, error format, pagination, caching, and exact query parameters are TBD in `API.md`. Public route contracts must be fixed only after comparison against existing Streamlit output.
 
 ## Constraints and assumptions
