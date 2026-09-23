@@ -20,7 +20,7 @@ Semua script idempoten (INSERT IGNORE / replace tabel ringkasan), aman
 dijalankan ulang. Jaringan dipakai untuk ugm.ac.id saja (bukan eLOK).
 
 Lock file `data/.update_lock` mencegah dua update berjalan bersamaan
-(tombol dashboard + cron). Kalau lock sudah ada, update dibatalkan.
+(cron + run manual). Kalau lock sudah ada, update dibatalkan.
 
 Jalankan:
   python scripts/update_mingguan.py

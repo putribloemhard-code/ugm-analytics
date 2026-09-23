@@ -26,19 +26,16 @@ lain bisa ditambah tanpa mengubah struktur.
 | `scripts/pipeline_sinta.py` | **Fase 2**: tarik daftar publikasi Scopus (10 terbaru/dosen) dari sinta.kemdiktisaintek.go.id → `akreditasi_publikasi_dosen` (akumulatif, upsert) |
 | `scripts/pipeline_dcse_berita.py` | **Fase 2**: crawl arsip RSS dcse.fmipa.ugm.ac.id → `akreditasi_berita_dcse` (evidence pendukung lkps_2_d & lkps_4_c_2) |
 | `scripts/ekstraksi_pattern.py` | **Fase 3**: tier ekstraksi TANPA AI (pattern-matching struktur dokumen) — dicoba lebih dulu untuk item berstruktur daftar berulang |
-| `scripts/ekstraksi_akreditasi.py` | **Fase 3**: tier fallback LLM (per batch item registry); hasil = PREVIEW, user review dulu |
+| `scripts/ekstraksi_akreditasi.py` | **Fase 3**: ekstraksi LLM per batch item registry — modul murni (baca teks + panggil LLM); penyimpanan preview & review dikerjakan API. Hasil = PREVIEW, user review dulu |
 | `scripts/validasi_ekstraksi_pattern.py` | Validasi manual tier pattern untuk 2 bentuk tabel berbeda (vertikal LED vs horizontal LKPS) |
-| `scripts/upload_akreditasi.py` | Upload file pendukung (fisik di `data/uploads/<prodi_id>/`, metadata di `akreditasi_upload_file`) + pemicu ekstraksi |
-| `scripts/auth_akreditasi.py` | Login app akreditasi: email+password, **dibatasi domain UGM** (ugm.ac.id / mail.ugm.ac.id, dicocokkan persis), bcrypt, akun pertama otomatis admin |
-| `scripts/akun_akreditasi.py` | Manajemen akun (riwayat generate, pekerjaan ongoing, aksi admin blokir/hapus/jadikan admin; admin tidak bisa mengunci dirinya sendiri) |
-| `scripts/generate_template.py` | Generator dokumen `.docx` dari `akreditasi_data_manual` (section kosong tetap dibuat + placeholder) |
+| `scripts/generate_template.py` | Generator dokumen `.docx` dari `akreditasi_data_manual` (section kosong tetap dibuat + placeholder). `build_led_docx(df)`/`build_lkps_docx(df)` dipakai API; `generate_*_docx()` untuk CLI |
 | `scripts/generate_laporan_live.py` | Generator dokumen `.docx` **Fase 3** — sumber murni live (hasil pipeline Fase 2), tidak menyentuh tabel data manual |
-| `scripts/dashboard_render.py` | Modul render bersama — dipakai dashboard akreditasi mandiri DAN menu "Akreditasi" di dashboard berita-dampak |
 | `scripts/migrasi_*.py` | Migrasi tabel (data_manual, prodi, fakultas, users, sessions, upload, ekstraksi, item_tersedia, publikasi_dosen, berita_dcse, arsip_pdf) — semua `CREATE TABLE IF NOT EXISTS`/idempoten |
-| `dashboard_akreditasi.py` | Dashboard Streamlit — ringkasan kelengkapan, form input manual per item, tombol generate dokumen |
 | `data/` | MySQL-only, tidak ada CSV/DuckDB. `data/uploads/<prodi_id>/` = file pendukung, `data/generated/` = riwayat laporan Word (keduanya di-gitignore) |
-| `DASHBOARD.md` | Penjelasan isi dashboard + cara baca badge status |
 | `PIPELINE.md` | Dokumentasi alur: registry → migrasi tabel → input manual → generate dokumen |
+
+Tampilan, login (domain UGM, bcrypt, rate limit 5×/15 menit, akun pertama admin), input data, upload,
+review ekstraksi, dan generate Word: UI ada di web (`/akreditasi`, `web/src/akreditasi.tsx`) + API (`api/app/services/accreditation_workspace.py`). Dashboard Streamlit dihapus 2026-09-23.
 
 ## Fase pengembangan
 
@@ -61,11 +58,9 @@ cd D:\ugm-analytics\akreditasi
 ..\venv\Scripts\python.exe scripts\migrasi_tabel_users.py
 # (lihat scripts/migrasi_*.py untuk tabel lainnya)
 
-# Dashboard interaktif:
-..\venv\Scripts\streamlit.exe run dashboard_akreditasi.py
+# Tampilan: dari root repo jalankan jalankan_web_baru.bat, buka
+# http://127.0.0.1:3000/akreditasi
 ```
-
-Buka http://localhost:8501 (atau port yang ditampilkan terminal).
 
 ## Fase 2 — pipeline data live
 
@@ -182,4 +177,4 @@ Cakupan data saat ini: **18 prodi FMIPA** (termasuk MEI) dalam 20 fakultas.
 Skema sudah multi-prodi (`akreditasi_fakultas` → `akreditasi_prodi`), jadi prodi
 lain bisa ditambah tanpa perubahan struktur.
 
-Detail alur lengkap: lihat `PIPELINE.md`. Detail isi dashboard: lihat `DASHBOARD.md`.
+Detail alur lengkap: lihat `PIPELINE.md`.

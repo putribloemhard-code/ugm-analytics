@@ -1,7 +1,7 @@
 """Potongan SQL yang berbeda antar dialek (PostgreSQL vs MySQL vs SQLite).
 
-API ditulis untuk PostgreSQL, sedangkan pratinjau lokal memakai MySQL yang sama dengan dashboard
-Streamlit, dan uji memakai SQLite. Helper ini menjaga perilaku identik di ketiganya.
+API ditulis untuk PostgreSQL, sedangkan mode lokal (web/dev_api_mysql.py) memakai MySQL
+hasil pipeline, dan uji memakai SQLite. Helper ini menjaga perilaku identik di ketiganya.
 """
 from __future__ import annotations
 

@@ -7,10 +7,10 @@ merangkai angka yang SUDAH dihitung pandas (lihat scripts/narasi_logic.py --
 satu sumber kebenaran yang sama dipakai dashboard) jadi satu paragraf narasi
 -- bukan diminta menghitung atau mengarang angka sendiri.
 
-Cache ini hanya representatif untuk kondisi filter DEFAULT di dashboard
-(semua tahun/tema/sumber/pilar/SDG). Begitu user mengubah filter, dashboard
-otomatis balik pakai narasi template pandas (selalu akurat untuk filter
-apa pun) -- lihat narasi_llm_atau_fallback() di dashboard_berita_dampak.py.
+Cache ini hanya representatif untuk kondisi filter DEFAULT (semua
+tahun/tema/sumber/pilar/SDG); untuk filter lain yang benar selalu narasi
+template pandas. Pembaca cache: API web (api/app/services/story.py,
+_narasi_llm_aktif) -- aturan filter default sama dengan dashboard Streamlit lama.
 
 Kalau OPENAI_API_KEY belum diisi di .env, package openai belum terinstall,
 atau panggilan API gagal (down/quota habis), script ini SELALU skip dengan
@@ -119,7 +119,7 @@ def main() -> None:
         return
 
     # Rentang tahun default HARUS sama persis dengan tahun_opsi dashboard
-    # (dashboard_berita_dampak.py: tahun_opsi = sorted(berita["tanggal"]...)),
+    # (dashboard Streamlit lama: tahun_opsi = sorted(berita["tanggal"]...)),
     # supaya narasi cache ini cocok dgn posisi slider default di sidebar.
     tahun_opsi = sorted(berita["tanggal"].dropna().str[:4].unique())
     if not tahun_opsi:

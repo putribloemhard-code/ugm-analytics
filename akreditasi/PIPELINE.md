@@ -18,7 +18,7 @@ scripts/registry_kebutuhan_data.py   # 1. Satu sumber kebenaran: 49 item data
 scripts/migrasi_tabel_akreditasi.py  # 2. Sekali jalan: bikin tabel MySQL
                                       #    akreditasi_data_manual (idempoten)
         ↓
-dashboard_akreditasi.py              # 3. Isi data manual lewat form per item
+web /akreditasi (API workspace)      # 3. Isi data manual lewat form per item
         ↓ (tulis)
 akreditasi_data_manual (MySQL)       # 4. Penyimpanan (skema "long"/EAV, lihat README.md)
         ↓ (baca)
@@ -146,9 +146,10 @@ Catatan: `mysql` CLI tidak ada di PATH mesin dev — query manual pakai
   memindahkan 2.292 baris isian lama (yang berasal dari PDF) ke
   `akreditasi_data_manual_arsip_pdf`, supaya `akreditasi_data_manual` bersih
   (murni data baru: 118 baris / 14 item per 2026-09-19).
-- **Dua lokasi upload berbeda**: jalur Streamlit menulis ke
-  `akreditasi/data/uploads/<prodi_id>/`, jalur API menulis ke
-  `ACCREDITATION_UPLOAD_DIR` (di container: `runtime/accreditation-uploads`).
-  Jangan menganggap keduanya satu folder saat mendeploy.
+- **Lokasi upload & laporan**: API menulis ke `ACCREDITATION_UPLOAD_DIR` /
+  `ACCREDITATION_GENERATED_DIR`. Lokal (`web/dev_api_mysql.py`) default-nya
+  `akreditasi/data/uploads/` dan `akreditasi/data/generated/` (sama dengan
+  Streamlit dulu); di container `runtime/accreditation-uploads` /
+  `runtime/accreditation-generated`.
 - **Ekstraksi = preview**: hasil ekstraksi TIDAK langsung masuk data manual;
   user harus review & klik Simpan (237 baris preview menunggu per 2026-09-19).

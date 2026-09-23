@@ -61,6 +61,7 @@ services:
       POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB belum diisi di deploy/.env}"
       API_CORS_ORIGINS: "${PUBLIC_ORIGIN:?PUBLIC_ORIGIN belum diisi di deploy/.env}"
       ACCREDITATION_UPLOAD_DIR: /app/data/accreditation/uploads
+      ACCREDITATION_GENERATED_DIR: /app/data/accreditation/generated
       # Untuk migrate_mysql_to_postgres.py yang dijalankan via `docker compose run`:
       # api wajib tahu kredensial sumber MySQL, bukan cuma target Postgres.
       SOURCE_MYSQL_HOST: mysql-reader
@@ -68,8 +69,15 @@ services:
       SOURCE_MYSQL_DB: "${SOURCE_MYSQL_DB:?SOURCE_MYSQL_DB belum diisi di deploy/.env}"
       SOURCE_MYSQL_USER: "${SOURCE_MYSQL_USER:?SOURCE_MYSQL_USER belum diisi di deploy/.env}"
       SOURCE_MYSQL_PASSWORD: "${SOURCE_MYSQL_PASSWORD:?SOURCE_MYSQL_PASSWORD belum diisi di deploy/.env}"
+    # Ekstraksi AI dokumen akreditasi (opsional): isi deploy/openai.env (contoh: openai.env.example).
+    # Sengaja lewat env_file, bukan ${VAR}: semua ${VAR} di file ini WAJIB terisi, sedangkan fitur
+    # ini boleh mati -- tanpa file itu tombol "Ekstrak data" nonaktif. Butuh Docker Compose >= 2.24.
+    env_file:
+      - path: ./openai.env
+        required: false
     volumes:
       - ../runtime/accreditation-uploads:/app/data/accreditation/uploads
+      - ../runtime/accreditation-generated:/app/data/accreditation/generated
     depends_on:
       postgres:
         condition: service_healthy

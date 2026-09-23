@@ -7,6 +7,11 @@ berubah): SETIAP item registry di dokumen masing-masing selalu punya
 section/tabel, bahkan kalau datanya belum ada -- ditandai placeholder italic
 "Data belum tersedia" (bukan section yang dihilangkan), supaya dokumen tetap
 berfungsi sebagai template lengkap yang tinggal dilengkapi tim penyusun.
+
+build_led_docx()/build_lkps_docx() menerima DataFrame data_manual yang sudah
+dimuat pemanggil (API FastAPI memuatnya dengan SQL portabel MySQL/PostgreSQL),
+jadi modul ini tidak wajib menyentuh `db` (koneksi MySQL skrip). `db` hanya
+diimpor malas oleh generate_*_docx() untuk pemakaian CLI.
 """
 
 import sys
@@ -21,7 +26,6 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt, RGBColor
 
-import db  # noqa: E402
 from registry_kebutuhan_data import (  # noqa: E402
     KEBUTUHAN_DATA,
     LABEL_BAGIAN_LKPS,
@@ -41,6 +45,8 @@ def _load_data_manual(engine, prodi_id: str = "mei") -> pd.DataFrame:
     """`prodi_id` WAJIB di-filter (2026-09-11, lihat scripts/migrasi_prodi_id.py)
     -- tabel data_manual sekarang multi-tenant, tanpa filter ini dokumen yang
     digenerate akan mencampur data semua prodi jadi satu."""
+    import db  # malas: lihat docstring modul
+
     if not db.table_exists(engine, db.t("data_manual")):
         return pd.DataFrame(columns=["item_id", "baris_ke", "kolom", "tahun", "nilai", "link_bukti"])
     return db.read_sql_retry(
@@ -201,11 +207,17 @@ def _add_cuplikan_lkps(doc: Document, kriteria: str, filled_ids: set) -> None:
 
 
 def generate_led_docx(engine=None, prodi_id: str = "mei") -> bytes:
+    """Muat data_manual lewat `db` (MySQL skrip) lalu bangun dokumen LED -- untuk CLI."""
+    import db  # malas: lihat docstring modul
+
+    return build_led_docx(_load_data_manual(engine or db.get_engine(), prodi_id))
+
+
+def build_led_docx(df_manual: pd.DataFrame) -> bytes:
     """Dokumen "Laporan Evaluasi Diri (LED)" -- isi per Kriteria (Umum/A/B/C1-C6/D),
     lihat led_items_by_kriteria(). Kriteria A/B/C1-C6 ditutup sub-tabel ringkas
-    tabel LKPS terkait (cuplikan, bukan isi penuh)."""
-    engine = engine or db.get_engine()
-    df_manual = _load_data_manual(engine, prodi_id)
+    tabel LKPS terkait (cuplikan, bukan isi penuh). `df_manual` = baris
+    akreditasi_data_manual SATU prodi (kolom item_id, baris_ke, kolom, nilai, link_bukti)."""
     filled_ids = set(df_manual["item_id"].unique()) if len(df_manual) else set()
     grouped = led_items_by_kriteria()
     item_ids = [item["id"] for items in grouped.values() for item in items]
@@ -231,11 +243,16 @@ def generate_led_docx(engine=None, prodi_id: str = "mei") -> bytes:
 
 
 def generate_lkps_docx(engine=None, prodi_id: str = "mei") -> bytes:
+    """Muat data_manual lewat `db` (MySQL skrip) lalu bangun dokumen LKPS -- untuk CLI."""
+    import db  # malas: lihat docstring modul
+
+    return build_lkps_docx(_load_data_manual(engine or db.get_engine(), prodi_id))
+
+
+def build_lkps_docx(df_manual: pd.DataFrame) -> bytes:
     """Dokumen "Laporan Kinerja Program Studi (LKPS)" -- isi per Bagian 1-6,
     lihat lkps_items_by_bagian(). Rendering tabel sama persis seperti
     sebelumnya, cuma dikelompok ulang per Bagian bukan per Kriteria."""
-    engine = engine or db.get_engine()
-    df_manual = _load_data_manual(engine, prodi_id)
     filled_ids = set(df_manual["item_id"].unique()) if len(df_manual) else set()
     grouped = lkps_items_by_bagian()
     item_ids = [item["id"] for items in grouped.values() for item in items]

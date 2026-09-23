@@ -162,13 +162,9 @@ ringkasan/agregat tetap full-replace (`to_sql(if_exists="replace")`) tiap run.
    lalu fetch_gagal_count).
 
 7. **Output**
-   - `dashboard_berita_dampak.py` — Streamlit interaktif dengan filter global
-     (tahun, tema, sumber). Bagian: ringkasan, distribusi per tema,
-     peta Tema Resmi Kepmen & klaster SDGs (bar + heatmap tema×SDG),
-     heatmap tema×tahun, tren tahunan, tren bulanan (musiman),
-     cakupan vs total berita UGM (baseline sitemap), breakdown keyword match,
-     multi-tema, word frequency per tema, daftar berita (dengan kolom
-     Tema Kepmen & SDG), cek manual.
+   - Web interaktif (`web/` + `api/`, jalankan `jalankan_web_baru.bat` dari root) —
+     menggantikan dashboard Streamlit yang dihapus 2026-09-23. Endpoint utama
+     `GET /api/v1/analytics/story` membaca tabel `berita_*` hasil pipeline ini.
    - `scripts/laporan_static.py` → `laporan_berita_dampak.html`
      (plotly write_html, JS inline — render tanpa internet)
 
@@ -185,7 +181,6 @@ ringkasan/agregat tetap full-replace (`to_sql(if_exists="replace")`) tiap run.
 ../venv/Scripts/python.exe scripts/tag_sdg_langsung.py  # mode "SDGs saja"
 ../venv/Scripts/python.exe scripts/generate_narasi_llm.py  # opsional, butuh OPENAI_API_KEY
 ../venv/Scripts/python.exe scripts/laporan_static.py
-streamlit run dashboard_berita_dampak.py
 ```
 
 Atau jalankan semuanya sekaligus (urutan sudah benar, dengan lock file):

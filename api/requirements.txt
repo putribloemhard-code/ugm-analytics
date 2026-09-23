@@ -8,3 +8,7 @@ psycopg[binary]>=3.2,<4
 uvicorn[standard]>=0.30,<1
 bcrypt>=4.2,<6
 python-multipart>=0.0.9,<1
+# Ekstraksi AI dokumen akreditasi (akreditasi/scripts/ekstraksi_akreditasi.py)
+openai>=1.40,<4
+pymupdf>=1.24,<2
+openpyxl>=3.1,<4

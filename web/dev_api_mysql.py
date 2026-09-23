@@ -1,16 +1,18 @@
-"""Jalankan API FastAPI (api/) terhadap MySQL lokal -- HANYA untuk pratinjau di laptop.
+"""Jalankan API FastAPI (api/) terhadap MySQL lokal -- mode kerja lokal di laptop.
 
-API di api/ dibuat untuk PostgreSQL (lihat api/app/db.py), sedangkan data dashboard
-Streamlit ada di MySQL (.env di root repo: MYSQL_HOST/PORT/USER/PASSWORD/DB). Skrip ini
-mengganti engine-nya ke MySQL tanpa mengubah kode api/, supaya web React baru bisa
-dilihat dengan data yang sama dengan Streamlit.
+API di api/ dibuat untuk PostgreSQL (lihat api/app/db.py), sedangkan data lokal (hasil
+pipeline berita-dampak & akreditasi) ada di MySQL (.env di root repo:
+MYSQL_HOST/PORT/USER/PASSWORD/DB). Skrip ini mengganti engine-nya ke MySQL tanpa mengubah
+kode api/. Dipanggil oleh jalankan_web_baru.bat.
 
-Batasan: jalur analitik (Dampak, Dampak x SDGs, SDGs, berita, laporan Word), login, dan
-REGISTRASI akun (akreditasi + Analisis Dampak) memakai SQL standar dan sudah terbukti jalan di
-MySQL. Perbaikan 2026-09-22: `dampak_auth.ensure_schema` dulu memakai `CREATE INDEX IF NOT
-EXISTS` (khusus Postgres) sehingga registrasi/login Analisis Dampak gagal 500 di MySQL.
-Unggah file akreditasi menulis ke `ACCREDITATION_UPLOAD_DIR` (default `/app/data/...`) yang di
-laptop menjadi `D:\app\data\...` -- set env itu kalau ingin berkasnya rapi.
+Semua fitur memakai SQL standar dan jalan di MySQL: analitik (Dampak, Dampak x SDGs, SDGs,
+berita, laporan Word), login & registrasi (akreditasi + Analisis Dampak), serta ruang kerja
+akreditasi (isi data, upload, ekstraksi AI, generate Word).
+
+File unggahan & laporan Word akreditasi disimpan di akreditasi/data/uploads dan
+akreditasi/data/generated (folder yang dipakai dashboard Streamlit dulu, jadi file & riwayat
+lama tetap bisa dibuka) -- kecuali ACCREDITATION_UPLOAD_DIR / ACCREDITATION_GENERATED_DIR
+di-set. Ekstraksi AI aktif kalau OPENAI_API_KEY ada di .env.
 
 Jangan dipakai di server/produksi.
 """
@@ -30,6 +32,8 @@ from sqlalchemy import URL, create_engine
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
+os.environ.setdefault("ACCREDITATION_UPLOAD_DIR", str(ROOT / "akreditasi" / "data" / "uploads"))
+os.environ.setdefault("ACCREDITATION_GENERATED_DIR", str(ROOT / "akreditasi" / "data" / "generated"))
 sys.path.insert(0, str(ROOT / "api"))
 
 REQUIRED = ("MYSQL_HOST", "MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DB")

@@ -2,10 +2,13 @@
 
 Alur: 1 file -> extract teks (PyMuPDF/python-docx/openpyxl) -> panggilan
 Luna PER BATCH kecil item registry yang relevan (LED atau LKPS, sesuai
-mode dokumen) -> parse JSON -> simpan ke akreditasi_upload_ekstraksi
-(BUKAN akreditasi_data_manual -- itu baru diisi setelah user review &
-klik Simpan, lihat konfirmasi_ekstraksi() di bawah dan kebijakan
-registry_kebutuhan_data.py poin 7).
+mode dokumen) -> parse JSON -> daftar baris (item_id, baris_ke, nama_kolom,
+nilai, kutipan). Modul ini MURNI (tanpa DB/UI): penyimpanan ke
+akreditasi_upload_ekstraksi, klaim status file, deteksi konflik, dan
+konfirmasi setelah review ada di API
+(api/app/services/accreditation_workspace.py). Hasil ekstraksi tetap
+PREVIEW -- baru masuk akreditasi_data_manual setelah user review & klik
+Simpan (kebijakan registry_kebutuhan_data.py poin 7).
 
 CATATAN PENTING (2026-09-16) -- KENAPA PER BATCH, BUKAN 1 PANGGILAN UTK
 SEMUA ITEM SEKALIGUS: awalnya dicoba 1 panggilan berisi semua 25 item LED
@@ -35,17 +38,13 @@ import json
 import re
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import pandas as pd
-import streamlit as st
 from dotenv import load_dotenv
-from sqlalchemy import text
 
-import db  # noqa: E402
 from registry_kebutuhan_data import KEBUTUHAN_DATA, led_items_by_kriteria, lkps_items_by_bagian  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -103,7 +102,7 @@ def _items_untuk_mode(mode: str) -> list[dict]:
 
 
 def _extract_text_pdf(path: str) -> str:
-    import fitz
+    import pymupdf as fitz  # nama modul "fitz" sudah deprecated
     doc = fitz.open(path)
     return "".join(page.get_text() for page in doc)
 
@@ -215,71 +214,39 @@ def _call_llm_batch(client, document_text: str, items: list[dict]) -> tuple[dict
     raise RuntimeError(f"Batch gagal setelah {_MAX_RETRY_PER_BATCH}x percobaan: {last_err}")
 
 
-def _klaim_untuk_ekstraksi(engine, upload_file_id: int) -> bool:
-    """Klaim atomik status "belum_diekstrak" -> "sedang_diekstrak" (UPDATE ...
-    WHERE status='belum_diekstrak', cek rowcount) supaya 2 proses yang
-    memicu ekstraksi bersamaan utk file yang SAMA (mis. dua tab/sesi browser,
-    atau tombol UI diklik 2x sebelum rerun pertama update status) tidak
-    dobel-insert baris ekstraksi identik yang nanti keliru terdeteksi
-    deteksi_konflik() sbg "2 nilai beda dari file berbeda" (ditemukan
-    2026-09-16 -- 2 proses sempat jalan bersamaan, hasil LLM sedikit beda
-    krn non-determinisme, jadi lolos cek nunique(nilai) > 1 walau sumbernya
-    cuma 1 file yang sama)."""
-    def _try():
-        with engine.begin() as conn:
-            result = conn.execute(
-                text(
-                    f"UPDATE `{db.t('upload_file')}` SET status = 'sedang_diekstrak' "
-                    "WHERE id = :id AND status = 'belum_diekstrak'"
-                ),
-                {"id": upload_file_id},
-            )
-            return result.rowcount
-    ok, rowcount = db.with_retry(_try, label=f"klaim ekstraksi upload {upload_file_id}")
-    return bool(ok and rowcount == 1)
-
-
-def ekstrak_file(upload_file_id: int, path_lokal: str, tipe_file: str, prodi_id: str,
-                  mode: str, progress_callback=None) -> dict:
-    """Jalankan ekstraksi utk 1 file yang sudah diupload, PER BATCH kecil
-    item (lihat catatan gateway timeout di docstring modul) -- teks dokumen
-    yang sama dikirim ulang tiap batch (tidak terhindarkan, API stateless),
-    tapi jumlah panggilan otomatis & ada retry per-batch. Hasil (kolom yang
-    nilainya ditemukan SAJA -- null tidak disimpan, lihat instruksi Tahap 3
-    poin 4) disimpan ke akreditasi_upload_ekstraksi, update status file.
+def ekstrak_dokumen(path_lokal: str, tipe_file: str, mode: str,
+                    progress_callback=None, client=None) -> tuple[list[dict], dict]:
+    """Ekstraksi 1 file PER BATCH kecil item (lihat catatan gateway timeout di
+    docstring modul) -- teks dokumen yang sama dikirim ulang tiap batch (tidak
+    terhindarkan, API stateless), tapi jumlah panggilan otomatis & ada retry
+    per-batch. Hanya kolom yang nilainya DITEMUKAN yang dikembalikan (null
+    dibuang, lihat instruksi Tahap 3 poin 4).
 
     `progress_callback(batch_ke, total_batch)` opsional, dipanggil sebelum
-    tiap batch -- dipakai UI utk tampilkan progress bar (proses ini bisa
-    makan beberapa menit utk dokumen dgn banyak item).
+    tiap batch. `client` opsional (default klien OpenAI dari .env) --
+    disuntikkan oleh uji.
 
-    Return dict ringkasan: {n_item_ditemukan, n_kolom_terisi, n_batch,
-    n_batch_gagal, waktu_ekstraksi_teks, waktu_llm_total, error}."""
-    engine = db.get_engine()
+    Return (baris, ringkasan). baris = list dict {item_id, baris_ke,
+    nama_kolom, nilai, kutipan}; ringkasan = {n_item_ditemukan,
+    n_kolom_terisi, n_batch, n_batch_gagal, waktu_ekstraksi_teks,
+    waktu_llm_total, error}. Gagal baca teks -> baris kosong + error, TIDAK
+    melempar exception."""
     ringkasan = {"n_item_ditemukan": 0, "n_kolom_terisi": 0, "n_batch": 0, "n_batch_gagal": 0,
                  "waktu_ekstraksi_teks": 0.0, "waktu_llm_total": 0.0, "error": None}
-
-    if not _klaim_untuk_ekstraksi(engine, upload_file_id):
-        ringkasan["error"] = (
-            "File ini sedang/sudah diekstrak proses lain -- dilewati supaya tidak dobel."
-        )
-        return ringkasan
-
     t0 = time.time()
     try:
         text_doc = extract_text(path_lokal, tipe_file)
     except Exception as e:  # noqa: BLE001
         ringkasan["error"] = f"Gagal ekstrak teks file: {e}"
-        _set_status(engine, upload_file_id, "gagal_ekstrak")
-        return ringkasan
+        return [], ringkasan
     ringkasan["waktu_ekstraksi_teks"] = time.time() - t0
 
     items = _items_untuk_mode(mode)
     batches = [items[i:i + _BATCH_SIZE] for i in range(0, len(items), _BATCH_SIZE)]
     ringkasan["n_batch"] = len(batches)
-    client = _get_client()
+    client = client or _get_client()
 
-    now = datetime.now()
-    rows_to_insert = []
+    baris_hasil: list[dict] = []
     item_ids_ditemukan: set[str] = set()
     batch_errors = []
     for i, batch_items in enumerate(batches, start=1):
@@ -304,121 +271,15 @@ def ekstrak_file(upload_file_id: int, path_lokal: str, tipe_file: str, prodi_id:
                         continue
                     item_ids_ditemukan.add(item_id)
                     ringkasan["n_kolom_terisi"] += 1
-                    rows_to_insert.append({
-                        "upload_file_id": upload_file_id,
-                        "prodi_id": prodi_id,
+                    baris_hasil.append({
                         "item_id": item_id,
                         "baris_ke": baris_ke,
                         "nama_kolom": kolom.get("nama_kolom", ""),
                         "nilai": str(nilai),
                         "kutipan": kolom.get("kutipan"),
-                        "created_at": now,
                     })
 
     ringkasan["n_item_ditemukan"] = len(item_ids_ditemukan)
     if batch_errors:
         ringkasan["error"] = "; ".join(batch_errors)
-
-    def _insert():
-        with engine.begin() as conn:
-            if rows_to_insert:
-                conn.execute(
-                    text(
-                        f"INSERT INTO `{db.t('upload_ekstraksi')}` "
-                        "(upload_file_id, prodi_id, item_id, baris_ke, nama_kolom, nilai, "
-                        "kutipan, created_at) "
-                        "VALUES (:upload_file_id, :prodi_id, :item_id, :baris_ke, :nama_kolom, "
-                        ":nilai, :kutipan, :created_at)"
-                    ),
-                    rows_to_insert,
-                )
-
-    ok, _ = db.with_retry(_insert, label=f"simpan ekstraksi upload {upload_file_id}")
-    if not ok:
-        ringkasan["error"] = ((ringkasan["error"] + "; ") if ringkasan["error"] else "") + \
-            "Gagal menyimpan hasil ekstraksi ke MySQL."
-        _set_status(engine, upload_file_id, "gagal_ekstrak")
-        return ringkasan
-
-    # Status "gagal_ekstrak" cuma kalau SEMUA batch gagal (tidak ada satu pun
-    # kolom berhasil diekstrak) -- kalau sebagian batch gagal tapi sebagian
-    # berhasil, tetap "diekstrak" (parsial), error tercatat di ringkasan
-    # supaya UI bisa kasih tau user bagian mana yang perlu diulang.
-    status_akhir = "diekstrak" if rows_to_insert or ringkasan["n_batch_gagal"] < ringkasan["n_batch"] else "gagal_ekstrak"
-    _set_status(engine, upload_file_id, status_akhir)
-    return ringkasan
-
-
-def _set_status(engine, upload_file_id: int, status: str) -> None:
-    def _update():
-        with engine.begin() as conn:
-            conn.execute(
-                text(
-                    f"UPDATE `{db.t('upload_file')}` SET status = :status, diekstrak_at = :ts "
-                    "WHERE id = :id"
-                ),
-                {"status": status, "ts": datetime.now(), "id": upload_file_id},
-            )
-    db.with_retry(_update, label=f"update status upload {upload_file_id}")
-
-
-@st.cache_data(ttl=10)
-def load_pending_ekstraksi(prodi_id: str) -> pd.DataFrame:
-    """Semua baris ekstraksi yang BELUM dikonfirmasi user, join nama file
-    sumbernya -- dipakai render_pending_ekstraksi_utk_item() di bawah."""
-    engine = db.get_engine()
-    if not db.table_exists(engine, db.t("upload_ekstraksi")):
-        return pd.DataFrame(columns=["id", "upload_file_id", "item_id", "baris_ke", "nama_kolom",
-                                      "nilai", "kutipan", "nama_file"])
-    return db.read_sql_retry(
-        engine,
-        f"SELECT e.id, e.upload_file_id, e.item_id, e.baris_ke, e.nama_kolom, e.nilai, "
-        f"e.kutipan, f.nama_file "
-        f"FROM `{db.t('upload_ekstraksi')}` e "
-        f"JOIN `{db.t('upload_file')}` f ON f.id = e.upload_file_id "
-        f"WHERE e.prodi_id = :prodi_id AND e.dikonfirmasi_at IS NULL "
-        f"ORDER BY e.item_id, e.baris_ke, e.nama_kolom",
-        label="load pending ekstraksi", params={"prodi_id": prodi_id},
-    )
-
-
-def pending_untuk_item(prodi_id: str, item_id: str) -> pd.DataFrame:
-    df = load_pending_ekstraksi(prodi_id)
-    return df[df["item_id"] == item_id]
-
-
-def deteksi_konflik(df: pd.DataFrame) -> pd.DataFrame:
-    """Tandai (item_id, baris_ke, nama_kolom) yang punya >1 nilai BEDA dari
-    file berbeda -- return df + kolom boolean 'konflik'. Boleh dipanggil ke
-    seluruh pending (semua item sekaligus) atau ke slice satu item."""
-    if not len(df):
-        return df.assign(konflik=pd.Series(dtype=bool))
-    n_unik = df.groupby(["item_id", "baris_ke", "nama_kolom"])["nilai"].transform("nunique")
-    return df.assign(konflik=n_unik > 1)
-
-
-def konfirmasi_ekstraksi(prodi_id: str, item_id: str, ekstraksi_ids: list[int]) -> None:
-    """Tandai baris-baris ekstraksi (yang sudah diproses/dipilih user lewat
-    form, entah dipakai atau tidak) sebagai selesai di-review supaya tidak
-    muncul lagi sbg pending -- dipanggil SETELAH _render_item_form menyimpan
-    ke akreditasi_data_manual (lihat wiring di page_akreditasi.py)."""
-    if not ekstraksi_ids:
-        return
-    engine = db.get_engine()
-    now = datetime.now()
-
-    def _update():
-        with engine.begin() as conn:
-            placeholders = ", ".join(f":id{i}" for i in range(len(ekstraksi_ids)))
-            params = {f"id{i}": v for i, v in enumerate(ekstraksi_ids)}
-            params["ts"] = now
-            conn.execute(
-                text(
-                    f"UPDATE `{db.t('upload_ekstraksi')}` SET dikonfirmasi_at = :ts "
-                    f"WHERE id IN ({placeholders})"
-                ),
-                params,
-            )
-
-    db.with_retry(_update, label=f"konfirmasi ekstraksi item {item_id}")
-    load_pending_ekstraksi.clear()
+    return baris_hasil, ringkasan

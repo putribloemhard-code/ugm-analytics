@@ -33,9 +33,7 @@ Database: **MySQL** (bukan DuckDB lagi — migrasi penuh selesai; lihat
 | `scripts/update_mingguan.py` | Update berkala: jalankan pipeline lengkap (sitemap → RSS → fetch → normalisasi → tagging → narasi → laporan) |
 | `scripts/count_berita.py` | Helper kecil: cetak jumlah baris `berita_berita` (dipakai `update_mingguan.sh`) |
 | `scripts/ocr_kepmen.py` | OCR PDF Kepmen 361 (scan) → `docs/kepmen_361_ocr.txt` |
-| `dashboard_berita_dampak.py` | Dashboard Streamlit interaktif (filter sidebar: tahun, 14 tema, sumber, pilar) |
 | `laporan_berita_dampak.html` | Laporan statis — buka di browser, render tanpa internet |
-| `DASHBOARD.md` | Penjelasan isi dashboard + cara membaca hasil |
 | `PIPELINE.md` | Dokumentasi alur + perintah run |
 
 `tag_kepmen_berita.py` dan `tag_kepmen_lengkap.py` (legacy, sudah digantikan
@@ -43,48 +41,21 @@ Database: **MySQL** (bukan DuckDB lagi — migrasi penuh selesai; lihat
 DuckDB→MySQL, sudah tidak relevan setelah migrasi penuh) sudah **dihapus** dari
 folder ini.
 
-## Struktur dashboard (multipage sejak 2026-09-06)
+## Tampilan
 
-`dashboard_berita_dampak.py` sekarang hanya **shell navigasi** (78 baris). Isi tiap
-halaman dipisah supaya tiap file kecil dan mudah diedit:
+Tampilan interaktif: web React + API (`web/`, `api/`), dijalankan lokal dengan `jalankan_web_baru.bat` di root repo → http://127.0.0.1:3000/dampak. Dashboard Streamlit dihapus 2026-09-23 (riwayat di git). API membaca tabel `berita_*` hasil pipeline ini dan memuat
+`scripts/kepmen_sdg.py`, `unit_kerja.py`, `keywords.py`, `narasi_logic.py`, `sdg_keywords.py`
+langsung (lihat README root) — jangan pindahkan file-file itu.
 
-| Halaman | File | Isi |
-|---|---|---|
-| Beranda | `pages_app/beranda.py` | ringkasan lintas halaman + kartu shortcut |
-| Dampak | `pages_app/dampak_saja.py` → `page_dampak.py` | mode "Berdampak" (pilar + 14 tema) |
-| Dampak × SDGs | `pages_app/dampak_sdgs.py` → `page_dampak.py` | mode penuh (pilar + tema + klaster SDG) |
-| SDGs | `pages_app/sdgs.py` → `page_sdgs.py` | mode "SDGs saja" (17 SDG, tanpa tema) |
-| Akreditasi | `pages_app/akreditasi.py` → `page_akreditasi.py` | kelengkapan LED/LKPS + upload |
-| Admin | `pages_app/admin.py` → `page_admin.py` | status data/update |
-| Profil | `pages_app/profil.py` → `page_profil.py` | info proyek |
-
-File pendukung: `common.py` (header/style/tema), `data_loader.py` (load data bersama),
-`pencarian.py` (pencarian bebas → rute + filter), `laporan_word.py` (ekspor .docx).
-`page_dampak.py` adalah file terbesar (~1.460 baris) — di dalamnya urutan bagian
-mengikuti urutan blok `st.subheader(...)`.
-
-**Mengubah tampilan:** buka file halaman yang relevan di VS Code, simpan, lalu
-restart Streamlit (Ctrl+C di terminal, jalankan ulang perintah di bawah).
-
-Tips umum:
-- Warna chart diatur per-`fig` (`color_discrete_sequence` / `marker_color`) — cari `px.`.
-- Teks/emoji label tinggal ganti string di `st.title`, `st.subheader`, `st.caption`.
-- Tiap chart wajib punya caption `💡 penjelasan(...)` + tooltip `hover_keterangan()`
-  (helper ada di `dashboard_berita_dampak.py`, sebelum `st.set_page_config`).
-- `width="stretch"` membuat chart selebar layar; ganti ke angka tetap kalau mau sempit.
 - Jangan me-rename identifier/kolom DB (mis. `topik` → `tema`) — hanya teks yang
-  tampil memakai istilah "tema"; nama tabel/kolom tetap `topik`.
+  tampil memakai istilah "tema"; nama tabel/kolom tetap `topik` (API ikut membacanya).
+- Laporan statis `laporan_berita_dampak.html` dihasilkan dari `scripts/laporan_static.py`
+  — isi chart-nya diset di situ, bukan di file HTML (jangan diedit manual, nanti
+  tertimpa saat regenerate).
 
-Laporan statis `laporan_berita_dampak.html` dihasilkan dari `scripts/laporan_static.py`
-— isi chart-nya diset di situ, bukan di file HTML (file HTML jangan diedit manual,
-nanti tertimpa saat regenerate).
+## Menjalankan tampilan
 
-## Menjalankan dashboard
-
-```bash
-cd D:\ugm-analytics\berita-dampak
-..\venv\Scripts\streamlit run dashboard_berita_dampak.py
-```
+Dari root repo: `jalankan_web_baru.bat` (API :8000 + web :3000).
 
 ## Menjalankan laporan statis
 
@@ -97,11 +68,11 @@ jadi chart tetap tampil walau offline.
 
 ## Update data berkala
 
-Data diambil dari ugm.ac.id (RSS + sitemap). Dua cara update:
+Data diambil dari ugm.ac.id (RSS + sitemap). Seluruh pipeline (sitemap → RSS →
+fetch detail baru → normalisasi → tagging → laporan) dijalankan lewat:
 
-1. **Tombol di dashboard** — sidebar → "🔄 Update Berita Terbaru". Menjalankan
-   seluruh pipeline (sitemap → RSS → fetch detail baru → normalisasi → tagging
-   → laporan), lalu dashboard reload sendiri. Butuh internet + beberapa menit.
+1. **Tombol di web** — `/admin` → panel "Update data" (khusus admin akreditasi). Berjalan di
+   latar ±10 menit, status + log tampil di panel (log: `logs_update_dashboard.txt`).
 2. **Cron mingguan** — otomatis setiap Sabtu 06:00 (job Hermes `update_berita_dampak.sh`
    → `scripts/update_mingguan.sh` → `scripts/update_mingguan.py`). Jalankan
    manual kapan saja:
@@ -144,4 +115,4 @@ hasil hitung ulang dari nol setiap kali, bukan data yang diakumulasi.
   & "#Ref"); dokumen resmi: `../sumber/Salinan_Kepmen_361_M_KEP_2025_Indikator_Dampak.pdf`
   dan `../sumber/Buku_IKU_Diktisaintek_Berdampak_V1.pdf`.
 
-Detail alur lengkap: lihat `PIPELINE.md`. Detail isi dashboard: lihat `DASHBOARD.md`.
+Detail alur lengkap: lihat `PIPELINE.md`.

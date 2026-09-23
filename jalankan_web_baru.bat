@@ -1,27 +1,30 @@
 @echo off
 REM ============================================================
-REM  Pratinjau LOKAL tampilan web baru (React) dengan data MySQL
-REM  yang sama dengan dashboard Streamlit.
+REM  Menjalankan UGM Analytics secara LOKAL (satu-satunya cara
+REM  sejak dashboard Streamlit dihapus 2026-09-23).
 REM
 REM  Membuka 2 jendela:
 REM    - API  (FastAPI ke MySQL lokal dari .env)  http://127.0.0.1:8000
 REM    - Web  (Vite dev server)                   http://127.0.0.1:3000
-REM  Dashboard Streamlit tetap di http://localhost:8766 (jalankan
-REM  seperti biasa) -- keduanya bisa dibuka berdampingan.
 REM
-REM  Prasyarat: Node.js dan Python.
-REM  Catatan: registrasi akun & upload akreditasi tidak jalan di mode
-REM  ini (butuh Postgres); buat akun lewat Streamlit. Lihat
+REM  Semua fitur jalan di mode ini: Analisis Dampak, login &
+REM  registrasi, serta Akreditasi (isi data, upload, ekstraksi AI
+REM  kalau OPENAI_API_KEY ada di .env, generate Word). File upload &
+REM  laporan Word tersimpan di akreditasi\data\. Lihat
 REM  web\dev_api_mysql.py.
+REM
+REM  Prasyarat: Node.js, Python, dan servis MySQL80.
 REM  Tutup kedua jendela untuk berhenti.
 REM ============================================================
 cd /d "%~dp0"
 
 if not exist ".venv\Scripts\python.exe" (
-  echo [1/4] Membuat lingkungan Python terpisah .venv dan memasang dependency API...
+  echo [1/4] Membuat lingkungan Python terpisah .venv...
   python -m venv .venv || goto :gagal
-  ".venv\Scripts\python.exe" -m pip install -r api\requirements.txt || goto :gagal
 )
+REM Selalu dicek (cepat bila sudah lengkap): .venv lama tetap dapat dependency baru.
+echo [1/4] Memastikan dependency API terpasang...
+".venv\Scripts\python.exe" -m pip install -q -r api\requirements.txt || goto :gagal
 if not exist "web\node_modules" (
   echo [2/4] Memasang dependency web...
   pushd web

@@ -8,10 +8,10 @@ Tabel yang dibuat:
 - akreditasi_upload_file: metadata file yang diupload user lewat halaman
   Akreditasi (PDF/Word/Excel) -- BUKAN isi file itu sendiri. File fisik
   disimpan di folder lokal `akreditasi/data/uploads/<prodi_id>/` (lihat
-  scripts/upload_akreditasi.py), tabel ini cuma menyimpan pointer + status
+  api/app/services/accreditation_upload.py), tabel ini cuma menyimpan pointer + status
   pipeline ekstraksi. Alasan file di folder lokal (bukan BLOB di MySQL):
-  ukuran file bisa sampai 25 MB/file (lihat .streamlit/config.toml,
-  maxUploadSize) -- BLOB besar di MySQL bikin ukuran backup/replikasi
+  ukuran file bisa sampai 25 MB/file (lihat MAX_UPLOAD_BYTES di
+  api/app/services/accreditation_upload.py) -- BLOB besar di MySQL bikin ukuran backup/replikasi
   membengkak tanpa manfaat query, sedangkan metadata (nama, path, status)
   memang perlu terstruktur & bisa di-join/filter di MySQL sepert tabel lain.
 

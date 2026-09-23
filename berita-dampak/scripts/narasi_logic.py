@@ -1,11 +1,10 @@
-"""Logika narasi dinamis (template pandas) -- dipakai dashboard DAN
-scripts/generate_narasi_llm.py.
+"""Logika narasi dinamis (template pandas) -- dipakai API web
+(api/app/services/story.py, analytics.py) DAN scripts/generate_narasi_llm.py.
 
-Satu sumber kebenaran: dashboard_berita_dampak.py dan generate_narasi_llm.py
-sama-sama import fungsi di sini, supaya angka yang dikirim ke LLM (buat
+Satu sumber kebenaran: API web dan generate_narasi_llm.py sama-sama import
+fungsi di sini, supaya angka yang dikirim ke LLM (buat
 dirangkai jadi kalimat) selalu identik dengan angka yang dipakai template
-fallback saat LLM gagal/belum jalan. Tidak ada dependency Streamlit di sini
-(cuma pandas) supaya bisa dipanggil dari script biasa di luar `streamlit run`.
+fallback saat LLM gagal/belum jalan. Cuma pandas, tanpa dependency UI.
 """
 
 from __future__ import annotations

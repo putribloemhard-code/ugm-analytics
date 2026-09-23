@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 import secrets
 from datetime import datetime, timedelta
@@ -15,6 +16,10 @@ from app.services import sqlcompat
 
 COOKIE_NAME = "akreditasi_sid"
 SESSION_AGE = timedelta(hours=12)
+# Rate limit (padanan auth_akreditasi.py lama): 5 gagal BERTURUT-TURUT dalam 15 menit -> email
+# itu dikunci sementara. Selama terkunci password tidak dicek & percobaan tidak dicatat.
+MAX_FAILED = 5
+FAILED_WINDOW = timedelta(minutes=15)
 ALLOWED_DOMAINS = {"ugm.ac.id", "mail.ugm.ac.id"}
 EMAIL_RE = re.compile(r"^[a-z0-9._%+\-]+@([a-z0-9.-]+)$")
 
@@ -40,13 +45,49 @@ def user_from_token(engine: Engine, token: str | None) -> dict[str, Any] | None:
             SELECT u.id, u.email, u.nama, u.is_admin
             FROM akreditasi_sessions s
             JOIN akreditasi_users u ON u.id = s.user_id
-            WHERE s.token_hash = :hash AND s.expires_at > :now AND u.is_blocked = 0
+            WHERE s.token_hash = :hash AND s.expires_at > :now AND u.is_blocked = FALSE
         """), {"hash": token_hash(token), "now": datetime.now()}).mappings().first()
     return dict(row) if row else None
 
 
+def lockout_seconds(conn, email: str, now: datetime | None = None) -> int | None:
+    """Detik tersisa sampai email ini boleh mencoba login lagi, atau None bila tidak terkunci.
+
+    Terkunci = MAX_FAILED percobaan TERAKHIR dalam FAILED_WINDOW semuanya gagal
+    (satu yang berhasil memutus rentetan).
+    """
+    now = now or datetime.now()
+    rows = conn.execute(text("""
+        SELECT berhasil, attempted_at FROM akreditasi_login_attempts
+        WHERE email = :email AND attempted_at >= :since
+        ORDER BY attempted_at DESC, id DESC LIMIT :n
+    """), {"email": email, "since": now - FAILED_WINDOW, "n": MAX_FAILED}).all()
+    if len(rows) < MAX_FAILED or any(bool(r.berhasil) for r in rows):
+        return None
+    oldest = rows[-1].attempted_at
+    if isinstance(oldest, str):  # SQLite (uji) mengembalikan teks
+        oldest = datetime.fromisoformat(oldest)
+    remaining = (oldest + FAILED_WINDOW - now).total_seconds()
+    return math.ceil(remaining) if remaining > 0 else None
+
+
+def record_attempt(conn, email: str, success: bool, now: datetime | None = None) -> None:
+    now = now or datetime.now()
+    conn.execute(text("""
+        INSERT INTO akreditasi_login_attempts (email, berhasil, attempted_at) VALUES (:email, :ok, :now)
+    """), {"email": email[:254], "ok": bool(success), "now": now})
+    # Rate limit hanya butuh 15 menit terakhir; buang jejak yang lebih tua dari sehari.
+    conn.execute(text("DELETE FROM akreditasi_login_attempts WHERE attempted_at < :limit"),
+                 {"limit": now - timedelta(days=1)})
+
+
 def login(engine: Engine, email: str, password: str) -> tuple[dict[str, Any] | None, str | None, str | None]:
     email = normalize_email(email)
+    with engine.connect() as conn:
+        remaining = lockout_seconds(conn, email)
+    if remaining:
+        return None, (f"Terlalu banyak percobaan login gagal untuk email ini. "
+                      f"Coba lagi dalam {math.ceil(remaining / 60)} menit."), None
     with engine.connect() as conn:
         row = conn.execute(text("""
             SELECT id, email, nama, password_hash, auth_provider, is_admin, is_blocked
@@ -54,16 +95,20 @@ def login(engine: Engine, email: str, password: str) -> tuple[dict[str, Any] | N
         """), {"email": email}).mappings().first()
     if not row:
         bcrypt.checkpw(password.encode()[:72], bcrypt.hashpw(b"dummy", bcrypt.gensalt(rounds=4)))
-        return None, "Email atau password salah.", None
-    stored = row["password_hash"].encode() if row["password_hash"] else None
-    ok = bool(stored and row["auth_provider"] == "local" and bcrypt.checkpw(password.encode()[:72], stored))
+        ok = False
+    else:
+        stored = row["password_hash"].encode() if row["password_hash"] else None
+        ok = bool(stored and row["auth_provider"] == "local" and bcrypt.checkpw(password.encode()[:72], stored))
     if not ok:
+        with engine.begin() as conn:
+            record_attempt(conn, email, False)
         return None, "Email atau password salah.", None
     if row["is_blocked"]:
         return None, "Akun Anda diblokir, hubungi admin.", None
     now = datetime.now()
     token = secrets.token_urlsafe(32)
     with engine.begin() as conn:
+        record_attempt(conn, email, True, now)
         conn.execute(text("DELETE FROM akreditasi_sessions WHERE expires_at < :now"), {"now": now})
         conn.execute(text("""
             INSERT INTO akreditasi_sessions (token_hash, user_id, created_at, expires_at)

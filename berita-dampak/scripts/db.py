@@ -1,7 +1,7 @@
 """Koneksi MySQL bersama untuk seluruh pipeline berita-dampak.
 
-Semua tabel memakai prefix "berita_" (konvensi yang sudah dipakai
-dashboard_berita_dampak.py dan generate_narasi_llm.py). Kredensial MySQL
+Semua tabel memakai prefix "berita_" (konvensi yang juga dibaca API web,
+api/app/services/).  Kredensial MySQL
 dibaca dari .env di root project (MYSQL_HOST/PORT/USER/PASSWORD/DB).
 
 Menggantikan data/ugm_news.duckdb -- seluruh script pipeline sekarang baca/

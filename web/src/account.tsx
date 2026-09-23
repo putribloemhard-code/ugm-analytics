@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 
-import { accreditationAdminAction, accreditationAdminUsers, accreditationMe, accreditationProfile, type AdminOverview, type ProfileResult } from './lib/api';
+import { accreditationAdminAction, accreditationAdminUsers, accreditationMe, accreditationProfile, downloadAccreditationHistory, getRefreshStatus, simpanBlob, startRefresh, type AdminOverview, type ProfileResult, type RefreshStatus } from './lib/api';
 import { Notice, PageHeader, ProgressLine, StatCard } from './ui';
 
 /** Gerbang halaman terproteksi: alihkan ke /akreditasi bila belum login. */
@@ -13,6 +13,19 @@ function useRequireUser() {
     return () => { hidup = false; };
   }, []);
   return state;
+}
+
+/** Unduh ulang laporan dari riwayat (padanan tombol unduh di page_profil.py lama). */
+function UnduhRiwayat({ id }: { id: number }) {
+  const [galat, setGalat] = useState('');
+  const [sibuk, setSibuk] = useState(false);
+  async function unduh() {
+    setSibuk(true); setGalat('');
+    try { const { blob, filename } = await downloadAccreditationHistory(id); simpanBlob(blob, filename); }
+    catch (e) { setGalat(e instanceof Error ? e.message : 'Gagal mengunduh.'); }
+    finally { setSibuk(false); }
+  }
+  return <>{galat ? <span className="field-hint">{galat}</span> : <button className="link-button" disabled={sibuk} onClick={unduh}>{sibuk ? 'Mengunduh…' : 'Unduh .docx'}</button>}</>;
 }
 
 export function ProfilePage() {
@@ -57,12 +70,58 @@ export function ProfilePage() {
         : <>
           {riwayat.total > riwayat.batas && <p className="section-note">Menampilkan {riwayat.batas} laporan terbaru dari {riwayat.total}.</p>}
           <div className="data-table-wrap"><table className="data-table"><caption className="sr-only">Riwayat laporan akreditasi milik Anda</caption>
-            <thead><tr><th scope="col">Program studi</th><th scope="col">Dokumen</th><th scope="col">Digenerate</th></tr></thead>
-            <tbody>{riwayat.rows.map(r => <tr key={r.id}><td>{r.nama_prodi}</td><td>{r.jenis_dokumen}</td><td>{r.digenerate ?? '-'}</td></tr>)}</tbody>
+            <thead><tr><th scope="col">Program studi</th><th scope="col">Dokumen</th><th scope="col">Digenerate</th><th scope="col"><span className="sr-only">Unduh</span></th></tr></thead>
+            <tbody>{riwayat.rows.map(r => <tr key={r.id}><td>{r.nama_prodi}</td><td>{r.jenis_dokumen}</td><td>{r.digenerate ?? '-'}</td><td><UnduhRiwayat id={r.id} /></td></tr>)}</tbody>
           </table></div>
         </>}
     </section>
   </div>;
+}
+
+function waktuLokal(iso: string | null): string {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+const REFRESH_LABEL: Record<RefreshStatus['status'], string> = {
+  running: 'Sedang berjalan', finished: 'Selesai', idle: 'Belum pernah dijalankan dari web', stale_lock: 'Terhenti (lock lama akan dibersihkan)',
+};
+
+/** Tombol update data berita (padanan "🔄 Update Berita Terbaru" dashboard Streamlit lama). */
+function UpdateDataPanel() {
+  const [st, setSt] = useState<RefreshStatus | null>(null);
+  const [pesan, setPesan] = useState<{ type: 'info' | 'error'; text: string } | null>(null);
+  const [sibuk, setSibuk] = useState(false);
+  const muat = () => getRefreshStatus().then(setSt).catch(e => setPesan({ type: 'error', text: e instanceof Error ? e.message : 'Status update belum dapat dimuat.' }));
+  useEffect(() => { muat(); }, []);
+  // Selama pipeline berjalan, pantau status + log tiap 5 detik.
+  useEffect(() => {
+    if (st?.status !== 'running') return;
+    const t = window.setTimeout(muat, 5000);
+    return () => window.clearTimeout(t);
+  }, [st]);
+  async function mulai() {
+    setSibuk(true); setPesan(null);
+    try { const r = await startRefresh(); setPesan({ type: 'info', text: `${r.message} (PID ${r.pid})` }); await muat(); }
+    catch (e) { setPesan({ type: 'error', text: e instanceof Error ? e.message : 'Update gagal dimulai.' }); }
+    finally { setSibuk(false); }
+  }
+  return <section className="section">
+    <div className="section-title-row"><div><p className="section-kicker">Data berita ugm.ac.id</p><h2>Update data</h2></div>
+      {st && <span className="status-pill">{REFRESH_LABEL[st.status]}</span>}</div>
+    <p className="section-note">Menjalankan seluruh pipeline (sitemap → RSS → ambil berita baru → normalisasi → tagging → narasi → laporan) di latar belakang, ±10 menit. Cron mingguan tetap berjalan setiap Sabtu 06:00; keduanya tidak akan jalan bersamaan.</p>
+    {st && <dl className="requirement-meta">
+      <div><dt>Data terakhir</dt><dd>{waktuLokal(st.updated_at)}</dd></div>
+      <div><dt>Log update web terakhir</dt><dd>{waktuLokal(st.log_updated_at)}{st.last_exit !== null && (st.last_exit === 0 ? ' · berhasil' : ' · gagal, cek log')}</dd></div>
+    </dl>}
+    <div className="action-row">
+      <button className="button" type="button" disabled={sibuk || !st?.trigger_available || st?.status === 'running'} onClick={mulai}>{st?.status === 'running' ? 'Update sedang berjalan…' : 'Update berita terbaru'}</button>
+      {st && !st.trigger_available && <span className="field-hint">Tidak tersedia di server ini: venv pipeline tidak ditemukan (set UGM_ANALYTICS_PYTHON).</span>}
+    </div>
+    {pesan && <Notice type={pesan.type}>{pesan.text}</Notice>}
+    {st && st.log_tail.length > 0 && <details className="update-log" open={st.status === 'running'}><summary>Log terakhir</summary><pre>{st.log_tail.join('\n')}</pre></details>}
+  </section>;
 }
 
 export function AdminPage() {
@@ -97,6 +156,7 @@ export function AdminPage() {
       <StatCard label="Admin" value={data.summary.admin} note="termasuk Anda" />
       <StatCard label="Diblokir" value={data.summary.diblokir} note="tidak bisa login" />
     </section>
+    <UpdateDataPanel />
     <section className="section">
       <div className="section-title-row"><div><p className="section-kicker">Semua pengguna</p><h2>Daftar akun</h2></div></div>
       <div className="data-table-wrap"><table className="data-table"><caption className="sr-only">Daftar akun portal akreditasi</caption>

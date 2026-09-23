@@ -15,6 +15,7 @@ class Settings:
     api_cors_origins: tuple[str, ...]
     api_prefix: str = "/api/v1"
     accreditation_upload_dir: str = "/app/data/accreditation/uploads"
+    accreditation_generated_dir: str = "/app/data/accreditation/generated"
     accreditation_max_upload_bytes: int = 25 * 1024 * 1024
 
     def require_postgres(self) -> None:
@@ -50,6 +51,7 @@ def load_settings() -> Settings:
             if origin.strip()
         ),
         accreditation_upload_dir=os.getenv("ACCREDITATION_UPLOAD_DIR", "/app/data/accreditation/uploads"),
+        accreditation_generated_dir=os.getenv("ACCREDITATION_GENERATED_DIR", "/app/data/accreditation/generated"),
     )
 
 

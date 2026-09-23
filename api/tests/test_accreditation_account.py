@@ -244,3 +244,30 @@ def test_admin_yang_diblokir_tidak_bisa_beraksi(engine):
 def test_aksi_tidak_dikenal_ditolak(engine):
     with pytest.raises(AksiDitolak):
         AccreditationAccountService(engine).admin_action(ADMIN, "terbang", 2)
+
+
+def test_login_dikunci_setelah_lima_kali_gagal(engine):
+    """Padanan rate limit auth_akreditasi.py lama: 5 gagal beruntun -> terkunci, password benar pun ditolak."""
+    from app.services.accreditation_auth import login, register
+
+    ok, _ = register(engine, "baru@ugm.ac.id", "Baru", "rahasia-123")
+    assert ok
+    for _ in range(5):
+        user, pesan, _ = login(engine, "baru@ugm.ac.id", "salah-salah")
+        assert user is None and pesan == "Email atau password salah."
+    user, pesan, token = login(engine, "baru@ugm.ac.id", "rahasia-123")
+    assert user is None and token is None and "Terlalu banyak percobaan" in pesan
+
+
+def test_login_berhasil_memutus_rentetan_gagal(engine):
+    from app.services.accreditation_auth import login, register
+
+    register(engine, "baru@ugm.ac.id", "Baru", "rahasia-123")
+    for _ in range(4):
+        login(engine, "baru@ugm.ac.id", "salah-salah")
+    user, _, token = login(engine, "baru@ugm.ac.id", "rahasia-123")
+    assert user and token
+    for _ in range(4):
+        login(engine, "baru@ugm.ac.id", "salah-salah")
+    user, _, _ = login(engine, "baru@ugm.ac.id", "rahasia-123")
+    assert user is not None

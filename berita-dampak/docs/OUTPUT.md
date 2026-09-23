@@ -3,55 +3,14 @@
 Terakhir disinkronkan: **2026-09-19**. Angka di dokumen ini = snapshot; verifikasi
 runtime selalu dari MySQL live (lihat "Cara query manual" di bawah).
 
-## 1. Dashboard Streamlit (interaktif, untuk analis)
+## 1. Tampilan interaktif (web)
 
-Sejak 2026-09-06 dashboard **multipage** — `dashboard_berita_dampak.py` hanya shell
-navigasi (78 baris), isi tiap halaman ada di `pages_app/` + `page_*.py`.
+Tampilan interaktif: web React + API (`web/`, `api/`), dijalankan lokal dengan `jalankan_web_baru.bat` di root repo → http://127.0.0.1:3000/dampak. Dashboard Streamlit dihapus 2026-09-23 (riwayat di git).
 
-```bash
-cd D:\ugm-analytics\berita-dampak
-..\venv\Scripts\streamlit run dashboard_berita_dampak.py
-```
-
-Buka http://localhost:8766 (dari laptop lain: Network URL / Tailscale, lihat
-`docs/FRAMEWORK.md` bagian "Jaringan & akses").
-
-| Halaman | File | Isi |
-|---|---|---|
-| Beranda | `pages_app/beranda.py` | ringkasan lintas halaman, kartu shortcut |
-| Dampak | `pages_app/dampak_saja.py` → `page_dampak.py` | mode "Berdampak" (pilar + 14 tema) |
-| Dampak × SDGs | `pages_app/dampak_sdgs.py` → `page_dampak.py` | mode penuh (pilar + tema + klaster SDG) |
-| SDGs | `pages_app/sdgs.py` → `page_sdgs.py` | mode "SDGs saja" (mapping langsung 17 SDG) |
-| Akreditasi | `pages_app/akreditasi.py` → `page_akreditasi.py` | kelengkapan LED/LKPS + upload |
-| Admin | `pages_app/admin.py` → `page_admin.py` | status data/update |
-| Profil | `pages_app/profil.py` → `page_profil.py` | info proyek |
-
-**Filter sidebar global** (berlaku lintas bagian): rentang tahun, tema dampak
-(14 tema), sumber (sitemap/RSS), pilar Kepmen (Lingkungan/Ekonomi/Sosial),
-**Fakultas / Unit Kerja** (di ketiga mode), dan tombol "🔄 Update Berita Terbaru".
-Mode "SDGs saja" memakai multi-select SDG (17) alih-alih tema.
-
-**Bagian analisis** (di mode Dampak / Dampak × SDGs):
-1. Ringkasan eksekutif + narasi dinamis (template pandas, opsional dirangkai OpenAI)
-2. Distribusi per Tema Dampak — bar 14 tema, warna per pilar
-3. Peta Tema Resmi Kepmen & Klaster SDGs — bar per tema Kepmen, bar per SDG,
-   heatmap tema×SDG, tren SDG per tahun, heatmap pilar×tahun, expander ringkasan
-   per pilar, expander tabel pemetaan + indikator 14 tema
-4. Heatmap Tema × Tahun
-5. Tren Tahunan per Tema (line)
-6. Tren Bulanan (musiman, bar stacked)
-7. Cakupan vs Total Berita UGM per Tahun (baseline sitemap)
-8. Keyword yang Memicu Match per Tema (bar) — dropdown "Pilar - Tema" untuk 14 tema
-9. Berita Multi-Tema (distribusi + daftar kombinasi)
-10. Kata yang Paling Sering Muncul per Tema (word frequency)
-11. Daftar Berita — Tanggal/Judul/Tema Kepmen/Indikator Kepmen/SDG/Sumber/Tautan
-    + expander "berita tanpa match (cek manual)"
-12. Tab **Fakultas / Unit Kerja** per pilar (ranking unit, drill-down)
-
-Konvensi tampilan (diminta user 2026-08-24): tiap chart punya caption
-`💡 penjelasan(...)` (tujuan + cara hitung angka) dan tooltip hover diperkaya
-lewat helper `hover_keterangan()` — keduanya didefinisikan di
-`dashboard_berita_dampak.py` sebelum `st.set_page_config`.
+Bagian yang dulu ada di dashboard Streamlit (ringkasan, distribusi per tema, peta tema × SDG,
+tren, cakupan, keyword, multi-tema, word frequency, daftar berita, unit kerja) kini dirender dari
+`GET /api/v1/analytics/story` (`api/app/services/story.py`). Narasi LLM (`berita_narasi_cache`)
+dipakai hanya saat filter default (label "dirangkai AI"); selain itu narasi template `narasi_logic.py`.
 
 ## 2. Laporan statis HTML (offline)
 
@@ -64,7 +23,8 @@ di browser tanpa server/internet). Regenerate:
 
 Isi: chart + tabel indikator resmi 14 tema + tabel contoh berita per tema.
 
-Ada juga laporan Word dari dashboard: `laporan_word.py` (tombol di halaman analisis).
+Ada juga laporan Word dari web: tombol "Unduh laporan" → `POST /api/v1/analytics/reports`
+(`api/app/services/report.py`).
 
 ## 3. Database MySQL
 
@@ -128,8 +88,8 @@ Semua angka bertema adalah **lower-bound** keyword match, bukan angka resmi.
 
 - **Cron Hermes**: Sabtu 06:00 (`0 6 * * 6`), job `update_berita_dampak.sh` →
   `scripts/update_mingguan.py`. Log: `logs_update.txt` / `logs_update_mingguan.txt`.
-- **Tombol dashboard**: sidebar → "🔄 Update Berita Terbaru" (background, Popen
-  detached; log `logs_update_dashboard.txt`).
+- **Tombol web**: `/admin` → "Update data" (khusus admin; log `logs_update_dashboard.txt`).
+- Manual: `..\venv\Scripts\python.exe scripts\update_mingguan.py`.
 - `update_mingguan.py` menjalankan pipeline berurutan; lock `data/.update_lock`
   mencegah tabrakan; fetch incremental (hanya URL baru/belum ada isinya).
 - **`fetch_backlog.py` TIDAK termasuk jadwal mingguan** — backfill isi lengkap

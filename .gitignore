@@ -46,9 +46,18 @@ web/dist/
 
 # Isolated BTD deployment runtime state and target environment
 /deploy/.env
+/deploy/openai.env
 /deploy/data/
 /deploy/stage-manifest.sha256
 /deploy/remote-manifest.sha256
+
+# Konversi Docling MD/JSON dari PDF sumber (besar: 185 MB total, punya hash
+# deterministik dan bisa dibuat ulang; PDF aslinya tetap di-commit).
+# Pengecualian: Ringkasan Indikator Kepmen (kecil, jadi rujukan angka resmi kode).
+sumber/*.md
+sumber/*.json
+!matkul-sustainability/data/Ringkasan Indikator Kepmen.md
+!matkul-sustainability/data/Ringkasan Indikator Kepmen.json
 
 # Runtime state compose (volume host: ../runtime/postgres, ../runtime/mysql-reader-v2,
 # ../runtime/accreditation-uploads) — data DB tidak pernah masuk git.
