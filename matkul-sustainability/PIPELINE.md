@@ -38,7 +38,9 @@
   `ringkasan_topik.csv`, `ringkasan_tahun.csv`.
 
 ### 4. Output
-- Dashboard interaktif: `dashboard_matkul_kepmen.py` (Streamlit)
+- Dashboard interaktif `dashboard_matkul_kepmen.py` (Streamlit) — DIHAPUS 2026-09-23;
+  data mata kuliah kini tampil di web (blok `mata_kuliah` di `/api/v1/analytics/story`).
+  Isi dashboard lama (untuk jejak):
   - Bar chart jumlah matkul terkait sustainability per fakultas.
   - Tabel drill-down per prodi (pilih fakultas → daftar matkul + topik).
   - Tren per tahun (tahun diekstrak dari judul — indikasi kasar).

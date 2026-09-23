@@ -280,7 +280,9 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .notice.warning { border: 1px solid var(--status-attention); background: var(--surface-warm); }
 .notice.error { border: 1px solid var(--status-critical); color: var(--text); background: color-mix(in srgb, var(--status-critical) 12%, var(--surface-card)); }
 
-.data-table-wrap { overflow-x: auto; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-card); }
+/* position: relative supaya caption .sr-only (absolute) ikut terkliping -- tanpa ini tabel lebar
+   membuat seluruh halaman bergeser horizontal di layar HP. */
+.data-table-wrap { position: relative; overflow-x: auto; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-card); }
 /* Pager tabel daftar berita (Sebelumnya / info halaman / Berikutnya). */
 .table-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; margin-top: 10px; }
 .table-pager .link-button { min-height: 30px; }
@@ -485,6 +487,62 @@ td { line-height: 1.45; }
 .requirement-action { color: var(--status-attention); font-size: .8rem; font-weight: 800; }
 .complete .requirement-action { color: var(--status-positive); }
 
+/* Ruang kerja akreditasi (web/src/akreditasi.tsx): item bisa dibuka, diisi, dan disimpan.
+   Status selalu berupa teks di badge -- warna hanya penguat, bukan satu-satunya penanda. */
+.accreditation-selectors--4 { grid-template-columns: 1.1fr 2fr 1.6fr 1.2fr; }
+.accreditation-workspace > .notice, .accreditation-workspace > .section { margin-top: 18px; }
+.tab-count { margin-left: 4px; font-size: .75rem; font-variant-numeric: tabular-nums; opacity: .8; }
+.state-badge { display: inline-flex; align-items: center; flex: none; padding: 3px 9px; border-radius: 999px; color: var(--text); background: var(--surface-tint); font-size: .72rem; font-weight: 800; white-space: nowrap; }
+.state-badge.terisi, .state-badge.otomatis { color: var(--status-positive); background: color-mix(in srgb, var(--status-positive) 16%, var(--surface-card)); }
+.state-badge.kosong, .state-badge.dirty { color: var(--text); background: color-mix(in srgb, var(--status-attention) 30%, var(--surface-card)); }
+.state-badge.belum_tersedia { color: var(--status-critical); background: color-mix(in srgb, var(--status-critical) 14%, var(--surface-card)); }
+.state-badge.ai { color: var(--text); background: var(--surface-warm); border: 1px solid var(--status-attention); }
+.requirement-card { border: 1px solid var(--border-subtle); border-left: 4px solid var(--status-attention); border-radius: 9px; background: var(--surface-subtle); }
+.requirement-card.state-terisi, .requirement-card.state-otomatis { border-left-color: var(--status-positive); }
+.requirement-card.state-belum_tersedia { border-left-color: var(--status-critical); }
+.requirement-card__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; width: 100%; min-height: 52px; padding: 12px 15px; border: 0; color: var(--text); background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.requirement-card__title { flex: 1 1 260px; color: var(--text-heading); font-weight: 700; line-height: 1.4; }
+.requirement-card__title small { color: var(--text-muted); font-weight: 600; }
+.requirement-card__chevron { flex: none; width: 24px; color: var(--text-muted); font-size: 1.2rem; text-align: center; }
+.requirement-card__body { display: flex; flex-direction: column; gap: 12px; padding: 4px 15px 16px; border-top: 1px solid var(--border-subtle); }
+.requirement-card__body > .section-note { margin: 10px 0 0; }
+.requirement-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 18px; margin: 0; font-size: .85rem; }
+.requirement-meta dt { color: var(--text-muted); font-size: .75rem; font-weight: 700; }
+.requirement-meta dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.conflict-options { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.conflict-options .button { min-height: 34px; font-weight: 600; }
+.conflict-options small { margin-left: 6px; color: var(--text-muted); }
+.narasi-editor { display: flex; flex-direction: column; gap: 12px; }
+.field textarea, .item-editor input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface-card); font: inherit; }
+.field textarea { min-height: 84px; resize: vertical; line-height: 1.5; }
+.field.is-ai textarea, .item-editor td.is-ai input { border-color: var(--status-attention); background: var(--surface-warm); }
+.item-editor td.is-conflict input { border-style: dashed; border-color: var(--status-attention); }
+.ai-source { color: var(--text-muted); font-size: .78rem; line-height: 1.4; }
+.item-editor table { min-width: max(680px, 100%); }
+.item-editor th, .item-editor td { padding: 6px 8px; }
+.item-editor td { min-width: 150px; }
+.item-editor .item-editor__no { min-width: 0; width: 36px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.item-editor td:last-child { min-width: 0; width: 64px; }
+.ai-sources { font-size: .85rem; }
+.ai-sources summary { color: var(--text-link); font-weight: 700; cursor: pointer; }
+.ai-sources ul { margin: 8px 0 0; padding-left: 20px; line-height: 1.5; }
+.cuplikan { margin-top: 8px; padding: 16px; border: 1px dashed var(--border); border-radius: 9px; }
+.cuplikan h3 { margin: 0 0 4px; font-size: 1rem; }
+.cuplikan ul { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.cuplikan li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: .9rem; }
+.cuplikan li > span:nth-child(2) { flex: 1 1 240px; }
+.upload-workflow--stack { display: flex; flex-direction: column; align-items: stretch; gap: 14px; }
+.upload-workflow--stack .data-table-wrap table { min-width: 560px; }
+.upload-summary { display: block; margin-top: 3px; color: var(--text-muted); font-size: .78rem; }
+.upload-status { font-weight: 700; white-space: nowrap; }
+.upload-status.diekstrak { color: var(--status-positive); }
+.upload-status.gagal_ekstrak, .upload-status.terhenti { color: var(--status-critical); }
+.upload-status.sedang_diekstrak { color: var(--status-info); }
+.update-log summary { color: var(--text-link); font-weight: 700; cursor: pointer; }
+.update-log pre { max-height: 320px; margin: 8px 0 0; padding: 12px; overflow: auto; border-radius: 8px; color: var(--text); background: var(--surface-subtle); font-size: .78rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.add-program h2 { margin: 0 0 14px; font-size: 1.3rem; }
+.add-program__fields { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+
 /* ================= LAPORAN DAMPAK PER BAB (daftar isi laporan resmi UGM 2025) =================
    Struktur: panel "Daftar isi" (bab + sub-bab bertitik) lalu bab berisi sub-bab bertema.
    Nomor bab mengikuti laporan resmi: BAB II Sosial, BAB III Ekonomi, BAB IV Lingkungan. */
@@ -539,8 +597,31 @@ td { line-height: 1.45; }
 .laporan-indikator > dl { margin: 0; padding: 4px 16px 16px; }
 .laporan-indikator__row { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; padding: 8px 0; border-top: 1px solid var(--border-subtle); }
 .laporan-indikator__row dt { color: var(--text-muted); font-size: .82rem; font-weight: 800; }
-.laporan-indikator__row dd { margin: 0; line-height: 1.6; }
+/* overflow-wrap: anywhere — teks definisi memuat deret panjang tanpa spasi
+   (mis. "masyarakat/pemerintah/industri/sekolah/lembaga") yang tidak bisa
+   dipatahkan dan mendorong halaman melebar di layar sempit. */
+.laporan-indikator__row dd { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
 .sdg-chip { display: inline-block; margin: 0 6px 4px 0; padding: 3px 9px; border-radius: 999px; color: var(--text-heading); background: var(--surface-tint); font-size: .78rem; font-weight: 700; }
+
+/* ---- panel mata kuliah sustainability (sumber data kedua, bukan berita) ---- */
+.laporan-matkul { border: 1px solid var(--border-subtle); border-left: 4px solid var(--ugm-blue); border-radius: 12px; background: var(--surface-card); padding: 22px 24px; }
+.laporan-matkul__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.laporan-matkul__head h3 { margin: 0; font-size: clamp(1.3rem, 2.4vw, 1.7rem); }
+.laporan-matkul__badge { padding: 6px 14px; border-radius: 999px; color: #fff; background: var(--ugm-blue); font-family: var(--font-display); font-weight: 700; white-space: nowrap; }
+.laporan-matkul .story-charts, .laporan-matkul .story-table-block { margin-top: 14px; }
+.laporan-matkul > .chart-note { margin-top: 14px; }
+/* Baris kartu angka resmi per kriteria a-j (Ringkasan Indikator Kepmen). */
+.laporan-matkul__resmi { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 16px 12px; }
+.laporan-matkul__resmi-item { display: flex; align-items: center; gap: 7px; padding: 5px 12px; border: 1px solid var(--border-subtle); border-radius: 999px; background: var(--surface-card); }
+.laporan-matkul__resmi-huruf { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 999px; color: #fff; background: var(--ugm-blue); font-weight: 800; font-size: .8rem; }
+.laporan-matkul__resmi-jumlah { font-weight: 800; font-variant-numeric: tabular-nums; }
+.laporan-matkul__metode { margin: 0; padding: 4px 16px 16px 34px; line-height: 1.6; }
+.laporan-matkul .laporan-indikator { margin: 12px 0 0; }
+
+@media (max-width: 760px) {
+  .laporan-matkul { padding: 18px 16px; }
+  .laporan-matkul__head { flex-direction: column; align-items: flex-start; }
+}
 
 @media (max-width: 1100px) {
   .laporan-bab__head { grid-template-columns: 1fr; align-items: start; }
@@ -548,7 +629,9 @@ td { line-height: 1.45; }
 @media (max-width: 760px) {
   .laporan-sub__toggle { grid-template-columns: auto minmax(0, 1fr) auto; }
   .laporan-sub__meta { grid-column: 2 / -1; white-space: normal; }
-  .laporan-indikator__row { grid-template-columns: 1fr; gap: 2px; }
+  /* minmax(0, 1fr), BUKAN 1fr: kolom 1fr minimumnya min-content, sehingga teks
+     definisi indikator yang panjang mendorong halaman melebar (overflow horizontal 390px). */
+  .laporan-indikator__row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
 
 @media (max-width: 1100px) {
@@ -568,7 +651,7 @@ td { line-height: 1.45; }
   .chart-row { grid-template-columns: 1fr auto; }
   .chart-track { grid-column: 1 / -1; grid-row: 2; }
   .chart-value { grid-column: 2; grid-row: 1; }
-  .accreditation-gate, .accreditation-selectors { grid-template-columns: 1fr; }
+  .accreditation-gate, .accreditation-selectors, .accreditation-selectors--4, .add-program__fields { grid-template-columns: 1fr; }
   .accreditation-hero { min-height: 320px; padding: 32px; }
   .brand-chip { margin-bottom: 30px; }
   .auth-panel { padding: 32px 24px; }

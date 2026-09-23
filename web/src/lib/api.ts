@@ -79,7 +79,7 @@ export type StoryTable = { id: string; title: string; note?: string | null; insi
 export type StoryMetric = { label: string; value: string | number; note?: string | null; help?: string | null };
 export type StoryTab = { id: string; label: string; note?: string | null; charts: Chart[]; tables: StoryTable[] };
 export type TopicOption = { value: string; label: string };
-export type PillarDetail = { pillar: string; narrative: string; metrics: StoryMetric[]; tabs: StoryTab[]; topic_options: TopicOption[]; selected_topic: string };
+export type PillarDetail = { pillar: string; narrative: string; /** 'llm' = cache generate_narasi_llm.py (hanya filter default). */ narrative_source?: 'llm' | 'template'; metrics: StoryMetric[]; tabs: StoryTab[]; topic_options: TopicOption[]; selected_topic: string };
 /** Sub-bab laporan = satu tema resmi Kepmen (mis. 2.1 Pendidikan Inklusif) beserta indikator resminya. */
 export type ChapterSection = {
   id: string;
@@ -111,16 +111,35 @@ export type Chapter = {
   metrics: StoryMetric[];
   subsections: ChapterSection[];
 };
+/** Blok data mata kuliah sustainability (kurasi kurikulum UGM, subproyek matkul-sustainability). */
+export type MataKuliahBlok = {
+  tersedia: boolean;
+  sumber: string;
+  total_penawaran: number;
+  n_substansial: number;
+  n_mk_unik: number;
+  parsial: number;
+  indikator_tema: string;
+  /** Angka resmi Ringkasan Indikator Kepmen: jumlah MK unik per kriteria a-j. */
+  kriteria_resmi: Record<string, number>;
+  /** Catatan metode resmi (butir 1-7 Ringkasan Indikator Kepmen). */
+  catatan_metode: string[];
+  note: string;
+  metrics: StoryMetric[];
+  charts: Chart[];
+  tables: StoryTable[];
+};
 export type Story = {
   mode: string;
   filters: Record<string, unknown>;
   data_as_of: string | null;
   caveats: string[];
-  executive: { metrics: StoryMetric[]; narrative: string };
+  executive: { metrics: StoryMetric[]; narrative: string; narrative_source?: 'llm' | 'template' };
   overview: { pillar: string; total: number; top_topic: string | null; top_topic_count: number }[];
   cross: { title: string; charts: Chart[]; tables: StoryTable[]; topic_options?: TopicOption[]; selected_topic?: string };
   pillar_detail: PillarDetail | null;
   chapters: Chapter[];
+  mata_kuliah?: MataKuliahBlok;
   tables: StoryTable[];
 };
 export function getStory(params: Record<string, QueryValue>) { return get<Story>(`/analytics/story?${toQuery(params)}`); }
@@ -167,6 +186,86 @@ export function accreditationAdminUsers() { return kirim<AdminOverview>('/analyt
 export function accreditationAdminAction(targetId: number, action: 'blokir' | 'admin' | 'hapus', value?: boolean) {
   return kirim<{ message: string }>(`/analytics/accreditation/admin/users/${targetId}/action`, 'POST', { action, value });
 }
+/* ---- Ruang kerja akreditasi (padanan page_akreditasi.py + dashboard_render.py lama) ---- */
+export type Dokumen = 'LED' | 'LKPS';
+export type ItemRow = Record<string, string>;
+export type AiCell = { baris_ke: number; kolom: string; nilai: string; kutipan: string | null; nama_file: string };
+export type ItemDraft = {
+  rows: ItemRow[];
+  ai_cells: AiCell[];
+  conflicts: { baris_ke: number; kolom: string; opsi: { nilai: string; nama_file: string; kutipan: string | null }[] }[];
+  skipped: AiCell[];
+  ekstraksi_ids: number[];
+};
+export type WorkspaceItem = {
+  id: string; nama: string; deskripsi: string; sumber_data: string; status: string; status_label: string;
+  tipe: 'tabel' | 'narasi'; kolom: string[]; tabel_lkps: string | null; narasi: boolean; terisi: boolean;
+  state: 'otomatis' | 'terisi' | 'kosong' | 'belum_tersedia'; editable: boolean; rows: ItemRow[];
+  diisi_oleh: string | null; updated_at: string | null; draft: ItemDraft | null;
+};
+export type WorkspaceGroup = { key: string; label: string; items: WorkspaceItem[]; cuplikan: { id: string; tabel_lkps: string; nama: string; status: string; terisi: boolean }[] };
+export type WorkspaceUpload = {
+  id: number; nama_file: string; tipe_file: string; ukuran_bytes: number;
+  status: 'belum_diekstrak' | 'sedang_diekstrak' | 'diekstrak' | 'gagal_ekstrak' | 'terhenti';
+  diupload_oleh: string | null; uploaded_at: string | null; diekstrak_at: string | null;
+  progres: { batch: number; total: number } | null;
+  ringkasan: { n_item_ditemukan?: number; n_kolom_terisi?: number; n_batch?: number; waktu_llm_total?: number; error?: string | null } | null;
+};
+export type Workspace = {
+  prodi: { slug: string; nama: string; jenjang: string | null; fakultas: string | null };
+  dokumen: Dokumen;
+  ringkasan: { total: number; lengkap: number; persen: number; tersedia_otomatis: number; perlu_manual_total: number; perlu_manual_terisi: number; belum_tersedia: number; narasi_total: number; narasi_terisi: number };
+  groups: WorkspaceGroup[];
+  uploads: WorkspaceUpload[];
+  ekstraksi: { tersedia: boolean; item_menunggu_review: number };
+};
+
+export function getAccreditationWorkspace(prodiId: string, dokumen: Dokumen) {
+  return kirim<Workspace>(`/analytics/accreditation/workspace?${toQuery({ prodi_id: prodiId, dokumen })}`, 'GET');
+}
+export function saveAccreditationItem(prodiId: string, itemId: string, rows: ItemRow[], ekstraksiIds: number[]) {
+  return kirim<{ message: string; baris: number; sel: number }>(`/analytics/accreditation/workspace/items/${encodeURIComponent(itemId)}`, 'POST', { prodi_id: prodiId, rows, ekstraksi_ids: ekstraksiIds });
+}
+export function addAccreditationProgram(fakultasId: string, nama: string, jenjang: string) {
+  return kirim<{ slug: string; nama: string }>('/analytics/accreditation/programs', 'POST', { fakultas_id: fakultasId, nama, jenjang });
+}
+export function startAccreditationExtraction(prodiId: string, dokumen: Dokumen) {
+  return kirim<{ dimulai: number }>('/analytics/accreditation/extractions', 'POST', { prodi_id: prodiId, dokumen });
+}
+
+/** Unduh berkas dari endpoint ber-login; nama berkas diambil dari Content-Disposition. */
+async function unduhBerkas(path: string, init: RequestInit, cadangan: string): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(`${API_BASE}${path}`, { credentials: 'include', ...init });
+  if (!response.ok) throw new Error(await pesanError(response));
+  const nama = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')?.[1];
+  return { blob: await response.blob(), filename: nama ?? cadangan };
+}
+export function generateAccreditationDocument(prodiId: string, dokumen: Dokumen) {
+  return unduhBerkas('/analytics/accreditation/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prodi_id: prodiId, dokumen }) }, `Laporan_Akreditasi_${dokumen}.docx`);
+}
+export function downloadAccreditationHistory(riwayatId: number) {
+  return unduhBerkas(`/analytics/accreditation/history/${riwayatId}/file`, {}, 'Laporan_Akreditasi.docx');
+}
+/** Simpan blob sebagai berkas di perangkat pengguna. */
+export function simpanBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* ---- Update data berita (pipeline update_mingguan.py) -- padanan tombol Streamlit lama ---- */
+export type RefreshStatus = {
+  status: 'running' | 'finished' | 'idle' | 'stale_lock';
+  updated_at: string | null;
+  trigger_available: boolean;
+  log_updated_at: string | null;
+  last_exit: number | null;
+  log_tail: string[];
+};
+export function getRefreshStatus() { return get<RefreshStatus>('/analytics/refresh-status'); }
+export function startRefresh() { return kirim<{ pid: number; message: string }>('/analytics/refresh', 'POST'); }
+
 export function getHomeSummary() { return get<Record<string, string | number | null>>('/analytics/home-summary'); }
 export function searchAnalytics(q: string) { return get<{ page: string; pillars: string[]; topics: string[]; sdgs: number[]; years: string[] | null; explanation: string }>(`/analytics/search?${toQuery({ q })}`); }
 export function getImpact(params: Record<string, QueryValue>, mode: 'impact' | 'impact-sdgs') { return get<AnalyticsResult>(`/analytics/impact?${toQuery({ ...params, mode })}`); }

@@ -1,13 +1,14 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
-import { AUTH_EVENT, DAMPAK_AUTH_EVENT, accreditationLogin, accreditationLogout, accreditationMe, accreditationRegister, accreditationUpload, dampakLogin, dampakLogout, dampakMe, dampakRegister, downloadReport, getAccreditation, getHomeSummary, getMetadata, getNews, getStory, searchAnalytics, type AccreditationResult, type AuthUser, type Metadata, type PillarDetail, type Story, type TopicOption } from './lib/api';
+import { AUTH_EVENT, DAMPAK_AUTH_EVENT, accreditationLogin, accreditationLogout, accreditationMe, accreditationRegister, dampakLogin, dampakLogout, dampakMe, dampakRegister, downloadReport, getAccreditation, getHomeSummary, getMetadata, getNews, getStory, searchAnalytics, type AccreditationResult, type AuthUser, type Metadata, type PillarDetail, type Story, type TopicOption } from './lib/api';
 import { assetUrl, CountUp, SiteShell, useInView } from './shell';
 import { MultiSelect } from './multiselect';
 import { ChartGrid, Insight, StoryTableView } from './story';
-import { LaporanDampak } from './laporan';
+import { LaporanDampak, MataKuliahPanel } from './laporan';
 import { Notice, PageHeader } from './ui';
 import { AdminPage, ProfilePage } from './account';
+import { AccreditationWorkspace } from './akreditasi';
 
 type FilterState = { yearFrom: string; yearTo: string; pillars: string[]; topics: string[]; sdgs: number[]; units: string[] };
 const emptyFilters: FilterState = { yearFrom: '', yearTo: '', pillars: [], topics: [], sdgs: [], units: [] };
@@ -63,7 +64,7 @@ function Executive({ story }: { story: Story }) {
   return <section className="story-block" aria-label="Ringkasan eksekutif">
     <h3>Ringkasan eksekutif</h3>
     <div className="analysis-summary-grid">{story.executive.metrics.map(metric => <div className="metric" key={metric.label} title={metric.help ?? undefined}><div className="metric-label">{metric.label}</div><div className="metric-value">{fmtValue(metric.value)}</div>{metric.note && <div className="metric-note">{metric.note}</div>}</div>)}</div>
-    <Insight label="Ringkasan analisis">{story.executive.narrative}</Insight>
+    <Insight label={story.executive.narrative_source === 'llm' ? 'Ringkasan analisis · dirangkai AI dari angka dashboard' : 'Ringkasan analisis'}>{story.executive.narrative}</Insight>
   </section>;
 }
 
@@ -90,7 +91,7 @@ function PillarDetailView({ detail, topic, onTopic, busy }: { detail: PillarDeta
   if (!active) return null;
   return <section className={`story-block ${busy ? 'is-busy' : ''}`} aria-label={`Detail dampak ${detail.pillar}`} aria-busy={busy}>
     <h3>Detail dampak: {detail.pillar}</h3>
-    <Insight label="Narasi dampak">{detail.narrative}</Insight>
+    <Insight label={detail.narrative_source === 'llm' ? 'Narasi dampak · dirangkai AI dari angka dashboard' : 'Narasi dampak'}>{detail.narrative}</Insight>
     <div className="analysis-summary-grid analysis-summary-grid--3">{detail.metrics.map(metric => <div className="metric" key={metric.label} title={metric.help ?? undefined}><div className="metric-label">{metric.label}</div><div className="metric-value">{fmtValue(metric.value)}</div></div>)}</div>
     <div className="tabs analysis-tabs" role="tablist" aria-label={`Rincian dampak ${detail.pillar}`}>{detail.tabs.map(tab => <button key={tab.id} id={`tab-${tab.id}`} role="tab" type="button" aria-selected={tab.id === active.id} aria-controls={`panel-${tab.id}`} className={`tab ${tab.id === active.id ? 'active' : ''}`} onClick={() => setTabId(tab.id)}>{tab.label}</button>)}</div>
     <div role="tabpanel" id={`panel-${active.id}`} aria-labelledby={`tab-${active.id}`}>
@@ -128,6 +129,9 @@ function AnalyticsContent({ story, pillar, onPickPillar, topic, onTopic, busy }:
     {/* Blok laporan berbab hanya di bagian "Analisis Dampak"; bagian "Dampak × SDGs" sudah
         punya tab SDG sendiri, jadi menaruhnya di sana akan menggandakan 14 sub-bab yang sama. */}
     {story.mode === 'impact' && <LaporanDampak story={story} />}
+    {/* Data mata kuliah (sumber kedua, bukan berita): panel khusus di laporan berbab dan
+        di mode Dampak × SDGs (di sana difilter + dipetakan ke klaster SDG pemetaan resmi). */}
+    {story.mode === 'impact-sdgs' && story.mata_kuliah && <MataKuliahPanel blok={story.mata_kuliah} />}
     {story.overview.length > 0 && <Overview story={story} pillar={pillar} onPick={onPickPillar} />}
     {story.pillar_detail && <PillarDetailView detail={story.pillar_detail} topic={topic} onTopic={onTopic} busy={busy} />}
     <CrossSection story={story} topic={topic} onTopic={onTopic} />
@@ -318,51 +322,19 @@ function AccreditationLogin({ onUser, next }: { onUser: (user: { id: number; ema
 }
 
 function AccreditationPage() {
-  const [data, setData] = useState<AccreditationResult | null>(null); const [user, setUser] = useState<{ id: number; email: string; nama: string; is_admin: boolean } | null>(null); const [error, setError] = useState(''); const [peringatan, setPeringatan] = useState('');
+  const [data, setData] = useState<AccreditationResult | null>(null); const [user, setUser] = useState<AuthUser | null | undefined>(undefined); const [error, setError] = useState('');
   // ?prodi=&dokumen= datang dari tombol "Lanjutkan" di halaman Profil Saya.
   const [params] = useSearchParams();
-  const [prodi, setProdi] = useState(params.get('prodi') ?? ''); const [fakultas, setFakultas] = useState(''); const [document, setDocument] = useState<'LED' | 'LKPS'>(params.get('dokumen') === 'LKPS' ? 'LKPS' : 'LED'); const [group, setGroup] = useState(''); const [file, setFile] = useState<File | null>(null); const [uploadMessage, setUploadMessage] = useState('');
+  const muatKatalog = () => getAccreditation().then(d => { setData(d); return d; });
   useEffect(() => {
-    getAccreditation().then(d => {
-      setData(d);
-      // Hormati pilihan dari URL; kalau kosong/tidak dikenal, pakai prodi pertama.
-      const diminta = params.get('prodi');
-      const ada = diminta && d.programs.some(p => String(p.slug) === diminta);
-      const awal = ada ? diminta! : (d.programs[0] ? String(d.programs[0].slug) : '');
-      setProdi(awal);
-      // Fakultas mengikuti prodi awal supaya kedua dropdown sinkron sejak halaman dibuka.
-      const prodiAwal = d.programs.find(p => String(p.slug) === awal);
-      if (prodiAwal) setFakultas(String(prodiAwal.fakultas_id));
-      // Prodi tanpa fakultas tidak akan terjangkau lewat dropdown berjenjang -- jangan
-      // diam-diam menghilangkannya; beri tahu supaya bisa dibetulkan di basis data.
-      const yatim = d.programs.filter(p => !p.fakultas_id || String(p.fakultas_id) === '').length;
-      if (yatim) setPeringatan(`${yatim} program studi belum terhubung ke fakultas mana pun, sehingga tidak muncul di pemilih. Perbaiki kolom fakultas_id pada tabel akreditasi_prodi.`);
-    }).catch(e => setError(pesanMuat(e, 'Data akreditasi')));
-    const refresh = () => { accreditationMe().then(setUser); }; refresh(); window.addEventListener(AUTH_EVENT, refresh); return () => window.removeEventListener(AUTH_EVENT, refresh);
+    muatKatalog().catch(e => setError(pesanMuat(e, 'Data akreditasi')));
+    const refresh = () => { accreditationMe().then(setUser).catch(() => setUser(null)); }; refresh(); window.addEventListener(AUTH_EVENT, refresh); return () => window.removeEventListener(AUTH_EVENT, refresh);
   }, []);
   if (error) return <AppShell><div className="content"><Notice type="error">{error}</Notice></div></AppShell>;
-  if (!data) return <AppShell><div className="content loading">Memuat portal akreditasi...</div></AppShell>;
+  if (!data || user === undefined) return <AppShell><div className="content loading">Memuat portal akreditasi...</div></AppShell>;
   if (!user) return <AppShell><div className="content"><AccreditationLogin onUser={setUser} next={params.get('next')} /></div></AppShell>;
-  const items = document === 'LED' ? data.requirements.led : data.requirements.lkps; const groups = [...new Set(items.map(item => String(item.group)))]; const activeGroup = group || groups[0] || ''; const visible = items.filter(item => String(item.group) === activeGroup); const filled = new Set(data.manual.filter(row => String(row.prodi_id) === prodi).map(row => String(row.item_id))); const done = items.filter(item => filled.has(String(item.id))).length; const percent = items.length ? Math.round(done / items.length * 100) : 0;
-  // Dropdown dipisah: Fakultas dulu, baru Program Studi (mengikuti alur dashboard lama,
-  // render_prodi_selector). Prodi terkunci sampai fakultas dipilih supaya tidak ada
-  // kombinasi fakultas/prodi yang tidak nyambung.
-  const fakultasOpsi = data.faculties;
-  const semuaProdi = data.programs;   // disalin ke const supaya penyempitan tipe tetap berlaku di dalam fungsi
-  const prodiDariFakultas = semuaProdi.filter(p => String(p.fakultas_id) === fakultas);
-  // Jenjang sering sudah terkandung di nama (mis. "Doktor Ilmu Fisika"), jangan diulang.
-  function labelProdi(p: Record<string, unknown>): string {
-    const nama = String(p.nama); const jenjang = p.jenjang ? String(p.jenjang) : '';
-    return jenjang && !nama.toLowerCase().includes(jenjang.toLowerCase()) ? `${nama} — ${jenjang}` : nama;
-  }
-  function pilihFakultas(nilai: string) {
-    setFakultas(nilai);
-    const pertama = semuaProdi.find(p => String(p.fakultas_id) === nilai);
-    setProdi(pertama ? String(pertama.slug) : '');   // kosong = prodi di fakultas itu belum ada
-    setGroup(''); setUploadMessage('');
-  }
-  async function upload() { if (!file || !prodi) return; try { await accreditationUpload(prodi, file); setUploadMessage('File berhasil disimpan.'); setFile(null); } catch (e) { setUploadMessage(e instanceof Error ? e.message : 'Upload gagal'); } }
-  return <AppShell><div className="content accreditation-workspace"><div className="workspace-head"><div><PageHeader title="Akreditasi" icon="certificate.png" caption="Kelengkapan data LED & LKPS — instrumen akreditasi Program Studi." /></div><div className="user-chip">{user.nama}<button onClick={async () => { await accreditationLogout(); setUser(null); }}>Keluar</button></div></div>{peringatan && <Notice type="error">{peringatan}</Notice>}<section className="accreditation-selectors"><div className="field"><label htmlFor="ak-fakultas">Fakultas (wajib)</label><select id="ak-fakultas" value={fakultas} onChange={e => pilihFakultas(e.target.value)}><option value="">Pilih fakultas…</option>{fakultasOpsi.map(f => { const n = semuaProdi.filter(p => String(p.fakultas_id) === String(f.id)).length; return <option key={String(f.id)} value={String(f.id)}>{String(f.nama)}{n ? ` (${n} prodi)` : ' (belum ada prodi)'}</option>; })}</select><small className="field-hint">{fakultas ? (prodiDariFakultas.length ? `${prodiDariFakultas.length} program studi terdaftar` : 'Belum ada program studi terdaftar di fakultas ini') : 'Nama fakultas panjang bisa terpotong — buka daftar untuk melihat lengkap.'}</small></div><div className="field"><label htmlFor="ak-prodi">Program Studi (wajib)</label><select id="ak-prodi" value={prodi} disabled={!fakultas || prodiDariFakultas.length === 0} onChange={e => { setProdi(e.target.value); setGroup(''); setUploadMessage(''); }}>{prodiDariFakultas.length === 0 ? <option value="">{fakultas ? 'Belum ada prodi di fakultas ini' : 'Pilih fakultas dulu'}</option> : prodiDariFakultas.map(p => <option key={String(p.id)} value={String(p.slug)}>{labelProdi(p)}</option>)}</select></div><div className="field"><label>Dokumen</label><select value={document} onChange={e => { setDocument(e.target.value as 'LED' | 'LKPS'); setGroup(''); }}><option value="LED">📘 LED — Laporan Evaluasi Diri</option><option value="LKPS">📗 LKPS — Laporan Kinerja Program Studi</option></select></div></section><section className="progress-overview"><div className="progress-card"><span>Total item</span><strong>{items.length}</strong><small>{document}</small></div><div className="progress-card"><span>Terisi</span><strong>{done}/{items.length}</strong><small>{percent}% kelengkapan</small></div><div className="progress-card"><span>Perlu verifikasi</span><strong>{items.length - done}</strong><small>review manual</small></div><div className="progress-card"><span>Upload</span><strong>{data.uploads.filter(row => String(row.prodi_id) === prodi).length}</strong><small>dokumen tersimpan</small></div></section><div className="completion-line"><div><b>Kelengkapan keseluruhan: {done}/{items.length} item ({percent}%)</b><span> · sumber data resmi tersimpan setelah konfirmasi</span></div><div className="progress-track"><div style={{ width: `${percent}%` }} /></div></div><section className="upload-workflow"><div><p className="section-kicker">Dokumen pendukung</p><h2>Upload File Pendukung</h2><p>PDF, DOCX, atau XLSX — maksimal 25 MB per file. Hasil ekstraksi akan menjadi preview dan tetap perlu diverifikasi sebelum menjadi data resmi.</p></div><div className="upload-controls"><input type="file" accept=".pdf,.docx,.xlsx" onChange={e => setFile(e.target.files?.[0] ?? null)} /><button className="button" disabled={!file} onClick={upload}>Upload</button>{uploadMessage && <span role="status">{uploadMessage}</span>}</div></section><section className="section requirement-section"><div className="section-title-row"><div><p className="section-kicker">Kelengkapan Data {document}</p><h2>Struktur dokumen akreditasi</h2></div><span className="status-pill">{done}/{items.length} terisi</span></div><div className="accreditation-tabs">{groups.map(g => <button key={g} className={g === activeGroup ? 'active' : ''} onClick={() => setGroup(g)}>{document === 'LED' ? `Kriteria ${g}` : `Bagian ${g}`}</button>)}</div><div className="requirement-list">{visible.map(item => <article className={`requirement-row ${filled.has(String(item.id)) ? 'complete' : ''}`} key={String(item.id)}><div className="requirement-status">{filled.has(String(item.id)) ? '✓' : '!'}</div><div><h3>{String(item.name)}</h3><p>{String(item.description)}</p><small>{String(item.type)} · {String(item.status)}</small></div><span className="requirement-action">{filled.has(String(item.id)) ? 'Tersimpan' : 'Perlu input'}</span></article>)}</div></section><Notice type="info">Fase ini sudah mengikuti alur referensi: selector dokumen, progress, upload, dan checklist per Kriteria/Bagian. Ekstraksi AI, tabel editable, review kutipan, dan generate Word menjadi tahap berikutnya.</Notice></div></AppShell>;
+  return <AppShell><AccreditationWorkspace catalog={data} user={user} onLogout={async () => { await accreditationLogout(); setUser(null); }} onCatalogChange={muatKatalog}
+    initialProdi={params.get('prodi') ?? ''} initialDokumen={params.get('dokumen') === 'LKPS' ? 'LKPS' : 'LED'} /></AppShell>;
 }
 
 export default function App() {

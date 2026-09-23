@@ -4,59 +4,54 @@ Analisis dampak UGM berdasarkan Kepmendikti Saintek **361/M/KEP/2025**
 (Indikator Dampak Sosial, Ekonomi, dan Lingkungan Perguruan Tinggi) dan
 klaster **SDGs** — berbasis data publik yang bisa diambil offline.
 
-Terakhir disinkronkan: **2026-09-21** (termasuk perapian struktur: file sisa dihapus, dump
-database & legacy dipindah — lihat "Struktur & kepemilikan sumber" di bawah).
+Terakhir disinkronkan: **2026-09-23** — **dashboard Streamlit sudah dihapus**; aplikasi hanya
+web React + API FastAPI, dijalankan lokal lewat `jalankan_web_baru.bat` (lihat "Streamlit
+dihapus" di bawah).
 
 ## Subproyek
 
 | Subproyek | Fokus | Status |
 |---|---|---|
-| `berita-dampak/` | Analisis berita dampak ugm.ac.id (14 tema Kepmen, 3 pilar, SDG, 44 unit kerja) | **Aktif** — pipeline + multipage dashboard + laporan + update mingguan |
-| `akreditasi/` | Kelengkapan data LED & LKPS (LAM-INFOKOM) | **Aktif** — registry 49 item + peta status 61 item + 3 pipeline data live + ekstraksi dokumen (pattern & AI) + dashboard + generator Word + login domain UGM |
+| `berita-dampak/` | Analisis berita dampak ugm.ac.id (14 tema Kepmen, 3 pilar, SDG, 44 unit kerja) | **Aktif** — pipeline + laporan statis + update mingguan (tampilan: `web/`) |
+| `akreditasi/` | Kelengkapan data LED & LKPS (LAM-INFOKOM) | **Aktif** — registry 49 item + peta status 61 item + 3 pipeline data live + ekstraksi dokumen AI + generator Word (tampilan & login: `web/` halaman `/akreditasi`) |
 | `matkul-sustainability/` | Mata kuliah terkait sustainability per fakultas/prodi | Selesai (2026-08-12) |
-| `web/` + `api/` + `deploy/` | Frontend publik React/Vite + API FastAPI + paket deploy terisolasi | **Aktif** — dashboard satu-halaman (Dampak / Dampak × SDGs / SDGs), portal Akreditasi + login, Profil Saya & Admin; `jalankan_web_baru.bat` untuk pratinjau MySQL lokal |
+| `web/` + `api/` + `deploy/` | Frontend publik React/Vite + API FastAPI + paket deploy terisolasi | **Aktif — satu-satunya tampilan** — dashboard satu-halaman (Dampak / Dampak × SDGs / SDGs), ruang kerja Akreditasi (isi data, upload, ekstraksi AI, generate Word) + login, Profil Saya & Admin; `jalankan_web_baru.bat` untuk menjalankan lokal |
 | `kkn-desa-binaan/` | Sebaran KKN & desa binaan (data dari eLOK — belum ada) | Kosong, butuh akses eLOK |
 | `mahasiswa-afirmasi/` | Analisis kelompok afirmasi (data sensitif — belum ada) | Kosong, butuh akses resmi |
 
 ## Mulai cepat
 
-**berita-dampak (dashboard analis, Streamlit):**
+**Aplikasi (web + API, lokal) — cukup klik dua kali:**
+
+```bash
+jalankan_web_baru.bat                 # API :8000 + web :3000 → buka http://127.0.0.1:3000
+```
+
+Butuh servis MySQL80 menyala (`.env` root berisi `MYSQL_*`). Halaman: `/dampak` (Analisis
+Dampak), `/akreditasi` (ruang kerja LED/LKPS), `/profil`, `/admin`. Ekstraksi AI dokumen
+akreditasi aktif bila `OPENAI_API_KEY` ada di `.env`.
+
+Manual (dua terminal):
+
+```bash
+.venv\Scripts\python.exe web\dev_api_mysql.py      # API ke MySQL lokal, :8000
+cd web && npm ci && npm run dev                    # web, :3000
+# API produksi: cd api && uvicorn app.main:app --reload  (butuh PostgreSQL, env POSTGRES_*)
+```
+
+**Pipeline data berita-dampak (tanpa UI):**
 
 ```bash
 cd D:\ugm-analytics\berita-dampak
-..\venv\Scripts\streamlit run dashboard_berita_dampak.py     # buka http://localhost:8766
-..\venv\Scripts\python.exe scripts\laporan_static.py          # regenerate laporan HTML
 ..\venv\Scripts\python.exe scripts\update_mingguan.py         # update data dari ugm.ac.id
+..\venv\Scripts\python.exe scripts\laporan_static.py          # regenerate laporan HTML
 ```
 
 Laporan statis (tanpa server): `berita-dampak/laporan_berita_dampak.html`.
 
-Akses dari laptop lain: jalankan `berita-dampak\buka_akses_dashboard_admin.bat` (butuh admin —
-memasang firewall rule + mencetak IP LAN aktif). IP LAN bisa berubah, jadi jangan
-hardcode; untuk lintas jaringan pakai Tailscale.
-
-**akreditasi:**
-
-```bash
-cd D:\ugm-analytics\akreditasi
-..\venv\Scripts\streamlit run dashboard_akreditasi.py
-```
-
-**frontend + API (jalur publik):**
-
-```bash
-# Pratinjau lokal (MySQL yang sama dengan dashboard Streamlit) — cukup klik dua kali:
-jalankan_web_baru.bat                 # API :8000 + web :3000 (http://127.0.0.1:3000)
-
-# Manual:
-cd D:\ugm-analytics\web
-npm ci && npm run dev                 # http://127.0.0.1:3000 (butuh API jalan)
-# API memakai MySQL lokal: ..\.venv\Scripts\python.exe dev_api_mysql.py
-# API produksi: cd api && uvicorn app.main:app --reload  (butuh PostgreSQL, env POSTGRES_*)
-```
-
-Catatan: ada DUA venv — `venv\` (pandas/plotly/streamlit, untuk subproyek Streamlit) dan
-`.venv\` (fastapi/uvicorn/pytest, untuk `api/` dan `jalankan_web_baru.bat`). Jangan tertukar.
+Catatan: ada DUA venv — `venv\` (pandas/plotly/requests/openai, untuk skrip pipeline di
+subproyek) dan `.venv\` (fastapi/uvicorn/pytest + openai/pymupdf, untuk `api/` dan
+`jalankan_web_baru.bat`). Jangan tertukar. Tes API: `cd api && ..\.venv\Scripts\python.exe -m pytest`.
 
 Deploy terisolasi (Compose: postgres + mysql-reader + api + web + edge nginx,
 subpath `/analytics/`) — lihat `deploy/README.md`; butuh Docker (belum terpasang
@@ -67,9 +62,8 @@ di mesin dev).
 | Folder | Isi |
 |---|---|
 | `berita-dampak/` · `akreditasi/` · `matkul-sustainability/` | Subproyek (lihat tabel di atas) |
-| `web/` · `api/` | Lapisan aplikasi publik (React/Vite + FastAPI) |
+| `web/` · `api/` | Aplikasi (React/Vite + FastAPI) — satu-satunya tampilan. `web/siapkan_logo.py` = rapikan logo mentah ke `web/public/logo/` |
 | `deploy/` | Paket deploy terisolasi (Compose + Dockerfile + nginx). `deploy/legacy/` = file lama yang sudah tidak dipakai jalur aktif (compose MySQL-only, skrip migrasi DuckDB→MySQL, README deploy Streamlit) — disimpan untuk jejak, bukan untuk dijalankan |
-| `shared/` | **Dipakai bersama lintas subproyek**: `style.py` (CSS global Streamlit — penyamarataan tinggi kartu via flexbox, diverifikasi lewat DOM Streamlit 1.61.1: `stColumn` bukan `column`), `assets/logo/` (logo UGM + ikon tiap halaman), `siapkan_logo.py` |
 | `docs/` | Dokumen tingkat workspace (PERENCANAAN, FRAMEWORK, ARCHITECTURE, PRD, listing ide) |
 | `sumber/` | Referensi resmi (sharing, TIDAK boleh dihapus): `UGM Analytics.xlsx`, Kepmen 361 (PDF scan), Buku IKU (PDF), `picture/` (gambar mentah) |
 | `venv/` · `.venv/` | Virtualenv Python (lihat catatan dua venv di atas) |
@@ -80,20 +74,64 @@ di mesin dev).
 Aturan yang dipakai setelah perapian struktur:
 
 1. **Sumber sharing** ada di dalam repo, di folder bersama: `sumber/` (dokumen & gambar mentah
-   resmi), `shared/` (kode + aset Streamlit bersama), `web/public/` (aset web publik).
+   resmi), `web/public/` (aset web).
 2. **Sumber per use case** ada di dalam folder use case masing-masing: `berita-dampak/`,
-   `akreditasi/`, `matkul-sustainability/` — termasuk skrip, data, dashboard, dan dokumen.
+   `akreditasi/`, `matkul-sustainability/` — termasuk skrip, data, dan dokumen.
 3. **Duplikasi aset yang disengaja** (jangan "dirapikan" tanpa alasan):
-   - logo: `sumber/picture/` (mentah) → `shared/assets/logo/` (Streamlit) → `web/public/logo/`
-     (React). Isi `shared/assets/logo/` dan `web/public/logo/` IDENTIK (terverifikasi md5);
-     `sumber/picture/` resolusinya beda (mentah). Yang dipakai kode: `shared/` + `web/public/`.
-   - `hero_bg.jpg`: `berita-dampak/static/` (Streamlit, static serving) + `web/public/`
-     (React). Isinya identik (md5) — dua app, dua folder aset, memang harus begitu.
+   - logo: `sumber/picture/` (mentah) → `web/public/logo/` (hasil `web/siapkan_logo.py`).
+     Resolusinya beda, jadi bukan duplikat. Yang dipakai kode: `web/public/`.
 4. **Ketergantungan runtime API → skrip subproyek** (sengaja, jangan dipindah):
    `api/app/domain/source.py` memuat modul dari `berita-dampak/scripts/` (`kepmen_sdg.py`,
    `unit_kerja.py`, `keywords.py`, `narasi_logic.py`, `sdg_keywords.py`) dan
-   `akreditasi/scripts/`. Memindahkan file itu akan mematahkan `/analytics/story`.
+   `akreditasi/scripts/` (`registry_kebutuhan_data.py`, `generate_template.py`,
+   `ekstraksi_akreditasi.py`). Memindahkan file itu akan mematahkan `/analytics/story` dan
+   ruang kerja akreditasi.
 5. **Dump database & secret TIDAK disimpan di repo** — lihat "Arsip di luar repo" di bawah.
+
+## Streamlit dihapus (2026-09-23)
+
+Semua dashboard Streamlit (`berita-dampak/dashboard_berita_dampak.py` + `pages_app/`,
+`akreditasi/dashboard_akreditasi.py`, `matkul-sustainability/dashboard_*.py`, `shared/style.py`)
+dihapus setelah fiturnya dipindah ke web. Riwayatnya tetap ada di git.
+
+Fitur akreditasi yang dulu hanya ada di Streamlit kini di `/akreditasi` (komponen
+`web/src/akreditasi.tsx`, service `api/app/services/accreditation_workspace.py`):
+
+| Fitur | Endpoint (`/api/v1/analytics/accreditation/...`) |
+|---|---|
+| Isi data per item LED/LKPS (tabel multi-baris & narasi), simpan = tulis ulang item | `GET workspace?prodi_id=&dokumen=`, `POST workspace/items/{item_id}` |
+| Upload file (banyak sekaligus) + ekstraksi AI di latar, status per batch | `POST uploads`, `POST extractions` |
+| Review hasil AI: isi sel kosong saja, tidak menimpa data manual, konflik antar file dikosongkan & dipilih user, dikonfirmasi saat Simpan | (bagian `draft` di `workspace`) |
+| Tambah prodi baru | `POST programs` |
+| Generate Word LED/LKPS + riwayat | `POST generate` |
+| Unduh ulang laporan dari Profil | `GET history/{id}/file` |
+
+Ikut diperbaiki: upload akreditasi di web selama ini selalu gagal 503 (`settings` tidak diimpor
+di router), dan login API kini punya rate limit yang sama dengan Streamlit (5× gagal beruntun
+dalam 15 menit → email dikunci sementara).
+
+Juga dipindah (2026-09-23, lanjutan):
+- **Update data berita** — halaman `/admin` → panel "Update data" (khusus admin akreditasi):
+  `POST /api/v1/analytics/refresh` menjalankan `update_mingguan.py` di latar (interpreter
+  `venv\` atau env `UGM_ANALYTICS_PYTHON`), `GET refresh-status` memberi status + tail log
+  `berita-dampak/logs_update_dashboard.txt`. Lock `data/.update_lock` dicek (PID yang sudah mati
+  dianggap lock yatim). Setelah selesai, cache `/story` dibuang sekali.
+- **Narasi LLM** — `berita_narasi_cache` kini dibaca `/story`: ringkasan eksekutif
+  (`exec_berdampak` / `exec_berdampak_sdgs`) dan insight pilar (`pilar_<pilar>`, hanya mode
+  Dampak × SDGs), **hanya saat filter default** (aturan sama dengan Streamlit). Field
+  `narrative_source: "llm" | "template"`; UI memberi label "dirangkai AI".
+- **Deploy** — lihat `deploy/README.md`: skrip migrasi kini membuat skema benar (PK, UNIQUE,
+  IDENTITY, boolean) dan punya mode `--perbaiki-skema` untuk server yang sudah dimigrasi dengan
+  skrip lama (**WAJIB dijalankan sebelum versi ini dipakai di server lama** — tanpanya login pun
+  gagal karena `akreditasi_login_attempts.berhasil` masih BIGINT). Ekstraksi AI diaktifkan lewat
+  `deploy/openai.env` (opsional). Image API kini ikut memuat `generate_template.py` dan
+  `ekstraksi_akreditasi.py` (dulu tertinggal → generate Word/ekstraksi pasti gagal di container).
+
+Verifikasi 2026-09-23: 89 tes API; alur tulis di MySQL asli (dalam transaksi yang di-rollback —
+jumlah baris sebelum/sesudah identik) termasuk ekstraksi dengan OpenAI sungguhan (PDF 3 halaman,
+7 batch, 44 kolom ditemukan, data manual tidak ditimpa); migrasi lama vs baru diuji di
+PostgreSQL 16 portabel (registrasi/login/upload/simpan gagal sebelum `--perbaiki-skema`, lolos
+sesudahnya dan pada migrasi baru).
 
 ## Tata letak laporan dampak di web (2026-09-23)
 
@@ -121,6 +159,46 @@ di samping analisis berita tema itu (metrik, 3 chart, tabel).
   CSS `.table-pager`). Tabel ringkas lain tetap tampil utuh; Unduh CSV tetap
   mengunduh seluruh baris.
 
+## Sumber data kedua: mata kuliah sustainability (2026-09-23)
+
+Dashboard dampak tidak lagi hanya berita. Data kurikulum mata kuliah ikut tampil
+dan dikaitkan ke tema Kepmen:
+
+- Sumber: `matkul-sustainability/data/Deskripsi Matkul Kepmen.csv` (kurasi manual,
+  8.465 baris penawaran MK) + `Ringkasan Indikator Kepmen.md`/`.json` (konversi dari
+  PDF; angka resmi & catatan metode — PDF asli tetap disimpan). CSV dipisah `;`,
+  encoding **cp1252** — bukan UTF-8.
+- Angka resmi (selaras Ringkasan): 511 baris **Substansial – dihitung** = **453 MK unik**
+  setelah dedup nama; 142 baris *Parsial/bergantung topik* **tidak** dihitung
+  (Kepmen no. 2: MK yang menyinggung sepintas tidak dihitung). Tabel status Ringkasan
+  mencatat total 8.463 (bukan 8.465) karena 2 baris berstatus kosong.
+- **Angka resmi hidup di kode**: `api/app/services/ringkasan_kepmen.py` (STATUS_RESMI,
+  KRITERIA_RESMI, CATATAN_METODE_RESMI — butir 1-7 Ringkasan). `load_matkul()` selalu
+  cek-silang CSV vs angka resmi (`cek_silang_csv`) dan log warning bila berbeda;
+  test `test_load_matkul_csv_sesuai_ringkasan_resmi` mengunci angkanya.
+- Payload `mata_kuliah` bawa `kriteria_resmi` (jumlah MK resmi per kriteria a-j:
+  a=165, b=116, c=42, d=59, e=33, f=142, g=127, h=35, i=117, j=130) dan
+  `catatan_metode` — keduanya tampil di panel web (detail Angka resmi + Catatan metode).
+- **Kaitan ke tema**: indikator *jumlah MK/modul yang memuat materi sustainability dan
+  biodiversitas* adalah tema **4.5 Pendidikan dan Penelitian** (Dampak Lingkungan) —
+  jadi **semua** MK substansial terkait tema itu. Kriteria a–j di PDF Ringkasan persis
+  kriteria tema tsb. Pemetaan kriteria → tema lain (c=Energi, d/e=Limbah,
+  f/g/h/i=Konservasi & Rehabilitasi lingkungan) adalah **perluasan analitik**, ditandai
+  eksplisit di catatan UI — bukan klaim pelaporan resmi. Kriteria a, b, j sengaja tidak
+  dipetakan ke tema lain (terlalu lintas-tema).
+- API: kunci `mata_kuliah` di `GET /analytics/story` (kontrak lama utuh; `tersedia:false`
+  bila CSV tak ada, sehingga endpoint berita tetap hidup). Loader: `api/app/services/matkul.py`
+  (`load_matkul`, `tema_dari_kriteria`, `KRITERIA_LABEL`); builder: `mata_kuliah_section()` /
+  `mata_kuliah_blok()` di `story.py`; dimuat sekali di `StoryService._load()` (ikut cache frame).
+  Blok mengikuti filter: `pillar`/`topic` pada mode `impact`, dan klaster `sdgs` pada mode
+  `impact-sdgs` (chart tambahan `matkul_sdg`). Pilar Sosial/Ekonomi → blok kosong (normal).
+- Tabel **Daftar mata kuliah substansial** menampilkan **seluruh** MK unik (bukan dibatasi
+  `MAX_ROWS=200` berita — parameter `max_rows` baru di `_table()`), 10 baris/halaman.
+- Frontend: komponen `MataKuliahPanel` di `web/src/laporan.tsx` (CSS `.laporan-matkul`),
+  dirender di akhir blok laporan (mode `impact`) dan di scene **Dampak × SDGs** (`impact-sdgs`).
+- Verifikasi live 2026-09-23: payload 453/511/142; pager "1–10 dari 453 · halaman 1/46";
+  UI headless (Edge CDP) desktop 1440px + 390px tanpa overflow horizontal.
+
 ## Dokumentasi
 
 - `docs/PERENCANAAN.md` — tujuan, prinsip, backlog ide, milestone, status per subproyek
@@ -129,9 +207,10 @@ di samping analisis berita tema itu (metrik, 3 chart, tabel).
 - `docs/PRD_FRONTEND_NON_STREAMLIT.md` — PRD migrasi Streamlit → React/Vite + FastAPI
 - `docs/REVIEW_WEB_BARU_2026-09-21.md` — review dashboard web baru (temuan + perbaikan yang sudah dikerjakan)
 - `docs/listing-ide-analisis-dampak.md` — ide backlog
-- `berita-dampak/README.md` + `PIPELINE.md` + `DASHBOARD.md` + `docs/OUTPUT.md` — subproyek berita-dampak
-- `akreditasi/README.md` + `PIPELINE.md` + `DASHBOARD.md` — subproyek akreditasi
-- `matkul-sustainability/README.md` + `PIPELINE.md` + `DASHBOARD.md` — subproyek matkul
+- `berita-dampak/README.md` + `PIPELINE.md` + `docs/OUTPUT.md` — subproyek berita-dampak
+- `akreditasi/README.md` + `PIPELINE.md` — subproyek akreditasi
+- `matkul-sustainability/README.md` + `PIPELINE.md` — subproyek matkul
+- `docs/` berisi dokumen historis yang masih menyebut Streamlit — status terkini ada di README ini
 - `deploy/README.md` — paket deploy terisolasi (batas, kontrak env, gate pra-deploy)
 - `deploy/legacy/README-streamlit-mysql.md` — arsip cara deploy lama (Streamlit + MySQL), lihat folder `legacy/`
 
@@ -165,7 +244,7 @@ itu — jangan mengandalkan dump di folder arsip.
 
 ## Lingkungan
 
-- Python venv: `venv/` (pandas, plotly, streamlit, requests, bs4, duckdb,
+- Python venv: `venv/` (pandas, plotly, requests, bs4, duckdb,
   openpyxl, pymupdf, rapidocr-onnxruntime, sqlalchemy, pymysql, python-dotenv,
   openai). Bukan matplotlib/kaleido — output statis pakai plotly `write_html`.
 - Penyimpanan: **MySQL** `ugm_analytics` (berita-dampak + akreditasi; kredensial

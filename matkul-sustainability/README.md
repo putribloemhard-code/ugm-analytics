@@ -8,7 +8,6 @@ Sumber data: eLOK UGM (https://elok.ugm.ac.id).
 
 ```
 matkul-sustainability/
-├── dashboard_matkul_kepmen.py   # Dashboard interaktif (Streamlit) — OUTPUT UTAMA
 ├── laporan_matkul_kepmen.html   # Laporan statis, buka langsung di browser (offline)
 ├── PIPELINE.md                  # Dokumentasi cara processing + hasil + caveat
 ├── data/
@@ -29,9 +28,6 @@ matkul-sustainability/
 ## Cara menjalankan (dari folder ini, pakai venv proyek)
 
 ```bash
-# Dashboard interaktif
-../venv/Scripts/python.exe -m streamlit run dashboard_matkul_kepmen.py
-
 # Regenerate laporan HTML statis
 ../venv/Scripts/python.exe scripts/laporan_static.py
 

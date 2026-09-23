@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import type { Chapter, ChapterSection, Story } from './lib/api';
+import type { Chapter, ChapterSection, MataKuliahBlok, Story } from './lib/api';
 import { ChartGrid, Insight, StoryTableView } from './story';
 
 /* Komponen "Laporan dampak": tata letak mengikuti daftar isi resmi
@@ -147,6 +147,67 @@ function Bab({ chapter }: { chapter: Chapter }) {
   </section>;
 }
 
+/* ------------------------------------------------- panel mata kuliah (baru) ---- */
+/** Blok "Mata kuliah sustainability": data kurikulum UGM (Deskripsi Matkul Kepmen.csv)
+ *  yang dimatching-kan ke tema Kepmen 361/M/KEP/2025. Tema resmi indikator ini =
+ *  "Pendidikan dan Penelitian" (Dampak Lingkungan) — SEMUA MK substansial masuk di sana;
+ *  kaitan ke tema lain berasal dari kriteria a-j yang tercantum di tema tersebut. */
+export function MataKuliahPanel({ blok, pillar }: { blok: MataKuliahBlok; pillar?: string }) {
+  if (!blok.tersedia) return null;
+  const kosong = blok.metrics[0]?.value === 0 || blok.metrics[0]?.value === undefined;
+  return <section className="story-block laporan-matkul" aria-label="Data mata kuliah sustainability">
+    <div className="laporan-matkul__head">
+      <div>
+        <p className="section-kicker">Sumber data kedua — bukan berita</p>
+        <h3>Mata kuliah sustainability UGM</h3>
+      </div>
+      <span className="laporan-matkul__badge">{fmtValue(blok.n_mk_unik)} MK unik</span>
+    </div>
+    <Insight label="Dari mana angka ini">
+      Kurasi manual kurikulum UGM (Deskripsi Matkul Kepmen.csv): {fmtValue(blok.total_penawaran)} baris
+      penawaran mata kuliah diperiksa, {fmtValue(blok.n_substansial)} baris di antaranya
+      menyentuh sustainability secara substansial (menyinggung sepintas tidak dihitung), setara{" "}
+      <strong>{fmtValue(blok.n_mk_unik)} mata kuliah unik</strong> setelah dedup nama.
+      Indikator resmi Kepmen: <em>jumlah mata kuliah/modul yang memuat materi sustainability dan
+      biodiversitas</em> — temanya {pillar ? 'termasuk dalam dampak ini' : 'Pendidikan dan Penelitian (Dampak Lingkungan)'}.
+      Kaitan ke tema lain mengikuti kriteria a-j yang tercantum di tema itu, jadi ini perluasan
+      analitik, bukan klaim pelaporan resmi.
+    </Insight>
+    <div className="analysis-summary-grid analysis-summary-grid--3">
+      {blok.metrics.map(metric => <div className="metric" key={metric.label} title={metric.help ?? undefined}>
+        <div className="metric-label">{metric.label}</div>
+        <div className="metric-value">{fmtValue(metric.value)}</div>
+      </div>)}
+    </div>
+    {kosong && <p className="chart-empty">Tidak ada mata kuliah yang terkait pilar ini — indikator mata kuliah terletak pada Dampak Lingkungan (tema Pendidikan dan Penelitian).</p>}
+    {Object.keys(blok.kriteria_resmi).length > 0 && <details className="laporan-indikator" open>
+      <summary>Angka resmi Ringkasan Indikator Kepmen — seluruh {fmtValue(blok.n_mk_unik)} MK unik per kriteria a-j</summary>
+      <div className="laporan-matkul__resmi">
+        {Object.entries(blok.kriteria_resmi).map(([huruf, jumlah]) => <div className="laporan-matkul__resmi-item" key={huruf}>
+          <span className="laporan-matkul__resmi-huruf">{huruf}</span>
+          <span className="laporan-matkul__resmi-jumlah">{fmtValue(jumlah)}</span>
+        </div>)}
+      </div>
+      <p className="chart-note">
+        Angka resmi ini mencakup seluruh MK substansial (tidak terpengaruh filter). Satu MK bisa
+        memuat lebih dari satu topik, sehingga jumlah per kriteria lebih besar daripada angka
+        indikator ({fmtValue(blok.n_mk_unik)} MK unik).
+      </p>
+    </details>}
+    {blok.catatan_metode.length > 0 && <details className="laporan-indikator">
+      <summary>Catatan metode (Ringkasan Indikator Kepmen)</summary>
+      <ol className="laporan-matkul__metode">
+        {blok.catatan_metode.map((butir, i) => <li key={i}>{butir}</li>)}
+      </ol>
+    </details>}
+    {!kosong && <>
+      <ChartGrid charts={blok.charts} />
+      {blok.tables.map(table => <StoryTableView key={table.id} table={table} />)}
+    </>}
+    <p className="chart-note">{blok.note}</p>
+  </section>;
+}
+
 /* ------------------------------------------------------------- tampilan utama ---- */
 export function LaporanDampak({ story }: { story: Story }) {
   if (!story.chapters.length) return null;
@@ -165,5 +226,6 @@ export function LaporanDampak({ story }: { story: Story }) {
     <div className="laporan__bab-list">
       {story.chapters.map(chapter => <Bab key={chapter.pillar} chapter={chapter} />)}
     </div>
+    {story.mata_kuliah && <MataKuliahPanel blok={story.mata_kuliah} pillar={undefined} />}
   </section>;
 }

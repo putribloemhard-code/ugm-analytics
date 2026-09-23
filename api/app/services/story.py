@@ -31,6 +31,8 @@ from sqlalchemy.engine import Engine
 
 from app.domain.models import FilterParams
 from app.domain.source import kepmen, keywords, load_module, units
+from app.services.matkul import KRITERIA_LABEL, MatkulFrames, load_matkul, meta_tema as meta_tema_matkul, tema_dari_kriteria
+from app.services.ringkasan_kepmen import CATATAN_METODE_RESMI
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +133,9 @@ class StoryFrames:
     ss: pd.DataFrame          # url, sdg   (berita_sitemap_sdg)
     rp: pd.DataFrame          # dampak, jumlah_berita
     data_as_of: str | None = None
+    matkul: "MatkulFrames | None" = None   # data mata kuliah (matkul-sustainability)
+    # Narasi hasil LLM (berita_narasi_cache, scripts/generate_narasi_llm.py): cache_key -> teks.
+    narasi_llm: dict[str, str] = field(default_factory=dict)
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -256,14 +261,14 @@ def _stacked_data(df: pd.DataFrame, x_col: str, series_col: str, value_col: str,
 
 def _table(table_id: str, title: str, columns: list[tuple[str, str]], rows: list[dict[str, Any]],
            note: str | None = None, insight: str | None = None,
-           page_size: int | None = None) -> dict[str, Any]:
+           page_size: int | None = None, max_rows: int | None = None) -> dict[str, Any]:
     return {
         "id": table_id,
         "title": title,
         "note": note,
         "insight": plain(insight),
         "columns": [{"key": key, "label": label} for key, label in columns],
-        "rows": rows[:MAX_ROWS],
+        "rows": rows[:max_rows if max_rows is not None else MAX_ROWS],
         # page_size: baris per halaman di UI (tabel daftar berita = NEWS_PAGE_SIZE).
         # None = tabel ditampilkan utuh (tabel ringkas: distribusi, unit kerja, dsb).
         "page_size": page_size,
@@ -299,12 +304,32 @@ class _Ctx:
     topik_pilih: tuple[str, ...]
     pillar_set: tuple[str, ...]
     keywords_all: dict[str, list[str]]
+    # Narasi LLM yang boleh dipakai (kosong kalau filter bukan default) -- lihat _narasi_llm_aktif.
+    narasi_llm: dict[str, str] = field(default_factory=dict)
 
 
 def _keywords_all() -> dict[str, list[str]]:
     result = dict(keywords().KEYWORDS)
     result.update({key: value["keywords"] for key, value in kepmen().TEMA_KEPMEN_LENGKAP.items()})
     return result
+
+
+def _narasi_llm_aktif(frames: StoryFrames, filters: FilterParams, mode: str, start: str, end: str) -> dict[str, str]:
+    """Narasi LLM hanya valid untuk filter DEFAULT (semua tahun/pilar/tema/SDG, tanpa unit kerja).
+
+    Aturannya sama dengan dashboard Streamlit lama (FILTER_ADALAH_DEFAULT): cache digenerate
+    dari angka seluruh data, jadi begitu filter menyempit angkanya tidak cocok lagi dan narasi
+    template (narasi_logic.py, dihitung ulang dari data ter-filter) yang dipakai.
+    """
+    if not frames.narasi_llm:
+        return {}
+    semua_tahun = (start, end) == _year_range(frames.berita)
+    semua_pilar = set(filters.pillars or PILLARS) == set(PILLARS)
+    semua_tema = set(filters.topics or kepmen().TOPIK_KEPMEN_ALL) == set(kepmen().TOPIK_KEPMEN_ALL)
+    semua_sdg = mode != "impact-sdgs" or set(filters.sdgs or range(1, 18)) == set(range(1, 18))
+    if semua_tahun and semua_pilar and semua_tema and semua_sdg and not filters.units:
+        return frames.narasi_llm
+    return {}
 
 
 def _year_range(berita: pd.DataFrame) -> tuple[str, str]:
@@ -393,7 +418,8 @@ def _news_rows(news: pd.DataFrame, columns: dict[str, str]) -> list[dict[str, An
 # Mode Berdampak / Berdampak × SDGs
 # --------------------------------------------------------------------------------------
 def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str, end: str,
-                  pillar: str | None, topic: str | None) -> dict[str, Any]:
+                  pillar: str | None, topic: str | None,
+                  matkul: MatkulFrames | None = None) -> dict[str, Any]:
     mapping = kepmen()
     label_topic = mapping.LABEL_TOPIC_ALL
     meta = mapping.TOPIK_KEPMEN_ALL
@@ -427,11 +453,14 @@ def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str,
         },
         "data_as_of": fr.data_as_of,
         "caveats": list(CAVEATS),
-        "executive": {"metrics": [], "narrative": "Tidak ada data untuk filter ini. Ubah filter untuk melihat analisis lain."},
+        "executive": {"metrics": [], "narrative": "Tidak ada data untuk filter ini. Ubah filter untuk melihat analisis lain.",
+                      "narrative_source": "template"},
         "overview": [],
         "cross": {"title": "Analisis Lintas-Dampak", "charts": [], "tables": []},
         "pillar_detail": None,
         "chapters": [],
+        "mata_kuliah": mata_kuliah_blok(matkul, pillar, topic,
+                                        sdgs=tuple(filters.sdgs), sdg_mode=mode == "impact-sdgs"),
         "tables": [],
     }
     if b.empty or t.empty:
@@ -444,7 +473,7 @@ def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str,
         bs = bs[bs["sdg"].isin(filters.sdgs)]
     bs_f = bs[bs["url"].isin(urls_t)]
     ctx = _Ctx(mode, mode_label, start, end, b, b_nounit, t, t_nounit, b_t, bs_f, fr.uk, tampil,
-               topik_pilih, pillar_set, _keywords_all())
+               topik_pilih, pillar_set, _keywords_all(), _narasi_llm_aktif(fr, filters, mode, start, end))
 
     narasi = load_module("narasi_logic.py")
     ringkasan = narasi.generate_executive_summary(b, t, bs_f, mode_label, start, end)
@@ -464,12 +493,19 @@ def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str,
             {"label": ringkasan["topik_top_kind_label"], "value": ringkasan["topik_top_short"], "note": None},
         ],
         "narrative": ringkasan["narasi"],
+        "narrative_source": "template",
     }
+    # Cache LLM digenerate untuk ringkasan eksekutif kedua mode (lihat generate_narasi_llm.py).
+    exec_key = "exec_berdampak_sdgs" if mode == "impact-sdgs" else "exec_berdampak"
+    if ctx.narasi_llm.get(exec_key):
+        response["executive"].update(narrative=ctx.narasi_llm[exec_key], narrative_source="llm")
     response["overview"] = overview_rows(b, t, pillar_set)
     response["cross"] = _cross(ctx, fr, topic)
     # Bab laporan resmi: Sosial (BAB II) → Ekonomi (BAB III) → Lingkungan (BAB IV),
     # tiap bab berisi sub-bab per tema sesuai daftar isi LAPORAN DAMPAK UGM 2025.
     response["chapters"] = chapter_rows(ctx)
+    response["mata_kuliah"] = mata_kuliah_blok(matkul, pillar, topic,
+                                               sdgs=tuple(filters.sdgs), sdg_mode=mode == "impact-sdgs")
     if pillar:
         response["pillar_detail"] = _pillar_detail(ctx, pillar, topic)
     return response
@@ -668,7 +704,211 @@ def chapter_rows(ctx: _Ctx) -> list[dict[str, Any]]:
     return chapters
 
 
-# ---- Detail per dampak -------------------------------------------------------------
+# ---- Data mata kuliah sustainability (subproyek matkul-sustainability) --------------
+CATATAN_MATKUL = (
+    "Data mata kuliah berasal dari kurasi manual kurikulum UGM "
+    "(matkul-sustainability/data/Deskripsi Matkul Kepmen.csv, 8.465 baris penawaran MK; "
+    "tabel status Ringkasan mencatat 8.463 baris karena 2 baris berstatus kosong). "
+    "Yang dihitung hanya MK berstatus 'Substansial - dihitung' (Kepmen no. 2: yang "
+    "menyinggung sepintas tidak dihitung; 142 baris 'Parsial' tidak masuk angka). "
+    "Satu MK dihitung 1 kali walau ditawarkan di >1 kelas/prodi (dedup nama MK - nama sama "
+    "di prodi berbeda bisa MK berbeda, verifikasi lewat kode MK/RPS). Deskripsi disusun dari "
+    "nama MK, BUKAN bukti; pelaporan resmi tetap butuh kurikulum/RPS/silabus. "
+    "Angka acuan: Ringkasan Indikator Kepmen 361/M/KEP/2025 (453 MK unik, 511 substansial, "
+    "142 parsial) — lihat matkul-sustainability/data/Ringkasan Indikator Kepmen.md."
+)
+
+
+def _matkul_rows(mk: pd.DataFrame) -> list[dict[str, Any]]:
+    """Baris tabel daftar MK: nama, fakultas, prodi, kriteria (label), keyword, deskripsi."""
+    rows = []
+    for r in mk.to_dict("records"):
+        huruf = [h.strip().lower() for h in str(r["kriteria"]).split(",") if h.strip()]
+        rows.append({
+            "nama_mk": r["nama_mk"],
+            "fakultas": r["fakultas"],
+            "prodi": r["prodi"],
+            "kriteria": ", ".join(KRITERIA_LABEL.get(h, h) for h in huruf),
+            "keyword": r["keywords"],
+            "deskripsi": r["deskripsi"],
+        })
+    return rows
+
+
+def mata_kuliah_section(mf: MatkulFrames, pilar: str | None = None,
+                        topik: str | None = None,
+                        sdgs: tuple[int, ...] = (), sdg_mode: bool = False) -> dict[str, Any]:
+    """Blok data mata kuliah untuk /analytics/story.
+
+    pilar=None -> ringkasan penuh (dipakai mode sdgs); pilar terisi -> MK difilter
+    ke tema-tema dalam dampak itu (tema indikator 4.5 hanya ada di Lingkungan, jadi
+    blok pilar Sosial/Ekonomi bisa kosong -- itu normal, bukan bug).
+    sdg_mode=True (mode Berdampak x SDGs) -> MK difilter ke klaster SDG terpilih dan
+    ditambah chart sebaran MK per SDG.
+    """
+    semua_meta = meta_tema_matkul()
+    tema_meta = {tid: m for tid, m in semua_meta.items() if pilar is None or m["dampak"] == pilar}
+    tema_aktif = [tid for tid in tema_meta if topik is None or tid == topik]
+
+    # MK terkait tema aktif: tema indikator 4.5 memuat SEMUA MK substansial; tema lain
+    # memuat MK yang kriterianya terpetakan ke tema itu (lihat matkul.py).
+    def mk_tema(tema_id: str) -> pd.DataFrame:
+        if tema_id == "pendidikan_dan_penelitian":
+            return mf.mk_unik
+        mask = mf.mk_unik["kriteria"].map(lambda k: tema_id in tema_dari_kriteria(k))
+        return mf.mk_unik[mask]
+
+    per_tema = {tid: mk_tema(tid) for tid in tema_aktif}
+    gabung_ids: set[int] = set()
+    for frame in per_tema.values():
+        gabung_ids.update(frame.index.tolist())
+    mk_gabung = mf.mk_unik.loc[sorted(gabung_ids)]
+
+    # Kaitan ke SDG: tema tiap MK (4.5 selalu + tema lain dari kriteria) -> klaster SDG tema.
+    def sdg_mk(kriteria: str) -> list[int]:
+        tema_ids = ["pendidikan_dan_penelitian", *tema_dari_kriteria(kriteria)]
+        sdg: list[int] = []
+        for tid in tema_ids:
+            for nomor in semua_meta.get(tid, {}).get("sdg", []):
+                if nomor not in sdg:
+                    sdg.append(nomor)
+        return sorted(sdg)
+
+    if sdg_mode:
+        peta_sdg = {idx: sdg_mk(row["kriteria"]) for idx, row in mk_gabung.iterrows()}
+        if sdgs:
+            mk_gabung = mk_gabung.loc[[idx for idx, daftar in peta_sdg.items() if set(daftar) & set(sdgs)]]
+            peta_sdg = {idx: daftar for idx, daftar in peta_sdg.items() if idx in set(mk_gabung.index)}
+    else:
+        peta_sdg = {}
+
+    # --- metrics ---
+    metrics = [
+        {"label": "MK unik substansial", "value": int(len(mk_gabung)),
+         "help": "Jumlah mata kuliah unik berstatus Substansial yang terkait dampak ini."},
+        {"label": "Baris penawaran (substansial)", "value": int(len(mf.substansial)),
+         "help": "Sebelum dedup nama MK -- satu MK bisa ditawarkan di beberapa prodi/kelas."},
+        {"label": "MK parsial (tak dihitung)", "value": int(mf.parsial),
+         "help": "Baris 'Parsial/bergantung topik - verifikasi RPS'; tidak masuk indikator."},
+    ]
+
+    # --- charts ---
+    charts: list[dict[str, Any]] = []
+    if len(mk_gabung):
+        # (1) MK unik per kriteria a-j (hanya kriteria yang muncul di MK terpilih).
+        hitung_kriteria: Counter = Counter()
+        for k in mk_gabung["kriteria"]:
+            hitung_kriteria.update(huruf.strip().lower() for huruf in str(k).split(",") if huruf.strip())
+        dist_k = pd.DataFrame(
+            [{"label": KRITERIA_LABEL.get(h, h), "jumlah": n} for h, n in hitung_kriteria.most_common()]
+        )
+        charts.append(_chart(
+            "matkul_kriteria", "bar", "Mata kuliah per kriteria Kepmen (a-j)",
+            _bar_data(dist_k, "label", "jumlah"),
+            insight=insight_top2(dist_k, "label", "jumlah", satuan="MK"),
+            note=("Kriteria a-j = topik indikator 'Pendidikan dan Penelitian' (tema 4.5): "
+                  "pembangunan berkelanjutan, perubahan iklim, energi terbarukan, pengelolaan limbah, "
+                  "ekonomi sirkular, konservasi lingkungan, keanekaragaman hayati, rehabilitasi/"
+                  "restorasi, pengelolaan SDA, topik lain relevan. Satu MK bisa memuat >1 topik, "
+                  "sehingga jumlah per kriteria > jumlah MK unik. Angka pada chart adalah hasil "
+                  "hitung MK terpilih; angka resmi seluruh 453 MK per kriteria tercantum di "
+                  "kriteria_resmi Ringkasan Indikator Kepmen."),
+            orientation="h",
+        ))
+        # (2) MK unik per tema terkait (pemetaan kriteria -> tema; tema 4.5 = semua).
+        dist_t = pd.DataFrame(
+            [{"label": semua_meta[tid]["topik_kepmen"], "jumlah": len(frame)}
+             for tid, frame in sorted(per_tema.items(), key=lambda kv: -len(kv[1])) if len(frame)]
+        )
+        if len(dist_t):
+            charts.append(_chart(
+                "matkul_tema", "bar", "Mata kuliah per tema dampak terkait",
+                _bar_data(dist_t, "label", "jumlah"),
+                insight=insight_top2(dist_t, "label", "jumlah", satuan="MK"),
+                note=("Pemetaan analitik kriteria a-j ke tema dampak lain (c=energi, d/e=limbah, "
+                      "f/g/h/i=konservasi & rehabilitasi lingkungan). SEMUA MK substansial adalah "
+                      "tema resmi 4.5 'Pendidikan dan Penelitian' (Dampak Lingkungan) -- pemetaan ke "
+                      "tema lain adalah perluasan analitik, bukan klaim pelaporan resmi."),
+                orientation="h",
+            ))
+        # (3, khusus mode Berdampak x SDGs) sebaran MK per klaster SDG.
+        if sdg_mode:
+            hitung_sdg: Counter = Counter()
+            for daftar in peta_sdg.values():
+                hitung_sdg.update(daftar)
+            dist_s = pd.DataFrame(
+                [{"label": f"SDG {nomor}", "jumlah": n} for nomor, n in sorted(hitung_sdg.items()) if n]
+            )
+            if len(dist_s):
+                charts.append(_chart(
+                    "matkul_sdg", "bar", "Mata kuliah per klaster SDG",
+                    _bar_data(dist_s, "label", "jumlah"),
+                    insight=insight_top2(dist_s, "label", "jumlah", satuan="MK"),
+                    note=("Klaster SDG dihitung dari tema resmi tiap MK (Pendidikan dan Penelitian = "
+                          "SDG 4 & 17, plus klaster tema lain dari kriteria a-j). Pemetaan tema-SDG "
+                          "mengikuti Kepmen 361/M/KEP/2025, sama seperti mode ini untuk berita."),
+                    orientation="v",
+                ))
+
+    # --- tables ---
+    tables: list[dict[str, Any]] = []
+    if len(mk_gabung):
+        # Tabel daftar MK tidak dibatasi MAX_ROWS (200): seluruh MK substansial harus
+        # tersaji supaya angka "MK unik substansial" dan isi tabel konsisten.
+        tables.append(_table(
+            "matkul_daftar", "Daftar mata kuliah substansial",
+            [("nama_mk", "Mata kuliah"), ("fakultas", "Fakultas/Sekolah"), ("prodi", "Program studi"),
+             ("kriteria", "Kriteria Kepmen"), ("keyword", "Keyword match"), ("deskripsi", "Deskripsi")],
+            _matkul_rows(mk_gabung.sort_values(["fakultas", "nama_mk"], kind="stable")),
+            note=("Seluruh MK unik berstatus Substansial ditampilkan di sini. " + CATATAN_MATKUL),
+            page_size=10, max_rows=len(mk_gabung),
+        ))
+        rekap = (
+            mk_gabung.groupby("fakultas").agg(jumlah_mk=("nama_mk", "nunique")).reset_index()
+            .sort_values("jumlah_mk", ascending=False, kind="stable")
+        )
+        tables.append(_table(
+            "matkul_rekap_fakultas", "Rekap mata kuliah per fakultas/sekolah",
+            [("fakultas", "Fakultas/Sekolah"), ("jumlah_mk", "Jumlah MK unik")],
+            [{"fakultas": r["fakultas"], "jumlah_mk": int(r["jumlah_mk"])} for r in rekap.to_dict("records")],
+            note=("MK unik per fakultas/sekolah (dedup nama MK lintas prodi dalam fakultas itu). " + CATATAN_MATKUL),
+            page_size=5,
+        ))
+
+    return {
+        "sumber": mf.sumber,
+        "total_penawaran": mf.total_penawaran,
+        "n_substansial": mf.n_substansial,
+        "n_mk_unik": mf.n_mk_unik,
+        "parsial": mf.parsial,
+        "indikator_tema": "pendidikan_dan_penelitian",
+        "kriteria_resmi": dict(mf.kriteria_resmi),
+        "catatan_metode": list(CATATAN_METODE_RESMI),
+        "note": CATATAN_MATKUL,
+        "metrics": metrics,
+        "charts": charts,
+        "tables": tables,
+    }
+
+
+def mata_kuliah_blok(matkul: MatkulFrames | None, pilar: str | None = None,
+                     topik: str | None = None, sdgs: tuple[int, ...] = (),
+                     sdg_mode: bool = False) -> dict[str, Any]:
+    """Payload `mata_kuliah` respons; kontrak stabil walau data CSV tidak tersedia."""
+    if matkul is None:
+        return {
+            "tersedia": False,
+            "sumber": "", "total_penawaran": 0, "n_substansial": 0, "n_mk_unik": 0, "parsial": 0,
+            "indikator_tema": "pendidikan_dan_penelitian",
+            "kriteria_resmi": {}, "catatan_metode": [],
+            "note": "Data mata kuliah belum tersedia (Deskripsi Matkul Kepmen.csv tidak ditemukan).",
+            "metrics": [], "charts": [], "tables": [],
+        }
+    blok = mata_kuliah_section(matkul, pilar, topik, sdgs=sdgs, sdg_mode=sdg_mode)
+    blok["tersedia"] = True
+    return blok
+
+
 def _pillar_detail(ctx: _Ctx, pilar: str, topic: str | None) -> dict[str, Any]:
     mapping = kepmen()
     label_topic = mapping.LABEL_TOPIC_ALL
@@ -691,6 +931,12 @@ def _pillar_detail(ctx: _Ctx, pilar: str, topic: str | None) -> dict[str, Any]:
     detail["narrative"] = narasi.generate_impact_insight(
         selected_news, pilar, ctx.start, ctx.end, selected_t, ctx.mode_label, bs_pilar,
     )
+    detail["narrative_source"] = "template"
+    # Insight pilar LLM hanya digenerate untuk mode Dampak x SDGs (key "pilar_<pilar>"),
+    # sama seperti dashboard lama -- mode Dampak saja selalu template.
+    pilar_key = f"pilar_{pilar.lower()}"
+    if ctx.mode == "impact-sdgs" and ctx.narasi_llm.get(pilar_key):
+        detail.update(narrative=ctx.narasi_llm[pilar_key], narrative_source="llm")
     if selected_news.empty:
         return detail
 
@@ -1192,7 +1438,8 @@ def _url_bersih(series: pd.Series) -> pd.Series:
     return series.str.split("?").str[0].str.rstrip("/")
 
 
-def _story_sdgs(fr: StoryFrames, filters: FilterParams, start: str, end: str) -> dict[str, Any]:
+def _story_sdgs(fr: StoryFrames, filters: FilterParams, start: str, end: str,
+                matkul: MatkulFrames | None = None) -> dict[str, Any]:
     mapping = kepmen()
     narasi = load_module("narasi_logic.py")
     unit_map = units().UNIT_KERJA
@@ -1226,6 +1473,7 @@ def _story_sdgs(fr: StoryFrames, filters: FilterParams, start: str, end: str) ->
         "cross": {"title": "Analisis SDGs", "charts": [], "tables": []},
         "pillar_detail": None,
         "chapters": [],
+        "mata_kuliah": mata_kuliah_blok(matkul),
         "tables": [],
     }
     if not len(ss_f):
@@ -1318,15 +1566,21 @@ def _story_sdgs(fr: StoryFrames, filters: FilterParams, start: str, end: str) ->
 # Titik masuk
 # --------------------------------------------------------------------------------------
 def build_story(frames: StoryFrames, filters: FilterParams, mode: str = "impact",
-                pillar: str | None = None, topic: str | None = None) -> dict[str, Any]:
-    """Susun seluruh chart + insight untuk satu kombinasi filter (fungsi murni; tanpa database)."""
+                pillar: str | None = None, topic: str | None = None,
+                matkul: MatkulFrames | None = None) -> dict[str, Any]:
+    """Susun seluruh chart + insight untuk satu kombinasi filter (fungsi murni; tanpa database).
+
+    `matkul` opsional: data mata kuliah (subproyek matkul-sustainability). Kalau None,
+    blok `mata_kuliah` diisi ringkasan kosong bertanda `tersedia: False` supaya kontrak
+    respons tetap sama untuk semua pemanggil.
+    """
     if mode not in ("impact", "impact-sdgs", "sdgs"):
         raise ValueError("mode must be impact, impact-sdgs or sdgs")
     start, end = filters.year_bounds(*_year_range(frames.berita))
     if mode == "sdgs":
-        result = _story_sdgs(frames, filters, start, end)
+        result = _story_sdgs(frames, filters, start, end, matkul)
     else:
-        result = _story_impact(frames, filters, mode, start, end, pillar, topic)
+        result = _story_impact(frames, filters, mode, start, end, pillar, topic, matkul)
     return _native(result)
 
 
@@ -1358,6 +1612,13 @@ class StoryService:
         ss = self._read("SELECT url, sdg FROM berita_sitemap_sdg")
         bs["sdg"] = bs["sdg"].astype(int)
         ss["sdg"] = ss["sdg"].astype(int)
+        # Data mata kuliah (CSV kurasi, bukan DB) dimuat di sini supaya ikut cache frame;
+        # kegagalan file tidak boleh mematikan seluruh endpoint berita.
+        try:
+            matkul = load_matkul()
+        except FileNotFoundError as exc:
+            logger.warning("Data mata kuliah dilewati: %s", exc)
+            matkul = None
         return StoryFrames(
             berita=self._read("SELECT url, judul, tanggal, deskripsi, sumber FROM berita_berita"),
             bk=self._read("SELECT url, topik, dampak, topik_kepmen FROM berita_berita_kepmen_all"),
@@ -1367,7 +1628,17 @@ class StoryService:
             ss=ss,
             rp=self._read("SELECT dampak, jumlah_berita FROM berita_ringkasan_pilar"),
             data_as_of=None if last.empty else str(last.max()),
+            matkul=matkul,
+            narasi_llm=self._narasi_llm(),
         )
+
+    def _narasi_llm(self) -> dict[str, str]:
+        """Cache narasi LLM; tabel belum ada / gagal baca = kosong (narasi template dipakai)."""
+        try:
+            df = self._read("SELECT cache_key, narasi FROM berita_narasi_cache")
+        except Exception:  # noqa: BLE001 -- fitur opsional, tidak boleh mematikan /story
+            return {}
+        return {str(k): str(v) for k, v in zip(df["cache_key"], df["narasi"]) if v and str(v).strip()}
 
     def frames(self) -> StoryFrames:
         now = time.monotonic()
@@ -1385,4 +1656,5 @@ class StoryService:
             return frames
 
     def story(self, filters: FilterParams, mode: str, pillar: str | None = None, topic: str | None = None) -> dict[str, Any]:
-        return build_story(self.frames(), filters, mode, pillar, topic)
+        frames = self.frames()
+        return build_story(frames, filters, mode, pillar, topic, matkul=frames.matkul)

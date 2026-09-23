@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import Response
 
 from app.api.v1.schemas import AnalyticsResponse, ReportRequest, SearchResponse
+from app.config import settings
 from app.db import get_engine
 from app.domain.models import FilterParams
 from app.domain.search import parse_search
@@ -219,6 +220,85 @@ async def accreditation_upload(request: Request, prodi_id: str = Form(...), file
         raise HTTPException(status_code=503, detail="Upload gagal disimpan") from exc
 
 
+def _workspace(api: AnalyticsService):
+    from app.services.accreditation_workspace import AccreditationWorkspaceService
+    return AccreditationWorkspaceService(
+        api.engine,
+        upload_root=Path(settings.accreditation_upload_dir),
+        generated_root=Path(settings.accreditation_generated_dir),
+    )
+
+
+def _workspace_call(fn, *args, **kwargs):
+    """Terjemahkan galat ruang kerja ke status HTTP yang bisa dibaca UI."""
+    from app.services.accreditation_workspace import NotFound, WorkspaceError
+    try:
+        return fn(*args, **kwargs)
+    except NotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except WorkspaceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _docx(content: bytes, filename: str) -> Response:
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/accreditation/workspace")
+def accreditation_workspace(request: Request, prodi_id: str = Query(..., max_length=64),
+                            dokumen: str = Query(default="LED", pattern="^(LED|LKPS)$"),
+                            api: AnalyticsService = Depends(service)):
+    """Semua item LED/LKPS satu prodi + isian, draft ekstraksi AI, dan daftar file (padanan page_akreditasi.py)."""
+    _auth_user(request, api)
+    return _workspace_call(_workspace(api).workspace, prodi_id, dokumen)
+
+
+@router.post("/accreditation/workspace/items/{item_id}")
+def accreditation_save_item(item_id: str, payload: dict[str, Any], request: Request,
+                            api: AnalyticsService = Depends(service)):
+    """Simpan isian satu item (ganti seluruh sel item itu) + tandai ekstraksi AI yang sudah direview."""
+    user = _auth_user(request, api)
+    return _workspace_call(_workspace(api).save_item, str(payload.get("prodi_id", "")), item_id,
+                           payload.get("rows"), payload.get("ekstraksi_ids"), user["email"])
+
+
+@router.post("/accreditation/programs")
+def accreditation_add_program(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
+    """Tambah program studi baru di bawah satu fakultas (padanan "+ Tambah prodi baru")."""
+    _auth_user(request, api)
+    return _workspace_call(_workspace(api).add_program, payload.get("fakultas_id"),
+                           str(payload.get("nama", "")), str(payload.get("jenjang", "")))
+
+
+@router.post("/accreditation/extractions")
+def accreditation_extract(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
+    """Mulai ekstraksi AI di latar belakang untuk file prodi yang belum/gagal diekstrak; UI memantau lewat workspace."""
+    _auth_user(request, api)
+    return _workspace_call(_workspace(api).start_extraction, str(payload.get("prodi_id", "")),
+                           str(payload.get("dokumen", "")))
+
+
+@router.post("/accreditation/generate")
+def accreditation_generate(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
+    """Generate laporan Word LED/LKPS satu prodi; tercatat di riwayat user."""
+    user = _auth_user(request, api)
+    content, filename = _workspace_call(_workspace(api).generate, str(payload.get("prodi_id", "")),
+                                        str(payload.get("dokumen", "")), user["email"])
+    return _docx(content, filename)
+
+
+@router.get("/accreditation/history/{riwayat_id}/file")
+def accreditation_history_file(riwayat_id: int, request: Request, api: AnalyticsService = Depends(service)):
+    """Unduh ulang laporan dari riwayat milik sendiri (halaman Profil)."""
+    user = _auth_user(request, api)
+    content, filename = _workspace_call(_workspace(api).history_file, riwayat_id, user["email"])
+    return _docx(content, filename)
+
+
 @router.get("/home-summary")
 def home_summary(api: AnalyticsService = Depends(service)):
     return api.home_summary()
@@ -339,6 +419,33 @@ def report(payload: ReportRequest, api: AnalyticsService = Depends(service)):
         raise HTTPException(status_code=503, detail="Report generation is unavailable") from exc
 
 
+_last_seen_update_log: float | None = None
+
+
 @router.get("/refresh-status")
 def refresh_status(api: AnalyticsService = Depends(service)):
-    return {"status": "not_started", "updated_at": api._last_update(), "trigger_available": False}
+    """Status update data berita (pipeline update_mingguan.py) + tail log-nya."""
+    global _last_seen_update_log
+    from app.services import refresh
+    result = refresh.status(api._last_update())
+    # Update baru selesai -> buang cache frame /story sekali supaya berita baru langsung tampil.
+    if result["status"] == "finished" and refresh.LOG.exists():
+        mtime = refresh.LOG.stat().st_mtime
+        if _last_seen_update_log is not None and mtime != _last_seen_update_log:
+            from app.services.story import StoryService
+            StoryService.clear_cache()
+        _last_seen_update_log = mtime
+    return result
+
+
+@router.post("/refresh")
+def refresh_start(request: Request, api: AnalyticsService = Depends(service)):
+    """Mulai update data berita di latar belakang -- khusus admin (padanan tombol Streamlit lama)."""
+    user = _auth_user(request, api)
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Hanya admin yang bisa memulai update data.")
+    from app.services import refresh
+    try:
+        return refresh.start()
+    except refresh.RefreshError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
