@@ -30,7 +30,7 @@ function DaftarIsi({ chapters }: { chapters: Chapter[] }) {
     <div className="laporan-toc__head">
       <p className="section-kicker">Mengikuti laporan resmi</p>
       <h3>Daftar isi</h3>
-      <p className="section-note">Struktur mengikuti Laporan Dampak Sosial, Ekonomi, dan Lingkungan UGM 2025 — tiap tema resmi Kepmen menjadi satu bagian.</p>
+      <p className="section-note">Struktur mengikuti Laporan Dampak Sosial, Ekonomi, dan Lingkungan UGM 2025: tiap tema resmi Kepmen menjadi satu bagian.</p>
     </div>
     <ol className="laporan-toc__list">
       {chapters.map(chapter => <li key={chapter.pillar}>
@@ -65,7 +65,7 @@ function IndikatorPanel({ section }: { section: ChapterSection }) {
   ];
   // Terbuka default: indikator penilaian adalah isi utama sub-bab, bukan lampiran tersembunyi.
   return <details className="laporan-indikator" open>
-    <summary>Indikator penilaian resmi — Kepmen 361/M/KEP/2025</summary>
+    <summary>Indikator penilaian resmi (Kepmen 361/M/KEP/2025)</summary>
     <dl>
       {items.filter(item => item.value).map(item => <div key={item.label} className="laporan-indikator__row">
         <dt>{item.label}</dt><dd>{item.value}</dd>
@@ -114,7 +114,7 @@ function SubBab({ section, open, onToggle }: { section: ChapterSection; open: bo
       <IndikatorPanel section={section} />
       {section.mata_kuliah && <KurikulumTemaPanel data={section.mata_kuliah} />}
       {nBerita === 0
-        ? <p className="chart-empty">Belum ada berita bertema ini pada filter saat ini — indikator resmi di atas tetap ditampilkan sebagai rujukan penilaian.</p>
+        ? <p className="chart-empty">Belum ada berita bertema ini pada filter saat ini; indikator resmi di atas tetap ditampilkan sebagai rujukan penilaian.</p>
         : <>
           <div className="analysis-summary-grid analysis-summary-grid--3">
             {section.metrics.map(metric => <div className="metric" key={metric.label}>
@@ -176,7 +176,7 @@ export function MataKuliahPanel({ blok, pillar }: { blok: MataKuliahBlok; pillar
   return <section className="story-block laporan-matkul" aria-label="Data mata kuliah terkait dampak">
     <div className="laporan-matkul__head">
       <div>
-        <p className="section-kicker">Sumber data kedua — bukan berita</p>
+        <p className="section-kicker">Sumber data kedua (bukan berita)</p>
         <h3>{sdg ? 'Mata kuliah UGM per SDG' : 'Mata kuliah UGM per tema dampak Kepmen'}</h3>
       </div>
       <span className="laporan-matkul__badge" title="Angka indikator resmi Kepmen (MK unik berstatus Substansial)">{fmtValue(blok.n_mk_unik)} MK indikator resmi</span>
@@ -188,12 +188,12 @@ export function MataKuliahPanel({ blok, pillar }: { blok: MataKuliahBlok; pillar
       <strong>{fmtValue(blok.n_mk_unik)} MK unik</strong> berstatus Substansial.{" "}
       {sdg
         ? <>Di bagian SDGs, setiap MK dicocokkan langsung ke 17 SDG dengan kamus keyword yang sama dengan
-          berita (nama & deskripsi MK). Kamus ini luas, jadi angkanya indikatif — bukan indikator Kepmen.</>
+          berita (nama & deskripsi MK). Kamus ini luas, jadi angkanya indikatif, bukan indikator Kepmen.</>
         : <>Pemetaan ke 14 tema memakai tiga dasar yang ditandai per baris: <strong>indikator resmi</strong> (tema
           4.5), <strong>kriteria a-j hasil kurasi</strong> (Energi, Konsumsi Bertanggung Jawab, Keanekaragaman
           Hayati), dan <strong>keyword kurikulum</strong> pada nama/deskripsi MK (tema sosial, ekonomi,
           transportasi). Tiga tema berbasis pengeluaran (Rp) tidak punya padanan kurikulum. Selain tema 4.5,
-          angka ini keterkaitan topik — bukan klaim pelaporan resmi.</>}
+          angka ini keterkaitan topik, bukan klaim pelaporan resmi.</>}
     </Insight>
     <div className="analysis-summary-grid analysis-summary-grid--3">
       {blok.metrics.map(metric => <div className="metric" key={metric.label} title={metric.help ?? undefined}>
@@ -201,9 +201,9 @@ export function MataKuliahPanel({ blok, pillar }: { blok: MataKuliahBlok; pillar
         <div className="metric-value">{fmtValue(metric.value)}</div>
       </div>)}
     </div>
-    {kosong && <p className="chart-empty">{sdg ? 'Tidak ada mata kuliah yang cocok dengan SDG terpilih.' : 'Tidak ada mata kuliah yang terpetakan ke dampak/tema/SDG terpilih — lihat rekap per tema di bawah untuk alasannya.'}</p>}
+    {kosong && <p className="chart-empty">{sdg ? 'Tidak ada mata kuliah yang cocok dengan SDG terpilih.' : 'Tidak ada mata kuliah yang terpetakan ke dampak/tema/SDG terpilih; lihat rekap per tema di bawah untuk alasannya.'}</p>}
     {Object.keys(blok.kriteria_resmi).length > 0 && <details className="laporan-indikator" open>
-      <summary>Angka resmi Ringkasan Indikator Kepmen — seluruh {fmtValue(blok.n_mk_unik)} MK unik per kriteria a-j</summary>
+      <summary>Angka resmi Ringkasan Indikator Kepmen: seluruh {fmtValue(blok.n_mk_unik)} MK unik per kriteria a-j</summary>
       <div className="laporan-matkul__resmi">
         {Object.entries(blok.kriteria_resmi).map(([huruf, jumlah]) => <div className="laporan-matkul__resmi-item" key={huruf}>
           <span className="laporan-matkul__resmi-huruf">{huruf}</span>
@@ -238,7 +238,7 @@ export function LaporanDampak({ story }: { story: Story }) {
         Bagian di bawah mengikuti struktur Laporan Dampak Sosial, Ekonomi, dan Lingkungan UGM 2025:
         Dampak Sosial (4 tema), Dampak Ekonomi (5 tema), dan Dampak Lingkungan (5 tema).
         Setiap tema menampilkan indikator penilaian resmi Kepmen 361/M/KEP/2025 di samping analisis
-        pemberitaan publik untuk tema tersebut. Angka berita adalah lower-bound berbasis keyword —
+        pemberitaan publik untuk tema tersebut. Angka berita adalah lower-bound berbasis keyword;
         indikator resmi tetap menjadi rujukan penilaian, bukan angka pemberitaan.
       </Insight>
     </div>
