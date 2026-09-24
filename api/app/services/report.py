@@ -35,7 +35,7 @@ def build_report(mode: str, result: dict[str, Any]) -> bytes:
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     for run in title.runs:
         run.font.color.rgb = NAVY
-    document.add_paragraph("UGM Analytics — data live sesuai filter aktif.").alignment = WD_ALIGN_PARAGRAPH.CENTER
+    document.add_paragraph("UGM Analytics, data sesuai filter aktif.").alignment = WD_ALIGN_PARAGRAPH.CENTER
     document.add_heading("Filter yang Diterapkan", level=1)
     for key, value in result.get("filters", {}).items():
         document.add_paragraph(f"{key}: {value}", style="List Bullet")
