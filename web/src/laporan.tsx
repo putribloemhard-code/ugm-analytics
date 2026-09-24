@@ -143,13 +143,11 @@ function Bab({ chapter }: { chapter: Chapter }) {
   const adaData = chapter.subsections.some(section => jumlahBerita(section) > 0);
   return <section className={`laporan-bab laporan-bab--${chapter.pillar.toLowerCase()}`} id={babId(chapter.pillar)} aria-labelledby={`${babId(chapter.pillar)}-title`}>
     <header className="laporan-bab__head">
-      <div>
-        <h3 id={`${babId(chapter.pillar)}-title`}>{chapter.title}</h3>
-      </div>
+      <h3 id={`${babId(chapter.pillar)}-title`}>{chapter.title}</h3>
       <div className="analysis-summary-grid analysis-summary-grid--3 laporan-bab__metrics">
         {chapter.metrics.map(metric => <div className="metric" key={metric.label}>
           <div className="metric-label">{metric.label}</div>
-          <div className="metric-value">{fmtValue(metric.value)}</div>
+          <div className={`metric-value ${typeof metric.value === 'string' && metric.value.length > 14 ? 'metric-value--text' : ''}`}>{fmtValue(metric.value)}</div>
         </div>)}
       </div>
     </header>

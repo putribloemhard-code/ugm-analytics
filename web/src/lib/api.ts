@@ -149,6 +149,15 @@ export type Story = {
   chapters: Chapter[];
   mata_kuliah?: MataKuliahBlok;
   tables: StoryTable[];
+  /** Mode SDGs: peta sebaran 17 SDG + jumlah berita per keyword. */
+  sdg_peta?: SdgPeta | null;
+  /** Mode SDGs: jumlah berita (dalam filter) yang belum punya tanda SDG. */
+  tanpa_sdg_total?: number;
+};
+export type SdgPeta = {
+  ada_jumlah_keyword: boolean;
+  catatan: string;
+  tiles: { sdg: number; nama: string; jumlah: number; keywords: { keyword: string; jumlah: number | null }[] }[];
 };
 export function getStory(params: Record<string, QueryValue>) { return get<Story>(`/analytics/story?${toQuery(params)}`); }
 
@@ -293,6 +302,14 @@ export function getSumber() { return get<SumberData>('/analytics/sources'); }
 export function getBeritaDampak(params: { page: number; page_size: number; q?: string; pilar?: string }) {
   return get<{ page: number; page_size: number; total: number; rows: BeritaDampak[] }>(`/analytics/sources/news?${toQuery(params)}`);
 }
+
+/* ---- Tag SDG manual untuk berita tanpa tanda SDG (api/app/services/sdg_manual.py) ---- */
+export type BeritaTanpaSdg = { url: string; tautan: string | null; judul: string; tanggal: string };
+export function getBeritaTanpaSdg(params: { page: number; page_size: number; q?: string; year_from?: string; year_to?: string; units?: string[] }) {
+  return get<{ page: number; page_size: number; total: number; rows: BeritaTanpaSdg[] }>(`/analytics/sdg-manual/untagged?${toQuery(params)}`);
+}
+export function tandaiSdg(url: string, sdgs: number[]) { return kirim<{ url: string; sdgs: number[]; message: string }>('/analytics/sdg-manual', 'POST', { url, sdgs }); }
+export function batalkanSdg(url: string) { return kirim<{ url: string; sdgs: number[]; message: string }>('/analytics/sdg-manual/delete', 'POST', { url }); }
 
 export function getHomeSummary() { return get<Record<string, string | number | null>>('/analytics/home-summary'); }
 export function searchAnalytics(q: string) { return get<{ page: string; pillars: string[]; topics: string[]; sdgs: number[]; years: string[] | null; explanation: string }>(`/analytics/search?${toQuery({ q })}`); }

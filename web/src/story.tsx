@@ -68,6 +68,13 @@ export function downloadCsv(filename: string, columns: Column[], rows: Record<st
 }
 
 /* tabel data */
+/** Isi sel tabel: URL http(s) jadi tautan yang membuka artikel di tab baru, selain itu teks biasa. */
+function Sel({ value }: { value: unknown }) {
+  if (typeof value === 'string' && /^https?:\/\//i.test(value.trim())) {
+    return <a className="table-link" href={value.trim()} target="_blank" rel="noopener noreferrer">{value.trim()}<span className="sr-only"> (buka di tab baru)</span></a>;
+  }
+  return <>{fmt(value)}</>;
+}
 export function DataTable({ title, columns, rows, note, caption, pageSize }: { title?: string; columns: Column[]; rows: Record<string, unknown>[]; note?: string | null; caption?: string; pageSize?: number | null }) {
   // pageSize diisi API untuk tabel panjang (Daftar berita) -> tampil per halaman + tombol
   // navigasi. Tabel ringkas (distribusi, unit kerja) tidak diisi -> tampil utuh seperti semula.
@@ -80,7 +87,7 @@ export function DataTable({ title, columns, rows, note, caption, pageSize }: { t
   const shown = perPage ? rows.slice((current - 1) * perPage, current * perPage) : rows.slice(0, 200);
   return <div className="story-table">
     {title && <h4>{title}</h4>}
-    {rows.length ? <div className="data-table-wrap"><table><caption className="sr-only">{caption ?? title}</caption><thead><tr>{columns.map(column => <th key={column.key}>{column.label}</th>)}</tr></thead><tbody>{shown.map((row, index) => <tr key={index}>{columns.map(column => <td key={column.key}>{fmt(row[column.key])}</td>)}</tr>)}</tbody></table></div> : <p className="chart-empty">Tidak ada data untuk bagian ini.</p>}
+    {rows.length ? <div className="data-table-wrap"><table><caption className="sr-only">{caption ?? title}</caption><thead><tr>{columns.map(column => <th key={column.key}>{column.label}</th>)}</tr></thead><tbody>{shown.map((row, index) => <tr key={index}>{columns.map(column => <td key={column.key}><Sel value={row[column.key]} /></td>)}</tr>)}</tbody></table></div> : <p className="chart-empty">Tidak ada data untuk bagian ini.</p>}
     {perPage && rows.length > perPage && <nav className="table-pager" aria-label={`Navigasi halaman ${title ?? 'tabel'}`}>
       <button type="button" className="link-button" disabled={current <= 1} onClick={() => setPage(current - 1)}>‹ Sebelumnya</button>
       <span className="table-pager__info">Menampilkan {(current - 1) * perPage + 1}–{Math.min(current * perPage, rows.length)} dari {rows.length.toLocaleString('id-ID')} · halaman {current} / {totalPages}</span>
@@ -207,11 +214,11 @@ export function Insight({ label = 'Insight', children }: { label?: string; child
   return <aside className="insight insight--info"><div className="insight__label">{label}</div><p>{children}</p></aside>;
 }
 
-export function ChartFrame({ chart }: { chart: Chart }) {
+export function ChartFrame({ chart, lebar }: { chart: Chart; lebar?: boolean }) {
   const [asTable, setAsTable] = useState(false);
   const empty = isEmpty(chart);
   const table = useMemo(() => (empty ? null : chartToTable(chart)), [chart, empty]);
-  const wide = chart.kind !== 'bar' || (chart.orientation === 'v' && (chart.data as unknown[]).length > 6);
+  const wide = lebar ?? chartLebar(chart);
   return <figure className={`chart-frame ${wide ? 'chart-frame--wide' : ''}`}>
     <figcaption><h4>{chart.title}</h4></figcaption>
     {empty ? <p className="chart-empty">Belum ada data untuk filter ini.</p> : <>
@@ -227,6 +234,17 @@ export function ChartFrame({ chart }: { chart: Chart }) {
   </figure>;
 }
 
+function chartLebar(chart: Chart) {
+  return chart.kind !== 'bar' || (chart.orientation === 'v' && Array.isArray(chart.data) && chart.data.length > 6);
+}
+
 export function ChartGrid({ charts }: { charts: Chart[] }) {
-  return <div className="story-charts">{charts.map(chart => <ChartFrame key={chart.id} chart={chart} />)}</div>;
+  // Chart sempit berpasangan dua-dua; yang tersisa sendirian di antara chart lebar
+  // dibuat selebar penuh supaya tidak ada setengah baris kosong di sebelahnya.
+  const lebar: boolean[] = [];
+  let run: number[] = [];
+  const tutup = () => { if (run.length % 2 === 1) lebar[run[run.length - 1]] = true; run = []; };
+  charts.forEach((chart, i) => { lebar[i] = chartLebar(chart); if (lebar[i]) tutup(); else run.push(i); });
+  tutup();
+  return <div className="story-charts">{charts.map((chart, i) => <ChartFrame key={chart.id} chart={chart} lebar={lebar[i]} />)}</div>;
 }

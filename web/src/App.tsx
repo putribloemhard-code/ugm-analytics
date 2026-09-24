@@ -10,6 +10,7 @@ import { Notice, PageHeader } from './ui';
 import { AdminPage, ProfilePage } from './account';
 import { AccreditationWorkspace } from './akreditasi';
 import { SumberSection } from './sumber';
+import { SdgPetaView, TagSdgManual } from './sdg';
 
 type FilterState = { yearFrom: string; yearTo: string; pillars: string[]; topics: string[]; sdgs: number[]; units: string[] };
 const emptyFilters: FilterState = { yearFrom: '', yearTo: '', pillars: [], topics: [], sdgs: [], units: [] };
@@ -114,7 +115,7 @@ function CrossSection({ story, topic, onTopic }: { story: Story; topic: string; 
   </section>;
 }
 
-function AnalyticsContent({ story, pillar, onPickPillar, topic, onTopic, busy }: { story: Story; pillar: string; onPickPillar: (pillar: string) => void; topic: string; onTopic: (topic: string) => void; busy: boolean }) {
+function AnalyticsContent({ story, pillar, onPickPillar, topic, onTopic, busy, onDataChanged }: { story: Story; pillar: string; onPickPillar: (pillar: string) => void; topic: string; onTopic: (topic: string) => void; busy: boolean; onDataChanged: () => void }) {
   const [news, setNews] = useState<{ rows: unknown[]; total: number } | null>(null);
   const [newsError, setNewsError] = useState('');
   const [page, setPage] = useState(1);
@@ -137,6 +138,8 @@ function AnalyticsContent({ story, pillar, onPickPillar, topic, onTopic, busy }:
     {story.overview.length > 0 && <Overview story={story} pillar={pillar} onPick={onPickPillar} />}
     {story.pillar_detail && <PillarDetailView detail={story.pillar_detail} topic={topic} onTopic={onTopic} busy={busy} />}
     <CrossSection story={story} topic={topic} onTopic={onTopic} />
+    {story.mode === 'sdgs' && story.sdg_peta && <SdgPetaView peta={story.sdg_peta} />}
+    {story.mode === 'sdgs' && <TagSdgManual filter={{ year_from: story.filters.year_from as string, year_to: story.filters.year_to as string, units: story.filters.units as string[] }} onChanged={onDataChanged} />}
     <section className="story-block"><h3>Daftar berita</h3>{newsError ? <Notice type="error">{newsError}</Notice> : !news ? <div className="loading" role="status">Memuat daftar berita...</div> : <><Table title="Berita terpilih" rows={news.rows} /><div className="action-row"><button className="button secondary" disabled={page <= 1} onClick={() => setPage(current => current - 1)}>Halaman sebelumnya</button><span aria-live="polite">Halaman {page} dari {totalPages}</span><button className="button secondary" disabled={page >= totalPages} onClick={() => setPage(current => current + 1)}>Halaman berikutnya</button></div></>}</section>
     <section className="story-block"><h3>Catatan metodologi</h3><ul>{story.caveats.map(caveat => <li key={caveat}>{caveat}</li>)}</ul></section>
     <section className="story-block"><h3>Unduh laporan</h3><p className="section-note">Dokumen Word dibuat dari filter dan data yang divalidasi server.</p><button className="button" disabled={reportBusy} onClick={report}>{reportBusy ? 'Membuat laporan...' : 'Buat laporan Word'}</button>{reportError && <div className="section"><Notice type="error">{reportError}</Notice></div>}</section>
@@ -199,6 +202,8 @@ function AnalysisScene({ def, metadata, metadataError, seeded, seedKey, tint }: 
   const [error, setError] = useState('');
   const [pillar, setPillar] = useState('Lingkungan');
   const [topic, setTopic] = useState('');
+  // Naik setiap data berubah dari dalam bagian ini (mis. tag SDG manual) supaya story dimuat ulang.
+  const [versi, setVersi] = useState(0);
   useEffect(() => { if (metadata) setFilters(seeded ? queryFilters(metadata) : defaultFilters(metadata)); }, [metadata, seeded, seedKey]);
   useEffect(() => {
     if (!active || !metadata || !filters.yearFrom) return;
@@ -208,13 +213,13 @@ function AnalysisScene({ def, metadata, metadataError, seeded, seedKey, tint }: 
       .then(value => { if (!cancelled) { setStory(value); setLoading(false); } })
       .catch(e => { if (!cancelled) { setError(pesanMuat(e, 'Data analisis')); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [active, metadata, filters, def.mode, pillar, topic]);
+  }, [active, metadata, filters, def.mode, pillar, topic, versi]);
   const failure = metadataError || error;
   return <section ref={ref} id={def.id} className={`story-scene ${tint ? 'story-scene--tint' : ''}`} aria-labelledby={`${def.id}-title`}><div className="story-scene__inner">
     <header className="story-scene__header"><p className={`eyebrow eyebrow--${def.accent}`}><img src={assetUrl(`logo/${def.icon}`)} alt="" />{def.eyebrow}</p><h2 id={`${def.id}-title`}>{def.title}</h2><p className="story-scene__deck">{def.caption}</p></header>
     {failure ? <Notice type="error">{failure}</Notice> : !active || !metadata ? <div className="loading loading--scene" role="status">Bagian ini dimuat saat Anda menggulir ke sini...</div> : <>
       <Filters metadata={metadata} value={filters} onChange={setFilters} sdgMode={!!def.sdgMode} idPrefix={def.id} syncUrl={seeded} />
-      {!story ? <div className="loading" role="status">Memuat hasil analisis...</div> : <><AnalyticsContent story={story} pillar={pillar} onPickPillar={value => { setPillar(value); setTopic(''); }} topic={topic} onTopic={setTopic} busy={loading} /><p className="footer-note">Data terakhir: {story.data_as_of ?? 'waktu pembaruan belum tersedia'}.</p></>}
+      {!story ? <div className="loading" role="status">Memuat hasil analisis...</div> : <><AnalyticsContent story={story} pillar={pillar} onPickPillar={value => { setPillar(value); setTopic(''); }} topic={topic} onTopic={setTopic} busy={loading} onDataChanged={() => setVersi(v => v + 1)} /><p className="footer-note">Data terakhir: {story.data_as_of ?? 'waktu pembaruan belum tersedia'}.</p></>}
     </>}
   </div></section>;
 }

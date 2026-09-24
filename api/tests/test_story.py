@@ -337,12 +337,28 @@ def test_sdgs_story():
     assert {row["label"]: row["value"] for row in bars["data"]} == {"SDG 3": 2, "SDG 4": 2}
     heat = chart_by_id(story["cross"]["charts"], "sdg_tahun_heatmap")["data"]
     assert heat["rows"] == ["SDG 3", "SDG 4"] and heat["cols"] == ["2023", "2024", "2025"]
-    assert [t["title"] for t in story["tables"]] == [
-        "Ringkasan per SDG", "Keyword per SDG (dasar mapping)", "Berita tanpa tanda SDG (cek manual)",
-    ]
+    # Tabel keyword & "tanpa tanda SDG" diganti peta sebaran + komponen tagging manual.
+    assert [t["title"] for t in story["tables"]] == ["Ringkasan per SDG"]
     assert "32.130" not in json.dumps(story)
-    untagged = story["tables"][2]
-    assert len(untagged["rows"]) == 8 - 3
+    assert story["tanpa_sdg_total"] == 8 - 3
+    peta = story["sdg_peta"]
+    assert len(peta["tiles"]) == 17 and peta["ada_jumlah_keyword"] is False
+    ubin = {t["sdg"]: t for t in peta["tiles"]}
+    assert ubin[3]["jumlah"] == 2 and ubin[1]["jumlah"] == 0
+    assert all(k["jumlah"] is None for k in ubin[3]["keywords"])
+
+
+def test_sdg_peta_memakai_jumlah_keyword_dan_mengurutkannya():
+    fr = make_frames()
+    fr.keyword_sdg = pd.DataFrame([
+        {"sdg": 3, "keyword": "kesehatan", "jumlah_berita": 1},
+        {"sdg": 3, "keyword": "rumah sakit", "jumlah_berita": 7},
+    ])
+    peta = build_story(fr, FilterParams(), "sdgs")["sdg_peta"]
+    sdg3 = next(t for t in peta["tiles"] if t["sdg"] == 3)
+    assert peta["ada_jumlah_keyword"] is True
+    assert [k["keyword"] for k in sdg3["keywords"][:2]] == ["rumah sakit", "kesehatan"]
+    assert sdg3["keywords"][0]["jumlah"] == 7
 
 
 def make_matkul() -> MatkulFrames:

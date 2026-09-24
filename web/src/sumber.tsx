@@ -121,7 +121,7 @@ function Diagram({ data }: { data: SumberData }) {
   </div>;
 }
 
-const UKURAN_HALAMAN = 10;
+const UKURAN_HALAMAN = 5;
 const PILIHAN_PILAR = ['', 'Sosial', 'Ekonomi', 'Lingkungan'] as const;
 
 function TabelBerita({ total }: { total: number }) {

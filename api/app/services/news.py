@@ -44,7 +44,9 @@ class NewsService:
             "offset": (page - 1) * page_size,
         }
         if mode == "sdgs":
-            from_sql = "FROM berita_sitemap s JOIN berita_sitemap_sdg ss ON ss.url = s.url"
+            # Tag SDG otomatis (pipeline) + tag manual (services/sdg_manual.py, tabel terpisah).
+            from_sql = ("FROM berita_sitemap s JOIN (SELECT url, sdg FROM berita_sitemap_sdg "
+                        "UNION SELECT url, sdg FROM berita_sdg_manual) ss ON ss.url = s.url")
             where = ["SUBSTRING(s.lastmod FROM 1 FOR 4) BETWEEN :year_from AND :year_to"]
             if sdgs:
                 where.append(f"ss.sdg IN ({self._in_clause(tuple(str(sdg) for sdg in sdgs), 'sdg', params)})")

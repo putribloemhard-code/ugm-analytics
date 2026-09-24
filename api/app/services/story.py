@@ -137,6 +137,9 @@ class StoryFrames:
     matkul: "MatkulFrames | None" = None   # data mata kuliah (matkul-sustainability)
     # Narasi hasil LLM (berita_narasi_cache, scripts/generate_narasi_llm.py): cache_key -> teks.
     narasi_llm: dict[str, str] = field(default_factory=dict)
+    # Jumlah berita per keyword SDG (berita_ringkasan_keyword_sdg, scripts/hitung_keyword_sdg.py):
+    # kolom sdg, keyword, jumlah_berita. None = tabel belum dibuat.
+    keyword_sdg: pd.DataFrame | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -1529,6 +1532,8 @@ def _story_sdgs(fr: StoryFrames, filters: FilterParams, start: str, end: str,
         "chapters": [],
         "mata_kuliah": mata_kuliah_blok(matkul, "sdgs", sdgs=tuple(filters.sdgs)),
         "tables": [],
+        "sdg_peta": None,
+        "tanpa_sdg_total": 0,
     }
     if not len(ss_f):
         return response
@@ -1599,21 +1604,43 @@ def _story_sdgs(fr: StoryFrames, filters: FilterParams, start: str, end: str,
             insight=f"Teratas: {top_ring['label']} ({top_ring['nama']}, {int(top_ring['jumlah']):,} berita).",
         ),
     ]
-    sdg_keywords = load_module("sdg_keywords.py").SDG_KEYWORDS
-    tables.append(_table(
-        "keyword_sdg", "Keyword per SDG (dasar mapping)", [("sdg", "SDG"), ("nama", "Nama"), ("keyword", "Keyword")],
-        [{"sdg": f"SDG {s}", "nama": mapping.SDG_NAMA.get(s, s), "keyword": ", ".join(kws)} for s, kws in sdg_keywords.items()],
-        note=("Daftar keyword yang jadi dasar pencocokan tiap SDG pada mapping 'SDGs saja' ini -- referensi metodologi, "
-              "bukan hasil analisis."),
-    ))
-    belum = sm[~sm["url"].isin(set(ss_f["url"]))].sort_values("lastmod", ascending=False, kind="stable")
-    tables.append(_table(
-        "tanpa_sdg", "Berita tanpa tanda SDG (cek manual)", [("url", "Tautan"), ("lastmod", "Lastmod")],
-        _native(belum[["url", "lastmod"]].head(MAX_ROWS).fillna("").to_dict("records")),
-        note=f"{len(belum):,} berita (dalam rentang tahun) tidak masuk SDG mana pun.",
-    ))
     response["tables"] = tables
+    response["sdg_peta"] = sdg_peta(fr, dist)
+    belum = sm[~sm["url"].isin(set(ss_f["url"]))]
+    response["tanpa_sdg_total"] = int(len(belum))
     return response
+
+
+def sdg_peta(fr: StoryFrames, dist: pd.DataFrame) -> dict[str, Any]:
+    """Peta sebaran 17 SDG: jumlah berita (ikut filter) + jumlah berita per keyword (global).
+
+    Jumlah per keyword berasal dari berita_ringkasan_keyword_sdg (dihitung pipeline dengan teks
+    lengkap, sama dengan tag SDG); tidak ikut filter tahun/unit. Tanpa tabel itu, keyword tetap
+    ditampilkan tanpa jumlah.
+    """
+    mapping = kepmen()
+    kamus = load_module("sdg_keywords.py").SDG_KEYWORDS
+    per_sdg = dict(zip(dist["sdg"].astype(int), dist["jumlah"].astype(int)))
+    hitung = {}
+    if fr.keyword_sdg is not None:
+        for sdg, grp in fr.keyword_sdg.groupby("sdg"):
+            hitung[int(sdg)] = dict(zip(grp["keyword"], grp["jumlah_berita"]))
+    tiles = []
+    for sdg, kws in kamus.items():
+        sdg = int(sdg)
+        daftar = kws["keywords"] if isinstance(kws, dict) else kws
+        kata = [{"keyword": k, "jumlah": hitung.get(sdg, {}).get(k)} for k in daftar]
+        if sdg in hitung:
+            kata.sort(key=lambda x: -(x["jumlah"] or 0))
+        tiles.append({"sdg": sdg, "nama": mapping.SDG_NAMA.get(sdg, f"SDG {sdg}"),
+                      "jumlah": per_sdg.get(sdg, 0), "keywords": kata})
+    return {
+        "ada_jumlah_keyword": fr.keyword_sdg is not None,
+        "catatan": ("Warna petak = jumlah berita bertanda SDG itu (mengikuti filter). Angka per keyword = "
+                    "berita bertanda SDG itu yang teksnya (slug, judul, deskripsi, isi) memuat keyword tsb, "
+                    "dihitung pipeline untuk seluruh periode; satu berita bisa memuat beberapa keyword."),
+        "tiles": tiles,
+    }
 
 
 # Titik masuk
@@ -1662,6 +1689,13 @@ class StoryService:
         last = sitemap["lastmod"].dropna()
         bs = self._read("SELECT url, sdg FROM berita_berita_sdg_all")
         ss = self._read("SELECT url, sdg FROM berita_sitemap_sdg")
+        # Tag SDG manual (services/sdg_manual.py) ikut dihitung; tabelnya terpisah supaya tidak
+        # terhapus saat pipeline tag_sdg_langsung.py menulis ulang berita_sitemap_sdg.
+        try:
+            manual = self._read("SELECT url, sdg FROM berita_sdg_manual")
+            ss = pd.concat([ss, manual], ignore_index=True).drop_duplicates(["url", "sdg"])
+        except Exception:  # noqa: BLE001 -- tabel belum ada (dibuat saat API start)
+            pass
         bs["sdg"] = bs["sdg"].astype(int)
         ss["sdg"] = ss["sdg"].astype(int)
         # Data mata kuliah (CSV kurasi, bukan DB) dimuat di sini supaya ikut cache frame;
@@ -1682,7 +1716,17 @@ class StoryService:
             data_as_of=None if last.empty else str(last.max()),
             matkul=matkul,
             narasi_llm=self._narasi_llm(),
+            keyword_sdg=self._keyword_sdg(),
         )
+
+    def _keyword_sdg(self) -> pd.DataFrame | None:
+        try:
+            df = self._read("SELECT sdg, keyword, jumlah_berita FROM berita_ringkasan_keyword_sdg")
+        except Exception:  # noqa: BLE001 -- ringkasan opsional; peta tetap tampil tanpa jumlah
+            return None
+        df["sdg"] = df["sdg"].astype(int)
+        df["jumlah_berita"] = df["jumlah_berita"].astype(int)
+        return df
 
     def _narasi_llm(self) -> dict[str, str]:
         """Cache narasi LLM; tabel belum ada / gagal baca = kosong (narasi template dipakai)."""

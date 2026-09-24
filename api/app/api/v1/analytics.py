@@ -394,6 +394,47 @@ def sources_news(page: int = Query(default=1, ge=1), page_size: int = Query(defa
         raise HTTPException(status_code=503, detail="Daftar berita belum tersedia") from exc
 
 
+def _frames(api: AnalyticsService):
+    from app.services.story import StoryService
+    return StoryService(api.engine).frames()
+
+
+@router.get("/sdg-manual/untagged")
+def sdg_untagged(page: int = Query(default=1, ge=1), page_size: int = Query(default=5, ge=1, le=50),
+                 q: str = Query(default="", max_length=100),
+                 year_from: str | None = Query(default=None, pattern=r"^\d{4}$"),
+                 year_to: str | None = Query(default=None, pattern=r"^\d{4}$"),
+                 units: str | None = Query(default=None), api: AnalyticsService = Depends(service)):
+    """Berita tanpa tanda SDG (cek manual), terbaru lebih dulu."""
+    from app.services.sdg_manual import TagError, belum_bertanda
+    try:
+        return belum_bertanda(_frames(api), page, page_size, q, year_from, year_to, parse_list(units))
+    except TagError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/sdg-manual")
+def sdg_tag(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
+    """Tandai SDG sebuah berita secara manual (butuh login Analisis Dampak); tersimpan di berita_sdg_manual."""
+    user = _dampak_auth_user(request, api)
+    from app.services.sdg_manual import TagError, tandai
+    try:
+        return tandai(api.engine, _frames(api), str(payload.get("url", "")), payload.get("sdgs"), user["email"])
+    except TagError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/sdg-manual/delete")
+def sdg_untag(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
+    """Batalkan tag SDG manual sebuah berita (butuh login Analisis Dampak)."""
+    _dampak_auth_user(request, api)
+    from app.services.sdg_manual import TagError, batalkan
+    try:
+        return batalkan(api.engine, _frames(api), str(payload.get("url", "")))
+    except TagError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/news")
 def news(
     page: int = Query(default=1, ge=1),

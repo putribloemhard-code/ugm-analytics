@@ -133,6 +133,24 @@ jumlah baris sebelum/sesudah identik) termasuk ekstraksi dengan OpenAI sungguhan
 PostgreSQL 16 portabel (registrasi/login/upload/simpan gagal sebelum `--perbaiki-skema`, lolos
 sesudahnya dan pada migrasi baru).
 
+## Mode SDGs: peta keyword & tag SDG manual (2026-09-24)
+
+- **Peta sebaran keyword SDG** (`web/src/sdg.tsx`, `sdg_peta` di `/story?mode=sdgs`): 17 petak
+  berurutan 1–17, kepekatan = jumlah berita bertanda SDG (ikut filter), isi = keyword teratas +
+  jumlah beritanya. Jumlah per keyword dihitung offline oleh
+  `berita-dampak/scripts/hitung_keyword_sdg.py` -> tabel `berita_ringkasan_keyword_sdg`
+  (aturan & teks sama dengan `tag_sdg_langsung.py`, termasuk isi artikel). **Jalankan ulang
+  setiap kali `tag_sdg_langsung.py` dijalankan**; tanpa tabel itu peta tetap tampil tanpa angka.
+- **Berita tanpa tanda SDG (cek manual)**: 5 per halaman, cari judul/URL, pilih SDG 1–17 lalu
+  simpan (butuh login Analisis Dampak); ada "Batalkan" untuk tag yang baru disimpan. Tersimpan
+  di tabel **`berita_sdg_manual`** (dibuat otomatis saat API start), sengaja terpisah dari
+  `berita_sitemap_sdg` karena pipeline menulis ulang tabel itu. API menggabungkan keduanya
+  (`/story` dan `/news` mode SDGs); frame cache langsung diperbarui saat tag disimpan.
+  Endpoint: `GET /analytics/sdg-manual/untagged`, `POST /analytics/sdg-manual`,
+  `POST /analytics/sdg-manual/delete` (`api/app/services/sdg_manual.py`).
+- Tabel (kolom `url`/`tautan`) kini membuat URL bisa diklik (tab baru, hanya http/https).
+  Chart sempit tanpa pasangan di grid otomatis dibuat selebar penuh (`ChartGrid`).
+
 ## Bagian "Sumber" di halaman Dampak (2026-09-24)
 
 Urutan `/dampak`: pembuka (judul + pencarian, **tanpa angka**) → **Bagian I Sumber Data**
