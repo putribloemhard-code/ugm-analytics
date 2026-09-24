@@ -564,7 +564,7 @@ def _chapter_subsection(ctx: _Ctx, topik: str, nomor: str) -> dict[str, Any]:
             {"series": [{"name": "Jumlah berita", "points": [
                 {"x": str(x), "y": int(y)} for x, y in zip(tren["tahun"], tren["jumlah"])]}]},
             insight=(f"Dari {int(awal['jumlah']):,} berita ({awal['tahun']}) menjadi {int(akhir['jumlah']):,} berita "
-                     f"({akhir['tahun']}) — {'naik' if delta >= 0 else 'turun'} {abs(delta):,} berita. "
+                     f"({akhir['tahun']}), {'naik' if delta >= 0 else 'turun'} {abs(delta):,} berita. "
                      f"Puncak tertinggi: {puncak['tahun']} dengan {int(puncak['jumlah']):,} berita."),
             note="Jumlah berita unik bertema ini per tahun (satu berita dihitung sekali walau match beberapa keyword).",
         ))
@@ -721,7 +721,7 @@ CATATAN_MATKUL = (
     "di prodi berbeda bisa MK berbeda, verifikasi lewat kode MK/RPS). Deskripsi disusun dari "
     "nama MK, BUKAN bukti; pelaporan resmi tetap butuh kurikulum/RPS/silabus. "
     "Angka acuan: Ringkasan Indikator Kepmen 361/M/KEP/2025 (453 MK unik, 511 substansial, "
-    "142 parsial) — lihat matkul-sustainability/data/Ringkasan Indikator Kepmen.md."
+    "142 parsial); lihat matkul-sustainability/data/Ringkasan Indikator Kepmen.md."
 )
 
 
@@ -745,14 +745,14 @@ def _dasar_tema(tema_id: str) -> str:
 
 def _catatan_tema(tema_id: str) -> str:
     if tema_id == TEMA_INDIKATOR:
-        return "Semua MK berstatus Substansial — angka indikator resmi Kepmen (453 MK unik)."
+        return "Semua MK berstatus Substansial: angka indikator resmi Kepmen (453 MK unik)."
     if tema_id in KRITERIA_TEMA:
         huruf = ", ".join(f"{h} ({KRITERIA_LABEL[h]})" for h in sorted(KRITERIA_TEMA[tema_id]))
         return f"MK Substansial yang kriteria kurasinya memuat {huruf}. Perluasan analitik, bukan indikator tema ini."
     if tema_id in TEMA_TANPA_PADANAN:
         return TEMA_TANPA_PADANAN[tema_id]
     nama = " (nama MK saja)" if tema_id in LEKSIKON_NAMA_SAJA else ""
-    return (f"Keyword kurikulum{nama}: {', '.join(LEKSIKON_TEMA.get(tema_id, [])[:8])}… — "
+    return (f"Keyword kurikulum{nama}: {', '.join(LEKSIKON_TEMA.get(tema_id, [])[:8])}…; "
             "keterkaitan topik, bukan indikator tema ini.")
 
 
@@ -808,7 +808,7 @@ def _mk_tema_section(mf: MatkulFrames, mode: str, pilars: tuple[str, ...], topik
         {"label": "MK unik terkait", "value": int(len(unik)),
          "help": "Mata kuliah unik (dedup nama) yang terpetakan ke minimal satu tema dalam cakupan filter."},
         {"label": "MK indikator resmi (tema 4.5)", "value": n_resmi,
-         "help": "MK berstatus Substansial — satu-satunya angka yang merupakan indikator resmi Kepmen untuk kurikulum."},
+         "help": "MK berstatus Substansial, satu-satunya angka yang merupakan indikator resmi Kepmen untuk kurikulum."},
         {"label": "Fakultas/sekolah terlibat", "value": int(unik["fakultas"].nunique()) if len(unik) else 0,
          "help": "Fakultas/sekolah yang menawarkan MK terkait (dari MK unik)."},
     ]
@@ -932,7 +932,7 @@ def _mk_sdg_section(mf: MatkulFrames, sdgs: tuple[int, ...]) -> dict[str, Any]:
             insight=insight_top2(dist, "label", "jumlah", satuan="MK"),
             note=("Kamus keyword SDG sama persis dengan berita mode ini (sdg_keywords.py), dicocokkan ke nama & "
                   "deskripsi MK. Cakupannya luas (mis. 'teknologi/penelitian' → SDG 9, 'kesehatan' → SDG 3), "
-                  "jadi angka ini indikatif — bukan indikator Kepmen."),
+                  "jadi angka ini indikatif, bukan indikator Kepmen."),
             orientation="v",
         ))
         fak = unik.groupby("fakultas")["nama_mk"].nunique().sort_values(ascending=False).head(10).reset_index()
@@ -1027,7 +1027,7 @@ def _pillar_detail(ctx: _Ctx, pilar: str, topic: str | None) -> dict[str, Any]:
     delta = int(akhir["jumlah"]) - int(awal["jumlah"])
     insight_trend = (
         f"Dari {int(awal['jumlah']):,} berita ({awal['tahun']}) menjadi {int(akhir['jumlah']):,} berita "
-        f"({akhir['tahun']}) — {'naik' if delta >= 0 else 'turun'} {abs(delta):,} berita. "
+        f"({akhir['tahun']}), {'naik' if delta >= 0 else 'turun'} {abs(delta):,} berita. "
         f"Puncak tertinggi: {puncak['tahun']} dengan {int(puncak['jumlah']):,} berita."
     )
     total_tema = int(topik_counts["jumlah"].sum())
@@ -1145,7 +1145,7 @@ def _pillar_detail(ctx: _Ctx, pilar: str, topic: str | None) -> dict[str, Any]:
     tabs.append({
         "id": "kata_kunci", "label": "Kata Kunci & Berita", "charts": kata_charts,
         "tables": [_table(
-            "berita", "Daftar berita — dampak ini",
+            "berita", "Daftar berita dampak ini",
             [("tanggal", "Tanggal"), ("judul", "Judul"), ("tema_kepmen", "Tema Kepmen"), ("sdg", "SDG"),
              ("sumber", "Sumber"), ("url", "Tautan")], news_rows,
             note=(f"Berita terbaru: \"{terbaru['judul']}\" ({terbaru['tanggal']}). Daftar diurutkan dari yang terbaru "
@@ -1554,7 +1554,7 @@ def _story_sdgs(fr: StoryFrames, filters: FilterParams, start: str, end: str,
     top = dist.loc[dist["jumlah"].idxmax()]
     charts.append(_chart(
         "sdg", "bar", "Jumlah berita per SDG (seluruh URL sitemap)", _bar_data(asc, "label", "jumlah", detail_col="nama"),
-        insight=f"SDG paling banyak disentuh: {top['label']} — {top['nama']} dengan {int(top['jumlah']):,} berita.",
+        insight=f"SDG paling banyak disentuh: {top['label']} ({top['nama']}) dengan {int(top['jumlah']):,} berita.",
         note=("Jangkauan tiap SDG: jumlah URL unik sitemap yang teksnya (slug URL / judul / deskripsi) mengandung keyword "
               "SDG tsb. Satu URL bisa dihitung di beberapa SDG."),
         orientation="v",
@@ -1608,7 +1608,7 @@ def _story_sdgs(fr: StoryFrames, filters: FilterParams, start: str, end: str,
             "ringkasan_sdg", "Ringkasan per SDG", [("sdg", "SDG"), ("nama", "Nama"), ("jumlah", "Jumlah berita")],
             [{"sdg": r["label"], "nama": r["nama"], "jumlah": int(r["jumlah"])} for r in ring.to_dict("records")],
             note=("Angka yang sama dengan chart Distribusi Berita per SDG di atas, terurut dari SDG paling banyak disentuh."),
-            insight=f"Teratas: {top_ring['label']} — {top_ring['nama']} ({int(top_ring['jumlah']):,} berita).",
+            insight=f"Teratas: {top_ring['label']} ({top_ring['nama']}, {int(top_ring['jumlah']):,} berita).",
         ),
     ]
     sdg_keywords = load_module("sdg_keywords.py").SDG_KEYWORDS

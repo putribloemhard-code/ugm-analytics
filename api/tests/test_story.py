@@ -159,7 +159,7 @@ def test_impact_story_pillar_detail_tabs_and_semantics():
     assert [row["value"] for row in tema["data"]] == [2, 1]
     tren = chart_by_id(tab["charts"], "tren")
     assert tren["title"] == "Tren berita per tahun untuk dampak Lingkungan"
-    assert tren["insight"] == ("Dari 1 berita (2023) menjadi 1 berita (2024) — naik 0 berita. "
+    assert tren["insight"] == ("Dari 1 berita (2023) menjadi 1 berita (2024), naik 0 berita. "
                                "Puncak tertinggi: 2023 dengan 1 berita.")
     # tab tren: hanya tema milik dampak ini pada heatmap dan stacked bar
     tren_tab = next(t for t in detail["tabs"] if t["id"] == "tren")
