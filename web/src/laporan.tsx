@@ -9,7 +9,7 @@ import { ChartGrid, Insight, StoryTableView } from './story';
  * BAB IV Dampak Lingkungan (5 tema); tiap tema = satu sub-bab bernomor
  * yang memuat indikator resmi Kepmen 361/M/KEP/2025 + analisis berita. */
 
-const fmtValue = (value: unknown) => (typeof value === 'number' ? value.toLocaleString('id-ID') : String(value ?? '—'));
+const fmtValue = (value: unknown) => (typeof value === 'number' ? value.toLocaleString('id-ID') : String(value ?? '-'));
 /** Nilai metrik pertama sub-bab selalu "Berita unik" (angka) — dipakai untuk cek ada/tidaknya data. */
 const jumlahBerita = (section: ChapterSection) => {
   const value = section.metrics[0]?.value;
@@ -106,7 +106,7 @@ function SubBab({ section, open, onToggle }: { section: ChapterSection; open: bo
           <strong>{section.label}</strong>
           <small>Tema resmi: {section.official_topic}</small>
         </span>
-        <span className="laporan-sub__meta">{fmtValue(nBerita)} berita · satuan indikator: {section.unit || '—'}</span>
+        <span className="laporan-sub__meta">{fmtValue(nBerita)} berita · satuan indikator: {section.unit || '-'}</span>
         <span className="laporan-sub__chevron" aria-hidden="true">{open ? '−' : '+'}</span>
       </button>
     </header>

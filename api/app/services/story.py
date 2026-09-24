@@ -624,7 +624,7 @@ def _chapter_subsection(ctx: _Ctx, topik: str, nomor: str) -> dict[str, Any]:
         "metrics": [
             {"label": "Berita unik", "value": int(berita_tema["url"].nunique())},
             {"label": "Tahun jangkauan", "value": (f"{berita_tema['tahun'].min()}–{berita_tema['tahun'].max()}"
-                                                    if len(berita_tema) else "—")},
+                                                    if len(berita_tema) else "-")},
             {"label": "SDG terkait", "value": len(sdg_klaster)},
         ],
         "charts": charts,
@@ -1136,7 +1136,7 @@ def _pillar_detail(ctx: _Ctx, pilar: str, topic: str | None) -> dict[str, Any]:
     news_rows = [
         {
             "tanggal": r["tanggal"] or "", "judul": r["judul"] or "",
-            "tema_kepmen": kep_by_url.get(r["url"], "—"), "sdg": sdg_by_url.get(r["url"], "—"),
+            "tema_kepmen": kep_by_url.get(r["url"], "-"), "sdg": sdg_by_url.get(r["url"], "-"),
             "sumber": r["sumber"] or "", "url": r["url"],
         }
         for r in latest.to_dict("records")
@@ -1405,7 +1405,7 @@ def _cross(ctx: _Ctx, fr: StoryFrames, topic: str | None) -> dict[str, Any]:
     map_rows = [
         {
             "tema": label_topic.get(k, k), "dampak": m["dampak"], "tema_kepmen": m["topik_kepmen"],
-            "sdg": ", ".join(mapping.sdg_label(s) for s in m["sdg"]) or "—", "indikator": m["indikator"],
+            "sdg": ", ".join(mapping.sdg_label(s) for s in m["sdg"]) or "-", "indikator": m["indikator"],
             "definisi": m["definisi"], "kriteria": m["kriteria"], "formula": m["formula"], "satuan": m["satuan"],
         }
         for k, m in meta.items()
@@ -1531,7 +1531,7 @@ def _story_sdgs(fr: StoryFrames, filters: FilterParams, start: str, end: str,
             "metrics": [
                 {"label": "Total berita (sitemap)", "value": n_url, "note": None},
                 {"label": "Berita bertanda SDG", "value": n_tag, "note": None},
-                {"label": "Cakupan", "value": f"{100 * n_tag / n_url:.1f}%" if n_url else "—", "note": None},
+                {"label": "Cakupan", "value": f"{100 * n_tag / n_url:.1f}%" if n_url else "-", "note": None},
             ],
             "narrative": "Tidak ada data SDG untuk rentang tahun ini.",
         },
