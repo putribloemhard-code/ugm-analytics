@@ -146,16 +146,16 @@ PILAR_INTRO = {
     "Lingkungan": "pengelolaan lingkungan, keberlanjutan, dan adaptasi ekosistem alam",
 }
 PILAR_LEAD = {
-    "Ekonomi": "UGM menunjukkan kinerja ekonomi yang konsisten dan terukur",
-    "Sosial": "UGM memperlihatkan kontribusi sosial yang luas dan berdampak nyata",
-    "Lingkungan": "UGM menegaskan komitmen lingkungan yang kuat dalam agenda keberlanjutan",
+    "Ekonomi": "UGM menunjukkan pemberitaan ekonomi yang konsisten",
+    "Sosial": "UGM memperlihatkan pemberitaan sosial yang luas",
+    "Lingkungan": "UGM memperlihatkan pemberitaan lingkungan yang konsisten",
 }
 PILAR_PENUTUP = {
-    "Ekonomi": "UGM berfungsi sebagai enabler bagi penguatan kewirausahaan, hilirisasi riset, "
+    "Ekonomi": "Dalam pemberitaan, UGM tampil sebagai enabler bagi penguatan kewirausahaan, hilirisasi riset, "
                "dan kolaborasi ekonomi berbasis inovasi kampus",
-    "Sosial": "UGM berfungsi sebagai enabler pemberdayaan masyarakat dan perluasan akses "
+    "Sosial": "Dalam pemberitaan, UGM tampil sebagai enabler pemberdayaan masyarakat dan perluasan akses "
               "pendidikan yang inklusif",
-    "Lingkungan": "UGM berfungsi sebagai enabler transisi menuju kampus dan masyarakat yang "
+    "Lingkungan": "Dalam pemberitaan, UGM tampil sebagai enabler transisi menuju kampus dan masyarakat yang "
                   "berkelanjutan",
 }
 
@@ -182,8 +182,8 @@ def generate_impact_insight(
     return (
         f"{PILAR_LEAD[pilar]} pada dampak {pilar}. Dalam rentang {tahun_awal}–{tahun_akhir}, terdapat {s['total_berita']:,} berita unik yang mencerminkan "
         f"{PILAR_INTRO[pilar]}. {s['tema_display']} {kata_tema} dengan {s['tema_jumlah']:,} berita, {s['trend_text']}.{s['indikator_text']} "
-        f"{s['cakupan_text']}{s['sdg_text']} Kondisi ini menunjukkan bahwa fokus narasi media dan program akademik UGM secara konsisten "
-        f"bergerak pada isu yang memberi dampak nyata, di mana {PILAR_PENUTUP[pilar]}."
+        f"{s['cakupan_text']}{s['sdg_text']} Pola ini menunjukkan pemberitaan dan program akademik UGM terkonsentrasi pada isu-isu dampak; "
+        f"{PILAR_PENUTUP[pilar]}."
     )
 
 
@@ -272,7 +272,7 @@ def generate_executive_summary(
     berita_tahun_ini = int(bt[bt["tahun"] == tahun_akhir]["url"].nunique())
     if pilar_top_pct is not None:
         delta_text = (
-            f"tumbuh {pilar_top_pct:+.1f}% sejak {pilar_top_baseline_tahun} "
+            f"{'naik' if pilar_top_pct >= 0 else 'turun'} {abs(pilar_top_pct):.1f}% sejak {pilar_top_baseline_tahun} "
             f"({pilar_top_baseline_tahun}→{tahun_akhir})"
         )
     elif pilar_top_naik:
@@ -284,11 +284,11 @@ def generate_executive_summary(
         delta_text = "menunjukkan volume pemberitaan yang stabil"
 
     narasi = (
-        f"Sepanjang {tahun_awal}–{tahun_akhir}, {scope_label} mencatat {total_berita:,} berita dampak yang tersebar di tiga dampak "
-        f"Lingkungan, Ekonomi, dan Sosial. Dampak {pilar_top} mencatat pertumbuhan tercepat, {delta_text}. "
+        f"Sepanjang {tahun_awal}–{tahun_akhir}, teridentifikasi {total_berita:,} berita bertema dampak (batas bawah deteksi keyword) yang tersebar di tiga dampak "
+        f"Lingkungan, Ekonomi, dan Sosial. Dampak {pilar_top} mencatat perubahan paling besar, {delta_text}. "
         f"Pada sisi capaian resmi, {topik_top_label} menjadi {topik_kind} yang paling banyak disentuh dengan {topik_top_n:,} berita. "
-        f"Di tahun terbaru pada rentang ini ({tahun_akhir}), tercatat {berita_tahun_ini:,} berita dampak — mencerminkan "
-        f"konsistensi {scope_label} menjalankan tridarma yang memberi dampak nyata bagi masyarakat, ekonomi, dan lingkungan."
+        f"Di tahun terbaru pada rentang ini ({tahun_akhir}), tercatat {berita_tahun_ini:,} berita bertema dampak "
+        f"dari pemberitaan publik yang terindeks."
     )
 
     return {

@@ -155,7 +155,7 @@ def main() -> None:
         )
         data_ringkas = (
             f"- Total berita dampak: {stats['total_berita']:,}\n"
-            f"- Dampak dengan pertumbuhan tercepat: {stats['pilar_top']} ({_pilar_top_growth}, "
+            f"- Dampak dengan perubahan terbesar: {stats['pilar_top']} ({_pilar_top_growth}, "
             f"dibandingkan ke {tahun_akhir})\n"
             f"- {stats['topik_top_kind_label']}: {stats['topik_top_label']}\n"
             f"- Berita pada tahun terbaru ({tahun_akhir}): {stats['berita_tahun_ini']:,}\n"
