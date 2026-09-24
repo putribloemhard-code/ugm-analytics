@@ -457,9 +457,6 @@ td { line-height: 1.45; }
 .donut-legend i { width: 9px; height: 9px; border-radius: 50%; }
 .donut-legend b { color: var(--text); }
 .heatmap { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
-.heat-cell { display: flex; min-height: 62px; flex-direction: column; justify-content: space-between; padding: 9px; border-radius: 8px; color: #fff; background: var(--chart-primary); }
-.heat-cell strong { font-size: .8rem; }
-.heat-cell span { font-size: .75rem; }
 
 .tabs { display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--border-subtle); }
 .analysis-tabs { margin-top: 24px; }
