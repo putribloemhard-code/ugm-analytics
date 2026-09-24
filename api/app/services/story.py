@@ -1594,16 +1594,19 @@ def _story_sdgs(fr: StoryFrames, filters: FilterParams, start: str, end: str,
         ))
     response["cross"]["charts"] = charts
 
-    ring = dist.sort_values("jumlah", ascending=False, kind="stable")
-    top_ring = ring.iloc[0]
-    tables = [
-        _table(
-            "ringkasan_sdg", "Ringkasan per SDG", [("sdg", "SDG"), ("nama", "Nama"), ("jumlah", "Jumlah berita")],
-            [{"sdg": r["label"], "nama": r["nama"], "jumlah": int(r["jumlah"])} for r in ring.to_dict("records")],
-            note=("Angka yang sama dengan chart Distribusi Berita per SDG di atas, terurut dari SDG paling banyak disentuh."),
-            insight=f"Teratas: {top_ring['label']} ({top_ring['nama']}, {int(top_ring['jumlah']):,} berita).",
-        ),
-    ]
+    # Ringkasan per SDG sebagai bar berurutan SDG 1-17 (posisi tetap, SDG tanpa berita tetap tampil 0),
+    # pelengkap chart "sdg" di atas yang terurut menurut jumlah.
+    per_nomor = dict(zip(dist["sdg"].astype(int), dist["jumlah"].astype(int)))
+    urut = pd.DataFrame([{"label": f"SDG {n}", "nama": mapping.SDG_NAMA.get(n, f"SDG {n}"), "jumlah": per_nomor.get(n, 0)}
+                         for n in range(1, 18) if not filters.sdgs or n in filters.sdgs])
+    teratas = urut.loc[urut["jumlah"].idxmax()]
+    charts.insert(1, _chart(
+        "ringkasan_sdg", "bar", "Ringkasan per SDG (urut SDG 1–17)", _bar_data(urut, "label", "jumlah", detail_col="nama"),
+        insight=f"Teratas: {teratas['label']} ({teratas['nama']}) dengan {int(teratas['jumlah']):,} berita.",
+        note="Angka sama dengan chart jumlah berita per SDG, disusun menurut nomor SDG 1–17 supaya mudah dicari.",
+        orientation="v",
+    ))
+    tables: list[dict[str, Any]] = []
     response["tables"] = tables
     response["sdg_peta"] = sdg_peta(fr, dist)
     belum = sm[~sm["url"].isin(set(ss_f["url"]))]

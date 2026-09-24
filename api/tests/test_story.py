@@ -338,7 +338,13 @@ def test_sdgs_story():
     heat = chart_by_id(story["cross"]["charts"], "sdg_tahun_heatmap")["data"]
     assert heat["rows"] == ["SDG 3", "SDG 4"] and heat["cols"] == ["2023", "2024", "2025"]
     # Tabel keyword & "tanpa tanda SDG" diganti peta sebaran + komponen tagging manual.
-    assert [t["title"] for t in story["tables"]] == ["Ringkasan per SDG"]
+    assert story["tables"] == []
+    ringkas = chart_by_id(story["cross"]["charts"], "ringkasan_sdg")
+    assert [row["label"] for row in ringkas["data"]] == [f"SDG {n}" for n in range(1, 18)]   # urut 1-17
+    assert {row["label"]: row["value"] for row in ringkas["data"]}["SDG 3"] == 2
+    assert story["cross"]["charts"][1]["id"] == "ringkasan_sdg"
+    hanya = build_story(make_frames(), FilterParams(sdgs=(4, 3)), "sdgs")
+    assert [row["label"] for row in chart_by_id(hanya["cross"]["charts"], "ringkasan_sdg")["data"]] == ["SDG 3", "SDG 4"]
     assert "32.130" not in json.dumps(story)
     assert story["tanpa_sdg_total"] == 8 - 3
     peta = story["sdg_peta"]
