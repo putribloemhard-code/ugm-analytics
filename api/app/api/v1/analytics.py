@@ -366,6 +366,34 @@ def story(
         raise HTTPException(status_code=503, detail="Story data is unavailable") from exc
 
 
+@router.get("/sources")
+def sources(api: AnalyticsService = Depends(service)):
+    """Bagian "Sumber": asal data berita & mata kuliah, jumlah diambil vs memuat dampak, per pilar."""
+    from app.services.sources import ringkasan_sumber
+    from app.services.story import StoryService
+    try:
+        return ringkasan_sumber(StoryService(api.engine).frames())
+    except Exception as exc:
+        logging.getLogger(__name__).exception("sources endpoint failed")
+        raise HTTPException(status_code=503, detail="Ringkasan sumber data belum tersedia") from exc
+
+
+@router.get("/sources/news")
+def sources_news(page: int = Query(default=1, ge=1), page_size: int = Query(default=10, ge=1, le=50),
+                 q: str = Query(default="", max_length=100), pilar: str = Query(default=""),
+                 api: AnalyticsService = Depends(service)):
+    """Daftar berita yang memuat konten dampak (satu baris per berita, tautan ke artikel asli)."""
+    from app.services.sources import berita_berdampak
+    from app.services.story import StoryService
+    try:
+        return berita_berdampak(StoryService(api.engine).frames(), page, page_size, q, pilar)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logging.getLogger(__name__).exception("sources/news endpoint failed")
+        raise HTTPException(status_code=503, detail="Daftar berita belum tersedia") from exc
+
+
 @router.get("/news")
 def news(
     page: int = Query(default=1, ge=1),

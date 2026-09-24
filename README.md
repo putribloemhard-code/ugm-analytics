@@ -133,6 +133,25 @@ jumlah baris sebelum/sesudah identik) termasuk ekstraksi dengan OpenAI sungguhan
 PostgreSQL 16 portabel (registrasi/login/upload/simpan gagal sebelum `--perbaiki-skema`, lolos
 sesudahnya dan pada migrasi baru).
 
+## Bagian "Sumber" di halaman Dampak (2026-09-24)
+
+Urutan `/dampak`: pembuka (judul + pencarian, **tanpa angka**) → **Bagian I Sumber Data**
+(`#sumber`) → Bagian II Tiga jalur → Bagian III Analisis (Dampak, Dampak × SDGs, SDGs).
+Bagian lama "Data & metodologi" dihapus; isinya (catatan lower-bound & beda metode) pindah ke
+Sumber, dan anchor lama `#metodologi` diarahkan ke `#sumber`.
+
+- Diagram silsilah data (`web/src/sumber.tsx`, CSS `.lineage`): tiap sumber = satu jalur
+  sumber → diambil → memuat konten dampak (+ persentase) → per dampak (Sosial/Ekonomi/Lingkungan).
+  Jalur 01 berita ugm.ac.id (sitemap & RSS, rentang tahun, ID/EN); jalur 02 mata kuliah dari web
+  publik tiap prodi (catatan: >20 situs, dikurasi ke satu berkas). Sumber internal (sistem
+  kurikulum UGM) ditampilkan putus-putus dengan status "Belum ada akses".
+- Tabel "Berita yang memuat konten dampak": cari judul, saring per dampak, 10 per halaman;
+  judul membuka artikel asli di tab baru (hanya URL http/https yang dijadikan tautan).
+  Di HP tiap baris menjadi kartu.
+- API: `GET /api/v1/analytics/sources` dan `GET /api/v1/analytics/sources/news?page=&page_size=&q=&pilar=`
+  (`api/app/services/sources.py`). Dihitung dari frame yang sudah di-cache `StoryService`
+  (ringkasan ±0,3 detik, tabel ±50–200 ms); query SQL langsung sempat 3–15 detik.
+
 ## Tata letak laporan dampak di web (2026-09-23)
 
 Bagian "Analisis Dampak" (`/dampak`, scene `dampak`) menampilkan blok **Laporan dampak per bab**

@@ -7,20 +7,19 @@ export const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.rep
 
 /** Bagian-bagian laporan Analisis Dampak (satu halaman panjang); id dipakai sebagai anchor dan scrollspy. */
 export const reportSections = [
+  { id: 'sumber', label: 'Sumber' },
   { id: 'ringkasan', label: 'Ringkasan' },
   { id: 'dampak', label: 'Dampak' },
   { id: 'dampak-sdgs', label: 'Dampak × SDGs' },
   { id: 'sdgs', label: 'SDGs' },
-  { id: 'metodologi', label: 'Data & metodologi' },
 ];
 
 const reportSectionIds = reportSections.map(section => section.id);
 /** Laporan hanya hidup di pathname '/dampak' (di balik login); '/' kini beranda/landing page. */
-const isReportLocation = (pathname: string, hash: string) => pathname === '/dampak' && (!hash || reportSectionIds.some(id => `#${id}` === hash));
+// '#metodologi' = anchor lama bagian "Data & metodologi", kini digantikan bagian Sumber.
+const isReportLocation = (pathname: string, hash: string) => pathname === '/dampak' && (!hash || hash === '#metodologi' || reportSectionIds.some(id => `#${id}` === hash));
 /** Halaman-halaman milik portal Akreditasi -- dipakai untuk menentukan kapan chip akun & nav akreditasi tampil. */
 const accreditationPaths = ['/akreditasi', '/profil', '/admin'];
-
-const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /** True begitu elemen pernah mendekati viewport (sekali saja) -- dipakai untuk lazy-load data tiap bagian. */
 export function useInView<T extends Element>(ref: RefObject<T | null>, rootMargin = '400px 0px') {
@@ -34,24 +33,6 @@ export function useInView<T extends Element>(ref: RefObject<T | null>, rootMargi
     return () => observer.disconnect();
   }, [ref, rootMargin, seen]);
   return seen;
-}
-
-/** Angka yang naik dari 0 saat pertama terlihat; langsung tampil final bila pengguna meminta motion dikurangi. */
-export function CountUp({ value }: { value: unknown }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const seen = useInView(ref, '0px');
-  const target = typeof value === 'number' ? value : NaN;
-  const [shown, setShown] = useState(0);
-  useEffect(() => {
-    if (!seen || Number.isNaN(target)) return;
-    if (prefersReducedMotion()) { setShown(target); return; }
-    let frame = 0; const start = performance.now(); const duration = 1400;
-    const tick = (now: number) => { const t = Math.min(1, (now - start) / duration); setShown(Math.round(target * (1 - Math.pow(1 - t, 3)))); if (t < 1) frame = requestAnimationFrame(tick); };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [seen, target]);
-  if (Number.isNaN(target)) return <span ref={ref}>{String(value ?? '-')}</span>;
-  return <span ref={ref}>{(seen ? shown : 0).toLocaleString('id-ID')}</span>;
 }
 
 function useTheme() {
@@ -168,12 +149,12 @@ function SiteHeader() {
 
 /** Peta scroll melayang di sisi kanan: posisi baca, lompat antar bagian, ke atas/bawah. */
 const railItems = [
-  { id: 'pembuka', node: '↑', caption: 'Orientasi', title: 'Pembuka & ringkasan data' },
-  { id: 'ringkasan', node: '01', caption: 'Bagian I', title: 'Tiga jalur membaca dampak' },
-  { id: 'dampak', node: '02', caption: 'Analisis 1 / 3', title: 'Dampak' },
-  { id: 'dampak-sdgs', node: '03', caption: 'Analisis 2 / 3', title: 'Dampak × SDGs' },
-  { id: 'sdgs', node: '04', caption: 'Analisis 3 / 3', title: 'SDGs' },
-  { id: 'metodologi', node: '05', caption: 'Bagian III', title: 'Data & metodologi' },
+  { id: 'pembuka', node: '↑', caption: 'Orientasi', title: 'Pembuka & pencarian' },
+  { id: 'sumber', node: '01', caption: 'Bagian I', title: 'Sumber data' },
+  { id: 'ringkasan', node: '02', caption: 'Bagian II', title: 'Tiga jalur membaca dampak' },
+  { id: 'dampak', node: '03', caption: 'Analisis 1 / 3', title: 'Dampak' },
+  { id: 'dampak-sdgs', node: '04', caption: 'Analisis 2 / 3', title: 'Dampak × SDGs' },
+  { id: 'sdgs', node: '05', caption: 'Analisis 3 / 3', title: 'SDGs' },
 ];
 const railIds = railItems.map(item => item.id);
 

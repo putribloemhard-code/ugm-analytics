@@ -274,6 +274,26 @@ export type RefreshStatus = {
 export function getRefreshStatus() { return get<RefreshStatus>('/analytics/refresh-status'); }
 export function startRefresh() { return kirim<{ pid: number; message: string }>('/analytics/refresh', 'POST'); }
 
+/* ---- Bagian "Sumber": asal data + daftar berita berdampak (api/app/services/sources.py) ---- */
+export type JumlahPilar = { pilar: 'Sosial' | 'Ekonomi' | 'Lingkungan'; jumlah: number };
+export type SumberData = {
+  berita: {
+    situs: string; sitemap: number; diambil: number; berdampak: number; rss: number;
+    bahasa: { id: number; en: number }; tahun_awal: string | null; tahun_akhir: string | null;
+    diperbarui: string | null; per_pilar: JumlahPilar[];
+  };
+  mata_kuliah: { tersedia: false } | {
+    tersedia: true; baris: number; prodi: number; fakultas: number; mk_unik: number; mk_belum_dinilai: number;
+    berdampak: number; indikator_resmi: number; per_pilar: JumlahPilar[];
+  };
+  internal: { nama: string; status: string; pengganti: string }[];
+};
+export type BeritaDampak = { judul: string; tautan: string | null; tanggal: string; bahasa: 'ID' | 'EN'; tema: string[]; pilar: string[] };
+export function getSumber() { return get<SumberData>('/analytics/sources'); }
+export function getBeritaDampak(params: { page: number; page_size: number; q?: string; pilar?: string }) {
+  return get<{ page: number; page_size: number; total: number; rows: BeritaDampak[] }>(`/analytics/sources/news?${toQuery(params)}`);
+}
+
 export function getHomeSummary() { return get<Record<string, string | number | null>>('/analytics/home-summary'); }
 export function searchAnalytics(q: string) { return get<{ page: string; pillars: string[]; topics: string[]; sdgs: number[]; years: string[] | null; explanation: string }>(`/analytics/search?${toQuery({ q })}`); }
 export function getImpact(params: Record<string, QueryValue>, mode: 'impact' | 'impact-sdgs') { return get<AnalyticsResult>(`/analytics/impact?${toQuery({ ...params, mode })}`); }

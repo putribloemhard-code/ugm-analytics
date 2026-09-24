@@ -2,13 +2,14 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { AUTH_EVENT, DAMPAK_AUTH_EVENT, accreditationLogin, accreditationLogout, accreditationMe, accreditationRegister, dampakLogin, dampakLogout, dampakMe, dampakRegister, downloadReport, getAccreditation, getHomeSummary, getMetadata, getNews, getStory, searchAnalytics, type AccreditationResult, type AuthUser, type Metadata, type PillarDetail, type Story, type TopicOption } from './lib/api';
-import { assetUrl, CountUp, SiteShell, useInView } from './shell';
+import { assetUrl, SiteShell, useInView } from './shell';
 import { MultiSelect } from './multiselect';
 import { ChartGrid, Insight, StoryTableView } from './story';
 import { LaporanDampak, MataKuliahPanel } from './laporan';
 import { Notice, PageHeader } from './ui';
 import { AdminPage, ProfilePage } from './account';
 import { AccreditationWorkspace } from './akreditasi';
+import { SumberSection } from './sumber';
 
 type FilterState = { yearFrom: string; yearTo: string; pillars: string[]; topics: string[]; sdgs: number[]; units: string[] };
 const emptyFilters: FilterState = { yearFrom: '', yearTo: '', pillars: [], topics: [], sdgs: [], units: [] };
@@ -170,21 +171,16 @@ function Hero({ summary, error }: { summary: Record<string, string | number | nu
       navigate(`/dampak?${params.toString()}#${result.page}`);
     } catch { setExplanation('Pencarian belum dapat diproses. Periksa koneksi API.'); }
   }
-  const stats = summary ? [
-    { label: 'Berita dianalisis', value: summary.total_berita },
-    { label: 'Berita berdampak', value: summary.n_dampak },
-    { label: 'Cakupan', value: `${Number(summary.cakupan_pct ?? 0).toFixed(1)}%` },
-  ] : [];
   return <section className="cold-open" id="pembuka" aria-labelledby="cold-open-title"><div className="cold-open__inner">
     <p className="eyebrow">Universitas Gadjah Mada · Kepmen 361/M/KEP/2025</p>
-    {error ? <Notice type="error">{error}</Notice> : <ul className="cold-open__stats" aria-label="Ringkasan data">{summary ? stats.map(stat => <li key={stat.label}><span className="cold-open__number"><CountUp value={stat.value} /></span><span className="cold-open__label">{stat.label}</span></li>) : <li className="cold-open__loading" role="status">Memuat ringkasan data...</li>}</ul>}
+    {error && <Notice type="error">{error}</Notice>}
     <h1 id="cold-open-title">Analisis <span>Dampak UGM</span></h1>
     <p className="cold-open__statement">Ruang baca untuk memeriksa jejak dampak sosial, ekonomi, dan lingkungan UGM melalui pemberitaan publik dan kerangka SDGs.</p>
     <form className="hero-search" onSubmit={search}><label className="sr-only" htmlFor="analysis-search">Mau analisis apa?</label><input id="analysis-search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Contoh: energi, SDG 7, atau 2024" /><button type="submit">Cari analisis</button></form>
     <p className="hero-hint">Cari tema, pilar, SDG, atau tahun. Hasil akan membuka bagian analisis dengan filter terkait.</p>
     {explanation && <p className="hero-note" role="status">{explanation}</p>}
     {summary && <p className="cold-open__context">Data terakhir: {summary.updated_at ?? 'waktu pembaruan belum tersedia'}.</p>}
-    <Link className="cold-open__continue" to={{ pathname: '/dampak', hash: '#ringkasan' }}>Jelajahi laporan selengkapnya <span aria-hidden="true">↓</span></Link>
+    <Link className="cold-open__continue" to={{ pathname: '/dampak', hash: '#sumber' }}>Lihat sumber data <span aria-hidden="true">↓</span></Link>
   </div></section>;
 }
 
@@ -231,22 +227,20 @@ function ScrollReport({ target }: { target?: AnalysisDef['id'] }) {
   const [metadataError, setMetadataError] = useState('');
   useEffect(() => { getHomeSummary().then(setSummary).catch(e => setSummaryError(pesanMuat(e, 'Ringkasan data'))); getMetadata().then(setMetadata).catch(e => setMetadataError(pesanMuat(e, 'Metadata filter'))); }, []);
   useEffect(() => {
-    const id = location.hash ? location.hash.slice(1) : target;
+    const dariHash = location.hash ? location.hash.slice(1) : target;
+    const id = dariHash === 'metodologi' ? 'sumber' : dariHash;
     if (!id) { window.scrollTo(0, 0); return; }
     // Instan, bukan smooth: bagian di antaranya dimuat lazy saat terlewati dan akan menggeser posisi tujuan.
     const timer = window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: 'start' }), 60);
     return () => window.clearTimeout(timer);
   }, [location.key, location.hash, target]);
   return <AppShell><Hero summary={summary} error={summaryError} />
-    <ChapterIntro id="ringkasan" number="Bagian I" title="Tiga Jalur untuk Membaca Dampak" description="Setiap jalur memakai sumber dan metode yang berbeda. Pilih jalur yang paling sesuai dengan pertanyaan Anda, bukan sekadar grafik yang ingin dilihat.">
+    <SumberSection />
+    <ChapterIntro id="ringkasan" number="Bagian II" title="Tiga Jalur untuk Membaca Dampak" description="Setiap jalur memakai sumber dan metode yang berbeda. Pilih jalur yang paling sesuai dengan pertanyaan Anda, bukan sekadar grafik yang ingin dilihat.">
       <div className="route-grid">{analysisSections.map(def => <Link className={`route-card ${def.accent}`} to={{ pathname: '/dampak', hash: `#${def.id}` }} key={def.id}><div className="route-card-top"><img src={assetUrl(`logo/${def.icon}`)} alt="" /><span>{def.eyebrow}</span></div><h3>{routeTitle[def.id]}</h3><p>{def.description}</p><span className="route-action">Buka bagian ini <b aria-hidden="true">↓</b></span></Link>)}</div>
     </ChapterIntro>
-    <ChapterIntro number="Bagian II" title="Analisis Data Berita" description="Tiap bagian punya filter sendiri. Angka, grafik, tabel, dan laporan Word mengikuti filter yang aktif." />
+    <ChapterIntro number="Bagian III" title="Analisis Data Berita" description="Tiap bagian punya filter sendiri. Angka, grafik, tabel, dan laporan Word mengikuti filter yang aktif." />
     {analysisSections.map((def, index) => <AnalysisScene key={def.id} def={def} metadata={metadata} metadataError={metadataError} seeded={target === def.id} seedKey={location.key} tint={index % 2 === 1} />)}
-    <ChapterIntro id="metodologi" number="Bagian III" title="Data & Metodologi" description="Angka perlu konteks. Tag dampak adalah lower-bound berbasis keyword dan sumber yang tersedia. Pemetaan Dampak × SDGs mengikuti tema resmi Kepmen, sedangkan bagian SDGs menggunakan pencocokan langsung yang menjawab pertanyaan berbeda.">
-      <p className="chapter-bridge">{summary ? `Data terakhir: ${summary.updated_at ?? 'waktu pembaruan belum tersedia'}.` : 'Memuat status data...'} Catatan metodologi rinci ditampilkan di bawah tiap bagian analisis.</p>
-      <Link className="chapter-cta" to="/akreditasi">Buka Portal Akreditasi <span aria-hidden="true">›</span></Link>
-    </ChapterIntro>
   </AppShell>;
 }
 
