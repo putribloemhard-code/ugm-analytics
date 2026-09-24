@@ -317,8 +317,30 @@ export function getImpact(params: Record<string, QueryValue>, mode: 'impact' | '
 export function getSdgs(params: Record<string, QueryValue>) { return get<AnalyticsResult>(`/analytics/sdgs?${toQuery(params)}`); }
 export function getNews(params: Record<string, QueryValue>, page: number, pageSize: number) { return get<{ rows: unknown[]; total: number; page: number; page_size: number }>(`/analytics/news?${toQuery({ ...params, page, page_size: pageSize })}`); }
 
+/* ---- Laporan dampak berkerangka LAPORAN DAMPAK UGM 2025 (api/app/services/laporan_dampak.py) ---- */
+export type LaporanBlok =
+  | { type: 'heading'; level: 1 | 2 | 3; text: string; break_before?: boolean }
+  | { type: 'paragraph'; text: string }
+  | { type: 'list'; ordered: boolean; items: string[] }
+  | { type: 'figure'; image: string; caption: string; source: string | null }
+  | { type: 'table'; caption: string; columns: string[]; rows: string[][]; links: Record<string, number>; source: string | null; key_value: boolean };
+export type Laporan = {
+  title: string; subtitle: string; institution: string; period: string; mode: string; mode_label: string;
+  filters: string[]; generated: string; data_as_of: string | null;
+  toc: { level: number; text: string }[]; figures: string[]; tables: string[]; blocks: LaporanBlok[];
+};
+async function pesanGalat(response: Response, cadangan: string) {
+  try { const body = await response.json(); if (typeof body?.detail === 'string') return body.detail; } catch { /* bukan JSON */ }
+  return `${cadangan} (${response.status})`;
+}
+export async function getLaporanPreview(payload: Record<string, unknown>) {
+  const response = await fetch(`${API_BASE}/analytics/reports/preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  if (!response.ok) throw new Error(await pesanGalat(response, 'Pratinjau laporan gagal dibuat'));
+  return response.json() as Promise<Laporan>;
+}
 export async function downloadReport(payload: Record<string, unknown>) {
   const response = await fetch(`${API_BASE}/analytics/reports`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-  if (!response.ok) throw new Error(`Report request failed (${response.status})`);
-  return response.blob();
+  if (!response.ok) throw new Error(await pesanGalat(response, 'Laporan gagal dibuat'));
+  const nama = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')?.[1];
+  return { blob: await response.blob(), nama };
 }

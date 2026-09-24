@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
-import { AUTH_EVENT, DAMPAK_AUTH_EVENT, accreditationLogin, accreditationLogout, accreditationMe, accreditationRegister, dampakLogin, dampakLogout, dampakMe, dampakRegister, downloadReport, getAccreditation, getHomeSummary, getMetadata, getNews, getStory, searchAnalytics, type AccreditationResult, type AuthUser, type Metadata, type PillarDetail, type Story, type TopicOption } from './lib/api';
+import { AUTH_EVENT, DAMPAK_AUTH_EVENT, accreditationLogin, accreditationLogout, accreditationMe, accreditationRegister, dampakLogin, dampakLogout, dampakMe, dampakRegister, getAccreditation, getHomeSummary, getMetadata, getNews, getStory, searchAnalytics, type AccreditationResult, type AuthUser, type Metadata, type PillarDetail, type Story, type TopicOption } from './lib/api';
 import { assetUrl, SiteShell, useInView } from './shell';
 import { MultiSelect } from './multiselect';
 import { ChartGrid, Insight, StoryTableView } from './story';
@@ -10,6 +10,7 @@ import { Notice, PageHeader } from './ui';
 import { AdminPage, ProfilePage } from './account';
 import { AccreditationWorkspace } from './akreditasi';
 import { SumberSection } from './sumber';
+import { LaporanUnduh } from './laporan-unduh';
 import { SdgPetaView, TagSdgManual } from './sdg';
 
 type FilterState = { yearFrom: string; yearTo: string; pillars: string[]; topics: string[]; sdgs: number[]; units: string[] };
@@ -119,13 +120,10 @@ function AnalyticsContent({ story, pillar, onPickPillar, topic, onTopic, busy, o
   const [news, setNews] = useState<{ rows: unknown[]; total: number } | null>(null);
   const [newsError, setNewsError] = useState('');
   const [page, setPage] = useState(1);
-  const [reportError, setReportError] = useState('');
-  const [reportBusy, setReportBusy] = useState(false);
   const filtersKey = JSON.stringify(story.filters);
   useEffect(() => { setPage(1); }, [filtersKey, story.mode]);
   useEffect(() => { setNews(null); setNewsError(''); const f = story.filters; getNews({ mode: story.mode, year_from: f.year_from as string, year_to: f.year_to as string, pillars: f.pillars as string[], topics: f.topics as string[], sdgs: f.sdgs as number[], units: f.units as string[] }, page, NEWS_PAGE_SIZE).then(setNews).catch(e => setNewsError(pesanMuat(e, 'Daftar berita'))); }, [filtersKey, story.mode, page]);
   const totalPages = news ? Math.max(1, Math.ceil(news.total / NEWS_PAGE_SIZE)) : 1;
-  async function report() { setReportBusy(true); setReportError(''); try { const blob = await downloadReport({ mode: story.mode, ...story.filters }); const href = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = href; link.download = `Laporan_UGM_Analytics_${story.mode}.docx`; link.click(); URL.revokeObjectURL(href); } catch (e) { setReportError(pesanMuat(e, 'Laporan')); } finally { setReportBusy(false); } }
   return <div className={`analysis-dashboard ${busy ? 'is-busy' : ''}`} aria-busy={busy}>
     <Executive story={story} />
     {/* Blok laporan berbab hanya di bagian "Analisis Dampak"; bagian "Dampak × SDGs" sudah
@@ -142,7 +140,7 @@ function AnalyticsContent({ story, pillar, onPickPillar, topic, onTopic, busy, o
     {story.mode === 'sdgs' && <TagSdgManual filter={{ year_from: story.filters.year_from as string, year_to: story.filters.year_to as string, units: story.filters.units as string[] }} onChanged={onDataChanged} />}
     <section className="story-block"><h3>Daftar berita</h3>{newsError ? <Notice type="error">{newsError}</Notice> : !news ? <div className="loading" role="status">Memuat daftar berita...</div> : <><Table title="Berita terpilih" rows={news.rows} /><div className="action-row"><button className="button secondary" disabled={page <= 1} onClick={() => setPage(current => current - 1)}>Halaman sebelumnya</button><span aria-live="polite">Halaman {page} dari {totalPages}</span><button className="button secondary" disabled={page >= totalPages} onClick={() => setPage(current => current + 1)}>Halaman berikutnya</button></div></>}</section>
     <section className="story-block"><h3>Catatan metodologi</h3><ul>{story.caveats.map(caveat => <li key={caveat}>{caveat}</li>)}</ul></section>
-    <section className="story-block"><h3>Unduh laporan</h3><p className="section-note">Dokumen Word dibuat dari filter dan data yang divalidasi server.</p><button className="button" disabled={reportBusy} onClick={report}>{reportBusy ? 'Membuat laporan...' : 'Buat laporan Word'}</button>{reportError && <div className="section"><Notice type="error">{reportError}</Notice></div>}</section>
+    <LaporanUnduh story={story} />
   </div>;
 }
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -463,29 +464,81 @@ def news(
 
 
 
-@router.post("/reports")
-def report(payload: ReportRequest, api: AnalyticsService = Depends(service)):
+# Laporan terakhir per filter: tombol "Unduh Word" di pratinjau memakai hasil yang sama dengan yang
+# baru dilihat (tanpa menggambar ulang puluhan grafik). Kunci ikut data_as_of supaya data baru tidak basi.
+_LAPORAN_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_LAPORAN_TTL = 300
+_LAPORAN_MAKS = 4
+
+
+def _laporan(payload: ReportRequest, api: AnalyticsService) -> dict[str, Any]:
+    from app.services.story import StoryService
+    kunci = f"{payload.model_dump_json()}|{StoryService(api.engine).frames().data_as_of}"
+    sekarang = time.monotonic()
+    hit = _LAPORAN_CACHE.get(kunci)
+    if hit and sekarang - hit[0] < _LAPORAN_TTL:
+        return hit[1]
+    hasil = _susun_laporan(payload, api)
+    _LAPORAN_CACHE[kunci] = (sekarang, hasil)
+    for lama in sorted(_LAPORAN_CACHE, key=lambda k: _LAPORAN_CACHE[k][0])[:-_LAPORAN_MAKS]:
+        _LAPORAN_CACHE.pop(lama, None)
+    return hasil
+
+
+def _susun_laporan(payload: ReportRequest, api: AnalyticsService) -> dict[str, Any]:
+    """Model laporan dampak (kerangka LAPORAN DAMPAK UGM 2025) untuk filter aktif."""
+    from app.domain.source import kepmen
+    from app.services.laporan_dampak import build_laporan
+    from app.services.sources import ringkasan_sumber
+    from app.services.story import StoryService
+
+    params = FilterParams(
+        year_from=payload.year_from,
+        year_to=payload.year_to,
+        pillars=tuple(payload.pillars),
+        topics=tuple(payload.topics),
+        sdgs=tuple(payload.sdgs),
+        units=tuple(payload.units),
+    )
+    service_ = StoryService(api.engine)
+    story_ = service_.story(params, payload.mode, None, None)
     try:
-        params = FilterParams(
-            year_from=payload.year_from,
-            year_to=payload.year_to,
-            pillars=tuple(payload.pillars),
-            topics=tuple(payload.topics),
-            sdgs=tuple(payload.sdgs),
-            units=tuple(payload.units),
-        )
-        result = api.impact(params, payload.mode) if payload.mode != "sdgs" else api.sdgs(params)
-        from app.services.report import build_report
-        content = build_report(payload.mode, result)
-        return Response(
-            content=content,
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            headers={"Content-Disposition": f'attachment; filename="Laporan_UGM_Analytics_{payload.mode}.docx"'},
-        )
+        sumber = ringkasan_sumber(service_.frames())
+    except Exception:  # ringkasan sumber hanya pelengkap BAB I; laporan tetap dibuat tanpanya
+        logging.getLogger(__name__).warning("ringkasan sumber tidak tersedia untuk laporan", exc_info=True)
+        sumber = None
+    return build_laporan(story_, sumber, kepmen().LABEL_TOPIC_ALL)
+
+
+@router.post("/reports/preview")
+def report_preview(payload: ReportRequest, api: AnalyticsService = Depends(service)):
+    """Pratinjau laporan: blok dokumen yang sama persis dengan isi file Word."""
+    try:
+        return _laporan(payload, api)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=503, detail="Report generation is unavailable") from exc
+        logging.getLogger(__name__).exception("report preview failed")
+        raise HTTPException(status_code=503, detail="Pratinjau laporan belum dapat dibuat") from exc
+
+
+@router.post("/reports")
+def report(payload: ReportRequest, api: AnalyticsService = Depends(service)):
+    """Unduh laporan dampak (.docx) untuk filter aktif."""
+    from app.services.laporan_dampak import render_docx
+    try:
+        content = render_docx(_laporan(payload, api))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logging.getLogger(__name__).exception("report generation failed")
+        raise HTTPException(status_code=503, detail="Laporan belum dapat dibuat") from exc
+    nama = {"impact": "Dampak", "impact-sdgs": "Dampak_SDGs", "sdgs": "SDGs"}[payload.mode]
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="Laporan_{nama}_UGM.docx"'},
+    )
 
 
 _last_seen_update_log: float | None = None
