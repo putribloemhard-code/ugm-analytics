@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type { Chart, StoryTable } from './lib/api';
 
-/* ------------------------------------------------------------------ warna ---- */
+/* warna */
 const seriesColor = (index: number) => `var(--series-${(index % 8) + 1})`;
 /** Warna tetap per dampak agar konsisten di semua chart; kategori lain mengikuti urutan kemunculan. */
 const pillarColor: Record<string, string> = { Lingkungan: 'var(--series-2)', Ekonomi: 'var(--series-3)', Sosial: 'var(--series-4)' };
@@ -15,7 +15,7 @@ function groupColors(groups: (string | null | undefined)[]) {
 const fmt = (value: unknown) => typeof value === 'number' ? value.toLocaleString('id-ID') : String(value ?? '');
 const naturalSort = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
 
-/* -------------------------------------------------- data tabel & CSV chart ---- */
+/* data tabel & CSV chart */
 type Column = { key: string; label: string };
 type TableModel = { columns: Column[]; rows: Record<string, unknown>[] };
 
@@ -67,7 +67,7 @@ export function downloadCsv(filename: string, columns: Column[], rows: Record<st
   const link = document.createElement('a'); link.href = href; link.download = filename; link.click(); URL.revokeObjectURL(href);
 }
 
-/* ------------------------------------------------------------- tabel data ---- */
+/* tabel data */
 export function DataTable({ title, columns, rows, note, caption, pageSize }: { title?: string; columns: Column[]; rows: Record<string, unknown>[]; note?: string | null; caption?: string; pageSize?: number | null }) {
   // pageSize diisi API untuk tabel panjang (Daftar berita) -> tampil per halaman + tombol
   // navigasi. Tabel ringkas (distribusi, unit kerja) tidak diisi -> tampil utuh seperti semula.
@@ -99,7 +99,7 @@ export function StoryTableView({ table }: { table: StoryTable }) {
   </div>;
 }
 
-/* -------------------------------------------------------------- legenda ---- */
+/* legenda */
 function Legend({ items, hidden, onToggle }: { items: { name: string; color: string }[]; hidden?: Set<string>; onToggle?: (name: string) => void }) {
   return <ul className="chart-legend">{items.map(item => <li key={item.name}>{onToggle
     ? <button type="button" aria-pressed={!hidden?.has(item.name)} className={hidden?.has(item.name) ? 'is-off' : ''} onClick={() => onToggle(item.name)}><i style={{ background: item.color }} />{item.name}</button>
@@ -111,7 +111,7 @@ function useToggleSet() {
   return [hidden, (name: string) => setHidden(current => { const next = new Set(current); if (next.has(name)) next.delete(name); else next.add(name); return next; })] as const;
 }
 
-/* -------------------------------------------------------- sumbu skala SVG ---- */
+/* sumbu skala SVG */
 function niceMax(value: number) {
   if (value <= 0) return 1;
   const exp = Math.pow(10, Math.floor(Math.log10(value))); const frac = value / exp;
@@ -128,7 +128,7 @@ function Axes({ max, labels, skip }: { max: number; labels: string[]; skip: numb
   </g>;
 }
 
-/* ---------------------------------------------------------------- bar ---- */
+/* bar */
 function BarView({ chart }: { chart: Chart }) {
   const rows = chart.data as { label: string; value: number; group?: string | null; detail?: string | null }[];
   const colors = useMemo(() => groupColors(rows.map(row => row.group)), [rows]);
@@ -141,7 +141,7 @@ function BarView({ chart }: { chart: Chart }) {
   return <div><div className="chart-list" role="img" aria-label={chart.title}>{rows.map((row, index) => <div className="chart-row" key={`${row.label}-${index}`}><span className="chart-label">{row.label}</span><div className="chart-track" title={`${row.detail ?? row.label}: ${fmt(row.value)}`}><div className="chart-bar" style={{ width: `${(row.value / max) * 100}%`, background: color(row) }} /></div><span className="chart-value">{fmt(row.value)}</span></div>)}</div>{legend.length > 0 && <Legend items={legend} />}</div>;
 }
 
-/* --------------------------------------------------------------- line ---- */
+/* line */
 function LineView({ chart }: { chart: Chart }) {
   const series = (chart.data as { series: { name: string; points: { x: string; y: number }[] }[] }).series;
   const [hidden, toggle] = useToggleSet();
@@ -162,7 +162,7 @@ function LineView({ chart }: { chart: Chart }) {
   </div>;
 }
 
-/* ------------------------------------------------------- stacked & combo ---- */
+/* stacked & combo */
 function StackedView({ chart }: { chart: Chart }) {
   const data = chart.data as { x: string[]; series: { name: string; values: number[] }[] };
   const [hidden, toggle] = useToggleSet();
@@ -195,14 +195,14 @@ function ComboView({ chart }: { chart: Chart }) {
   </div>;
 }
 
-/* ------------------------------------------------------------- heatmap ---- */
+/* heatmap */
 function HeatmapView({ chart }: { chart: Chart }) {
   const data = chart.data as { rows: string[]; cols: string[]; values: number[][] };
   const max = Math.max(...data.values.flat(), 1);
   return <div className="heatmap-scroll" role="img" aria-label={chart.title}><table className="heatmap-table"><thead><tr><th />{data.cols.map(col => <th key={col}>{col}</th>)}</tr></thead><tbody>{data.rows.map((row, i) => <tr key={row}><th scope="row">{row}</th>{data.cols.map((col, j) => { const v = data.values[i]?.[j] ?? 0; const pct = Math.round((v / max) * 100); const bg = v ? Math.min(80, pct >= 55 ? Math.max(pct, 70) : Math.max(pct, 8)) : 0; return <td key={col} title={`${row} × ${col}: ${fmt(v)}`} style={{ background: bg ? `color-mix(in srgb, var(--chart-primary) ${bg}%, var(--surface-card))` : undefined, color: pct >= 55 ? 'var(--text-on-dark)' : undefined }}>{v ? fmt(v) : ''}</td>; })}</tr>)}</tbody></table></div>;
 }
 
-/* --------------------------------------------------- bingkai chart utama ---- */
+/* bingkai chart utama */
 export function Insight({ label = 'Insight', children }: { label?: string; children: ReactNode }) {
   return <aside className="insight insight--info"><div className="insight__label">{label}</div><p>{children}</p></aside>;
 }

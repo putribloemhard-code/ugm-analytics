@@ -121,9 +121,7 @@ CAVEATS_SDGS = [
 ]
 
 
-# --------------------------------------------------------------------------------------
 # Data mentah
-# --------------------------------------------------------------------------------------
 @dataclass
 class StoryFrames:
     """DataFrame mentah (tidak boleh dimutasi -- selalu .copy() sebelum menambah kolom)."""
@@ -142,9 +140,7 @@ class StoryFrames:
     extra: dict[str, Any] = field(default_factory=dict)
 
 
-# --------------------------------------------------------------------------------------
 # Helper kalimat insight (port dari berita-dampak/common.py, tanpa streamlit)
-# --------------------------------------------------------------------------------------
 def token_freq(df: pd.DataFrame) -> Counter:
     """Frekuensi kata pada judul + deskripsi (stopword dibuang)."""
     counter: Counter = Counter()
@@ -203,9 +199,7 @@ def _native(obj: Any) -> Any:
     return obj
 
 
-# --------------------------------------------------------------------------------------
 # Pembuat bentuk chart/tabel generik
-# --------------------------------------------------------------------------------------
 def _chart(chart_id: str, kind: str, title: str, data: Any, insight: str | None = None,
            note: str | None = None, **extra: Any) -> dict[str, Any]:
     chart = {"id": chart_id, "kind": kind, "title": title, "insight": plain(insight), "note": note, "data": data}
@@ -287,9 +281,7 @@ def _split_first_sentence(text_value: str) -> tuple[str, str | None]:
     return text_value[: index + 1], text_value[index + 2:]
 
 
-# --------------------------------------------------------------------------------------
 # Konteks perhitungan bersama untuk mode Berdampak / Berdampak × SDGs
-# --------------------------------------------------------------------------------------
 @dataclass
 class _Ctx:
     mode: str
@@ -417,9 +409,7 @@ def _news_rows(news: pd.DataFrame, columns: dict[str, str]) -> list[dict[str, An
     return _native(out.fillna("").to_dict("records"))
 
 
-# --------------------------------------------------------------------------------------
 # Mode Berdampak / Berdampak × SDGs
-# --------------------------------------------------------------------------------------
 def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str, end: str,
                   pillar: str | None, topic: str | None,
                   matkul: MatkulFrames | None = None) -> dict[str, Any]:
@@ -710,7 +700,7 @@ def chapter_rows(ctx: _Ctx) -> list[dict[str, Any]]:
     return chapters
 
 
-# ---- Data mata kuliah sustainability (subproyek matkul-sustainability) --------------
+# Data mata kuliah sustainability (subproyek matkul-sustainability)
 CATATAN_MATKUL = (
     "Data mata kuliah berasal dari kurasi manual kurikulum UGM "
     "(matkul-sustainability/data/Deskripsi Matkul Kepmen.csv, 8.465 baris penawaran MK; "
@@ -1240,7 +1230,7 @@ def _unit_tab(ctx: _Ctx, pilar: str, unit_map: dict[str, Any]) -> dict[str, Any]
     return tab
 
 
-# ---- Analisis Lintas-Dampak --------------------------------------------------------
+# Analisis Lintas-Dampak
 def _cross(ctx: _Ctx, fr: StoryFrames, topic: str | None) -> dict[str, Any]:
     mapping = kepmen()
     label_topic = mapping.LABEL_TOPIC_ALL
@@ -1496,9 +1486,7 @@ def _cross_sdg_charts(ctx: _Ctx) -> list[dict[str, Any]]:
     return charts
 
 
-# --------------------------------------------------------------------------------------
 # Mode SDGs (page_sdgs.py)
-# --------------------------------------------------------------------------------------
 def _url_bersih(series: pd.Series) -> pd.Series:
     """URL tanpa query string dan tanpa garis miring di ujung (bentuk yang dipakai berita_unit_kerja)."""
     return series.str.split("?").str[0].str.rstrip("/")
@@ -1628,9 +1616,7 @@ def _story_sdgs(fr: StoryFrames, filters: FilterParams, start: str, end: str,
     return response
 
 
-# --------------------------------------------------------------------------------------
 # Titik masuk
-# --------------------------------------------------------------------------------------
 def build_story(frames: StoryFrames, filters: FilterParams, mode: str = "impact",
                 pillar: str | None = None, topic: str | None = None,
                 matkul: MatkulFrames | None = None) -> dict[str, Any]:

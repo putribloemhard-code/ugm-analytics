@@ -103,7 +103,7 @@ button, a, input, select { min-height: 44px; }
 
 h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-height: 1.15; letter-spacing: -.01em; text-wrap: balance; }
 
-/* ---------- Header ---------- */
+/* Header */
 .site-header { position: sticky; top: 0; z-index: 50; background: var(--surface-hero); color: var(--text-on-dark); border-bottom: 1px solid #ffffff24; }
 .reading-progress { position: absolute; inset: auto 0 -1px 0; height: 3px; background: transparent; }
 .reading-progress > div { width: 0; height: 100%; background: var(--gold); }
@@ -123,7 +123,7 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .auth-chip button:hover { background: #ffffff33; }
 .auth-chip__admin { padding: 0 8px; border-radius: 999px; color: var(--ugm-blue); background: var(--gold); font-size: .72rem; font-weight: 800; letter-spacing: .02em; }
 
-/* ---- Halaman Profil Saya & Admin ---- */
+/* Halaman Profil Saya & Admin */
 .account-page > .section { margin-top: 34px; }
 .profile-identity { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-top: 22px; }
 .profile-identity .field { display: grid; gap: 6px; padding: 16px 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
@@ -150,7 +150,7 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .theme-toggle { flex: none; padding: 0 14px; border: 1px solid #ffffff59; border-radius: 999px; color: #fff; background: transparent; font-size: .85rem; font-weight: 600; cursor: pointer; }
 .theme-toggle:hover { background: #ffffff1f; }
 
-/* ---------- Cold open (hero) ---------- */
+/* Cold open (hero) */
 .cold-open { position: relative; display: flex; align-items: center; min-height: min(86vh, 760px); padding: clamp(48px, 9vw, 96px) 0; color: var(--text-on-dark); background: linear-gradient(90deg, rgba(3,14,24,.9) 0%, rgba(3,14,24,.72) 45%, rgba(3,14,24,.25) 100%), url('../public/hero_bg.jpg') center / cover no-repeat var(--surface-hero); }
 .cold-open--landing { background: linear-gradient(90deg, rgba(3,14,24,.9) 0%, rgba(3,14,24,.72) 45%, rgba(3,14,24,.25) 100%), url('../public/page-landing.jpg') center / cover no-repeat var(--surface-hero); }
 .cold-open__inner { width: min(var(--page-width), calc(100% - 32px)); margin: 0 auto; }
@@ -172,7 +172,7 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .hero-search button:hover { background: var(--gold-hover); }
 .hero-hint, .hero-note { margin: 12px 0 0; color: var(--text-on-dark-muted); font-size: .85rem; }
 
-/* ---------- Chapter intro ---------- */
+/* Chapter intro */
 .chapter-intro { padding: var(--flow-block) 0; color: var(--text-on-dark); background: var(--surface-chapter); }
 .chapter-intro__inner { width: min(var(--page-width), calc(100% - 32px)); margin: 0 auto; }
 .chapter-intro__inner > :not(.route-grid) { max-width: 860px; }
@@ -198,7 +198,7 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .route-card h3 { margin: 26px 0 8px; font-size: 1.4rem; }
 .route-card p { margin: 0; color: var(--text-muted); line-height: 1.6; }
 
-/* ================= BAGIAN I: SUMBER DATA =================
+/* BAGIAN I: SUMBER DATA
    Diagram silsilah data: sumber -> diambil -> memuat konten dampak -> per dampak.
    Latar navy sama dengan pembuka bab lain (identitas laporan); emas hanya untuk angka
    "memuat konten dampak" (satu aksen = angka yang dipakai laporan). Warna pilar memakai
@@ -342,7 +342,7 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 }
 .route-action { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: 18px; color: var(--text-link); font-weight: 800; }
 
-/* ---------- Scenes ---------- */
+/* Scenes */
 .story-scene { padding: var(--flow-block) 0; background: var(--surface-page); }
 .story-scene--tint { background: var(--surface-subtle); }
 .story-scene__inner { width: min(var(--page-width), calc(100% - 32px)); margin: 0 auto; }
@@ -357,7 +357,7 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .page-heading img { width: 42px; height: 42px; padding: 4px; border: 1px solid var(--border-subtle); border-radius: 10px; background: #fff; object-fit: contain; }
 .page-caption { margin: 0 0 24px; color: var(--text-muted); line-height: 1.6; }
 
-/* ---------- Analysis components ---------- */
+/* Analysis components */
 .section { margin-top: 30px; }
 .section h3 { margin: 0 0 8px; font-size: 1.35rem; }
 .section-kicker { margin: 0 0 8px; color: var(--text-link); font-size: .74rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
@@ -465,7 +465,7 @@ td { line-height: 1.45; }
 .tab.active { border-bottom-color: var(--gold); color: var(--text); font-weight: 700; }
 .footer-note { margin-top: 28px; color: var(--text-muted); font-size: .82rem; line-height: 1.55; }
 
-/* ---------- Peta scroll (SectionRail) ---------- */
+/* Peta scroll (SectionRail) */
 .rail { display: none; }
 @media (min-width: 1340px) {
   .rail { position: fixed; z-index: 20; right: 12px; top: 50%; display: flex; flex-direction: column; align-items: flex-end; padding: 12px 10px 8px; border: 1px solid var(--border-subtle); border-radius: 16px; background: color-mix(in srgb, var(--surface-page) 92%, transparent); backdrop-filter: blur(6px); transform: translateY(-50%); }
@@ -496,7 +496,7 @@ td { line-height: 1.45; }
 @media (prefers-reduced-motion: reduce) { .rail__node, .rail__label { transition: none; } }
 @media print { .rail { display: none !important; } }
 
-/* ---------- Cerita data: bagian, chart, insight ---------- */
+/* Cerita data: bagian, chart, insight */
 .story-block { margin-top: clamp(2rem, 4vw, 3rem); }
 .story-block > h3 { margin: 0 0 14px; font-size: clamp(1.3rem, 2.4vw, 1.7rem); }
 .story-block.is-busy, .analysis-dashboard.is-busy .story-charts { opacity: .55; transition: opacity .15s ease; }
@@ -562,12 +562,12 @@ td { line-height: 1.45; }
   .analysis-summary-grid--3, .pillar-cards { grid-template-columns: 1fr; }
 }
 
-/* ---------- Footer ---------- */
+/* Footer */
 .site-footer { color: var(--text-on-dark-muted); background: var(--surface-hero); }
 .site-footer__inner { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 24px; width: min(var(--page-width), calc(100% - 32px)); margin: 0 auto; padding: 28px 0; font-size: .85rem; }
 .site-footer__inner strong { color: #fff; }
 
-/* ---------- Akreditasi ---------- */
+/* Akreditasi */
 .accreditation-gate { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(360px, .95fr); min-height: 570px; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: 18px; background: var(--surface-card); box-shadow: 0 18px 45px rgba(1,30,50,.14); }
 .accreditation-hero { display: flex; flex-direction: column; justify-content: center; padding: 54px; color: #fff; background: linear-gradient(145deg, rgba(1,33,58,.86), rgba(1,65,107,.72)), url('../public/hero_bg.jpg') center / cover; }
 .accreditation-hero.dampak { background: linear-gradient(145deg, rgba(1,33,58,.86), rgba(1,65,107,.72)), url('../public/page-dampak.jpg') center / cover; }
@@ -679,7 +679,7 @@ td { line-height: 1.45; }
 .add-program h2 { margin: 0 0 14px; font-size: 1.3rem; }
 .add-program__fields { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
 
-/* ================= LAPORAN DAMPAK PER BAB (daftar isi laporan resmi UGM 2025) =================
+/* LAPORAN DAMPAK PER BAB (daftar isi laporan resmi UGM 2025)
    Struktur: panel "Daftar isi" (bab + sub-bab bertitik) lalu bab berisi sub-bab bertema.
    Nomor bab mengikuti laporan resmi: BAB II Sosial, BAB III Ekonomi, BAB IV Lingkungan. */
 .laporan { display: flex; flex-direction: column; gap: var(--flow-note); }
@@ -748,7 +748,7 @@ td { line-height: 1.45; }
 .laporan-kurikulum__angka { min-width: 56px; color: var(--text-heading); font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
 .laporan-kurikulum .chart-note { margin: 8px 0 0; }
 .laporan-kurikulum .story-table-block { margin-top: 10px; }
-/* ---- panel mata kuliah (sumber data kedua, bukan berita) ---- */
+/* panel mata kuliah (sumber data kedua, bukan berita) */
 .laporan-matkul { border: 1px solid var(--border-subtle); border-left: 4px solid var(--ugm-blue); border-radius: 12px; background: var(--surface-card); padding: 22px 24px; }
 .laporan-matkul__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .laporan-matkul__head h3 { margin: 0; font-size: clamp(1.3rem, 2.4vw, 1.7rem); }
