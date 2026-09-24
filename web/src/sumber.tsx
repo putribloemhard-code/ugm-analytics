@@ -4,50 +4,78 @@ import { getBeritaDampak, getSumber, type BeritaDampak, type JumlahPilar, type S
 import { Notice } from './ui';
 
 /* Bagian "Sumber": menelusuri asal setiap angka, dari situs sumber sampai pecahan per dampak.
-   Diagram dibaca kiri ke kanan (HP: atas ke bawah): sumber -> diambil -> memuat konten dampak -> per pilar.
-   Emas hanya untuk angka "memuat konten dampak" (satu aksen: angka yang dipakai laporan);
-   warna pilar hanya penanda data, labelnya tetap tertulis. */
+   Tiap jalur dibaca kiri ke kanan (HP: atas ke bawah): sumber -> cincin "diambil vs memuat
+   konten dampak" -> tiga cincin per dampak.
+   - Cincin utama = meter satu rasio (lingkaran penuh = diambil, busur emas = memuat konten dampak).
+     Emas hanya dipakai di sini (satu aksen: angka yang dipakai laporan).
+   - Per dampak sengaja TIGA cincin terpisah, bukan satu pie: satu berita bisa masuk >1 dampak,
+     jadi jumlahnya > 100% dan irisan pie akan berbohong.
+   - Warna pilar = slot 1-3 palet kategori mode gelap (#d95926, #3987e5, #199e70), tervalidasi
+     all-pairs di kedua latar navy; teks angka tetap putih, identitas dari label yang tertulis. */
 
 const fmt = (n: number) => n.toLocaleString('id-ID');
 const persen = (bagian: number, total: number) => (total ? (100 * bagian) / total : 0);
 const fmtPersen = (p: number) => `${p.toLocaleString('id-ID', { maximumFractionDigits: 1 })}%`;
 const PILAR_KELAS: Record<string, string> = { Sosial: 'sosial', Ekonomi: 'ekonomi', Lingkungan: 'lingkungan' };
 
-function Pecahan({ data, dari, catatan }: { data: JumlahPilar[]; dari: number; catatan: string }) {
-  const terbesar = Math.max(1, ...data.map(d => d.jumlah));
-  return <div className="lineage__leaves">
-    <p className="lineage__stage-label">Per dampak</p>
+/** Cincin meter SVG: lintasan penuh + busur sepanjang `nilai/total`, mulai dari jam 12 searah jarum jam. */
+function Cincin({ nilai, total, tebal, kelas, judul, children }: { nilai: number; total: number; tebal: number; kelas: string; judul: string; children: React.ReactNode }) {
+  const r = 50 - tebal / 2 - 1;
+  const keliling = 2 * Math.PI * r;
+  const panjang = (Math.min(100, persen(nilai, total)) / 100) * keliling;
+  return <div className={`ring ${kelas}`} role="img" aria-label={judul}>
+    <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+      <circle className="ring__track" cx="50" cy="50" r={r} strokeWidth={tebal} />
+      <circle className="ring__arc" cx="50" cy="50" r={r} strokeWidth={tebal}
+        strokeDasharray={`${panjang} ${keliling}`} transform="rotate(-90 50 50)"><title>{judul}</title></circle>
+    </svg>
+    <div className="ring__center">{children}</div>
+  </div>;
+}
+
+function RasioDampak({ diambil, berdampak, satuan, label }: { diambil: number; berdampak: number; satuan: string; label: string }) {
+  const p = persen(berdampak, diambil);
+  return <div className="lineage__ratio">
+    <Cincin nilai={berdampak} total={diambil} tebal={11} kelas="ring--hero"
+      judul={`${fmt(berdampak)} dari ${fmt(diambil)} ${satuan} (${fmtPersen(p)}) memuat konten dampak`}>
+      <strong>{fmtPersen(p)}</strong>
+      <span>memuat konten dampak</span>
+    </Cincin>
+    <dl className="ring-legend">
+      <div><dt><i className="ring-key ring-key--total" aria-hidden="true" />{label}</dt><dd>{fmt(diambil)} <small>{satuan}</small></dd></div>
+      <div><dt><i className="ring-key ring-key--impact" aria-hidden="true" />Memuat konten dampak</dt><dd>{fmt(berdampak)} <small>{satuan}</small></dd></div>
+      <div className="ring-legend__rest"><dt><i className="ring-key ring-key--rest" aria-hidden="true" />Belum memuat dampak</dt><dd>{fmt(diambil - berdampak)}</dd></div>
+    </dl>
+  </div>;
+}
+
+function PerDampak({ data, dari, satuan, catatan }: { data: JumlahPilar[]; dari: number; satuan: string; catatan: string }) {
+  return <div className="lineage__pillars">
+    <p className="lineage__stage-label">Per dampak <span>(dari yang memuat konten dampak)</span></p>
     <ul>
-      {data.map(d => <li key={d.pilar} className={`lineage__leaf lineage__leaf--${PILAR_KELAS[d.pilar]}`}>
-        <span className="lineage__leaf-name">{d.pilar}</span>
-        <span className="lineage__leaf-value">{fmt(d.jumlah)}</span>
-        <span className="lineage__leaf-bar" aria-hidden="true"><span style={{ width: `${persen(d.jumlah, terbesar)}%` }} /></span>
-        <span className="sr-only">, {fmtPersen(persen(d.jumlah, dari))} dari yang memuat konten dampak</span>
-      </li>)}
+      {data.map(d => {
+        const p = persen(d.jumlah, dari);
+        return <li key={d.pilar}>
+          <Cincin nilai={d.jumlah} total={dari} tebal={10} kelas={`ring--gauge ring--${PILAR_KELAS[d.pilar] ?? 'lain'}`}
+            judul={`${d.pilar}: ${fmt(d.jumlah)} ${satuan}, ${fmtPersen(p)} dari yang memuat konten dampak`}>
+            <strong>{Math.round(p)}%</strong>
+          </Cincin>
+          <p className="lineage__pillar-name"><i className={`ring-key ring-key--${PILAR_KELAS[d.pilar] ?? 'lain'}`} aria-hidden="true" />{d.pilar}</p>
+          <p className="lineage__pillar-count">{fmt(d.jumlah)} {satuan}</p>
+        </li>;
+      })}
     </ul>
     <p className="lineage__caption">{catatan}</p>
   </div>;
 }
 
-function Tahap({ label, nilai, satuan, keterangan, dampak, bagian }: { label: string; nilai: number; satuan: string; keterangan: string; dampak?: boolean; bagian?: { dari: number; teks: string } }) {
-  const p = bagian ? persen(nilai, bagian.dari) : 0;
-  return <div className={`lineage__stage ${dampak ? 'is-impact' : ''}`}>
-    <p className="lineage__stage-label">{label}</p>
-    <p className="lineage__number">{fmt(nilai)} <small>{satuan}</small></p>
-    {bagian && <div className="lineage__share">
-      <span className="lineage__share-track" aria-hidden="true"><span style={{ width: `${p}%` }} /></span>
-      <span className="lineage__share-text">{fmtPersen(p)} {bagian.teks}</span>
-    </div>}
-    <p className="lineage__caption">{keterangan}</p>
-  </div>;
-}
-
-function Jalur({ nomor, nama, sumber, catatan, children }: { nomor: string; nama: string; sumber: string; catatan?: string; children: React.ReactNode }) {
+function Jalur({ nomor, nama, sumber, catatan, detail, children }: { nomor: string; nama: string; sumber: string; catatan?: string; detail: string; children: React.ReactNode }) {
   return <li className="lineage__lane">
     <div className="lineage__source">
       <span className="lineage__index" aria-hidden="true">{nomor}</span>
       <h3>{nama}</h3>
       <p className="lineage__caption">{sumber}</p>
+      <p className="lineage__detail">{detail}</p>
       {catatan && <p className="lineage__note">{catatan}</p>}
     </div>
     {children}
@@ -63,23 +91,19 @@ function Diagram({ data }: { data: SumberData }) {
       <p className="lineage__group-label">Sumber publik</p>
       <ol className="lineage__lanes">
         <Jalur nomor="01" nama="Berita UGM" sumber={`Scraping sitemap & RSS ${b.situs}`}
-          catatan={`Bahasa Indonesia ${fmt(b.bahasa.id)} · English ${fmt(b.bahasa.en)}`}>
-          <Tahap label="Berita diambil" nilai={b.diambil} satuan="berita"
-            keterangan={`Terbit ${rentang}, dari ${fmt(b.sitemap)} URL di sitemap ${b.situs}.`} />
-          <Tahap label="Memuat konten dampak" nilai={b.berdampak} satuan="berita" dampak
-            bagian={{ dari: b.diambil, teks: 'dari berita yang diambil' }}
-            keterangan="Cocok dengan minimal satu dari 14 tema Kepmen 361/M/KEP/2025 (keyword judul & deskripsi)." />
-          <Pecahan data={b.per_pilar} dari={b.berdampak} catatan="Satu berita bisa masuk lebih dari satu dampak." />
+          detail={`Terbit ${rentang} · ${fmt(b.sitemap)} URL di sitemap`}
+          catatan={`Bahasa Indonesia ${fmt(b.bahasa.id)} · English ${fmt(b.bahasa.en)}. Dampak = cocok dengan minimal satu dari 14 tema Kepmen 361/M/KEP/2025 (keyword judul & deskripsi).`}>
+          <RasioDampak diambil={b.diambil} berdampak={b.berdampak} satuan="berita" label="Berita diambil" />
+          <PerDampak data={b.per_pilar} dari={b.berdampak} satuan="berita"
+            catatan="Satu berita bisa masuk lebih dari satu dampak, jadi jumlah ketiganya lebih dari 100%." />
         </Jalur>
         {mk.tersedia
           ? <Jalur nomor="02" nama="Mata kuliah" sumber={`Web kurikulum publik ${fmt(mk.prodi)} program studi · ${fmt(mk.fakultas)} fakultas/sekolah`}
-            catatan="Data bersumber dari web setiap program studi (lebih dari 20 situs), dikurasi ke satu berkas.">
-            <Tahap label="Mata kuliah diambil" nilai={mk.mk_unik} satuan="MK unik"
-              keterangan={`Dari ${fmt(mk.baris)} baris penawaran; satu MK dihitung sekali walau ditawarkan di beberapa prodi.`} />
-            <Tahap label="Memuat konten dampak" nilai={mk.berdampak} satuan="MK" dampak
-              bagian={{ dari: mk.mk_unik, teks: 'dari mata kuliah yang diambil' }}
-              keterangan={`Terpetakan ke minimal satu tema Kepmen. ${fmt(mk.indikator_resmi)} di antaranya indikator resmi (tema 4.5).`} />
-            <Pecahan data={mk.per_pilar} dari={mk.berdampak} catatan="Satu mata kuliah bisa masuk lebih dari satu dampak." />
+            detail={`${fmt(mk.baris)} baris penawaran · dihitung per MK unik`}
+            catatan={`Data bersumber dari web setiap program studi (lebih dari 20 situs), dikurasi ke satu berkas. ${fmt(mk.indikator_resmi)} MK di antaranya indikator resmi Kepmen (tema 4.5).`}>
+            <RasioDampak diambil={mk.mk_unik} berdampak={mk.berdampak} satuan="MK" label="Mata kuliah diambil" />
+            <PerDampak data={mk.per_pilar} dari={mk.berdampak} satuan="MK"
+              catatan="Satu mata kuliah bisa masuk lebih dari satu dampak, jadi jumlah ketiganya lebih dari 100%." />
           </Jalur>
           : <li className="lineage__lane lineage__lane--missing"><Notice type="warning">Data mata kuliah belum tersedia di server ini.</Notice></li>}
       </ol>

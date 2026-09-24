@@ -207,7 +207,7 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
   --lin-line: rgba(255, 255, 255, .34);
   --lin-card: rgba(255, 255, 255, .06);
   --lin-border: rgba(255, 255, 255, .16);
-  --lin-sosial: #f29858; --lin-ekonomi: #73b7e4; --lin-lingkungan: #35c79a;
+  --lin-sosial: #d95926; --lin-ekonomi: #3987e5; --lin-lingkungan: #199e70;
   padding: var(--flow-block) 0; color: var(--text-on-dark); background: var(--surface-chapter);
 }
 .sumber__inner { width: min(var(--page-width), calc(100% - 32px)); margin: 0 auto; }
@@ -222,8 +222,8 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .lineage__caption { margin: 8px 0 0; color: var(--text-on-dark-muted); font-size: .8rem; line-height: 1.5; }
 .lineage__note { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--lin-border); color: #fff; font-size: .8rem; line-height: 1.5; }
 
-/* Satu jalur = satu sumber. Desktop: empat tahap berjajar dengan garis penghubung. */
-.lineage__lane { position: relative; display: grid; grid-template-columns: minmax(190px, 1.05fr) minmax(0, 1fr) minmax(0, 1fr) minmax(200px, 1.1fr); gap: 34px; align-items: stretch; padding: 22px; border: 1px solid var(--lin-border); border-radius: 16px; background: rgba(0, 0, 0, .14); }
+/* Satu jalur = satu sumber. Desktop: sumber -> cincin rasio -> tiga cincin per dampak, dengan garis penghubung. */
+.lineage__lane { position: relative; display: grid; grid-template-columns: minmax(200px, .85fr) minmax(0, 1.25fr) minmax(0, 1.3fr); gap: 34px; align-items: stretch; padding: 22px; border: 1px solid var(--lin-border); border-radius: 16px; background: rgba(0, 0, 0, .14); }
 .lineage__lane > :not(:first-child) { position: relative; }
 .lineage__lane > :not(:first-child)::before { content: ""; position: absolute; top: 34px; left: -34px; width: 34px; height: 2px; background: var(--lin-line); }
 .lineage__lane > :not(:first-child)::after { content: ""; position: absolute; top: 30px; left: -6px; width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 6px solid var(--lin-line); }
@@ -233,29 +233,50 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .lineage__source { align-self: start; }
 .lineage__index { display: block; margin-bottom: 8px; color: var(--text-on-dark-muted); font-family: var(--font-display); font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .lineage__source h3 { margin: 0; color: #fff; font-size: 1.35rem; }
+.lineage__detail { margin: 10px 0 0; color: #fff; font-size: .85rem; font-weight: 600; }
+.lineage__stage-label { margin: 0 0 12px; color: #fff; font-size: .8rem; font-weight: 800; }
+.lineage__stage-label span { color: var(--text-on-dark-muted); font-weight: 500; }
 
-.lineage__stage { padding: 16px 18px; border: 1px solid var(--lin-border); border-radius: 12px; background: var(--lin-card); }
-.lineage__stage-label { margin: 0 0 6px; color: var(--text-on-dark-muted); font-size: .78rem; font-weight: 700; }
-.lineage__number { margin: 0; color: #fff; font-family: var(--font-display); font-size: clamp(1.8rem, 2.6vw, 2.4rem); font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
-.lineage__number small { color: var(--text-on-dark-muted); font-family: var(--font-body); font-size: .8rem; font-weight: 600; }
-.lineage__stage.is-impact { border-color: color-mix(in srgb, var(--gold) 55%, transparent); background: color-mix(in srgb, var(--gold) 7%, transparent); }
-.lineage__stage.is-impact .lineage__number { color: var(--gold); }
-.lineage__share { display: grid; gap: 5px; margin-top: 10px; }
-.lineage__share-track { height: 6px; overflow: hidden; border-radius: 99px; background: rgba(255, 255, 255, .16); }
-.lineage__share-track span { display: block; height: 100%; border-radius: inherit; background: var(--gold); }
-.lineage__share-text { color: #fff; font-size: .8rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Cincin meter (SVG): lintasan redup + busur data dengan ujung membulat. */
+.ring { position: relative; width: 100%; aspect-ratio: 1; }
+.ring svg { display: block; width: 100%; height: 100%; }
+.ring__track { fill: none; stroke: rgba(255, 255, 255, .14); }
+.ring__arc { fill: none; stroke-linecap: round; }
+.ring__center { position: absolute; inset: 0; display: grid; place-content: center; padding: 18%; text-align: center; }
+.ring__center strong { color: #fff; font-family: var(--font-display); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.ring--hero .ring__arc { stroke: var(--gold); }
+.ring--hero strong { font-size: clamp(1.7rem, 2.3vw, 2.2rem); }
+.ring--hero .ring__center span { margin-top: 5px; color: var(--text-on-dark-muted); font-size: .72rem; line-height: 1.25; }
+.ring--gauge strong { font-size: 1.2rem; }
+.ring--sosial .ring__arc { stroke: var(--lin-sosial); }
+.ring--ekonomi .ring__arc { stroke: var(--lin-ekonomi); }
+.ring--lingkungan .ring__arc { stroke: var(--lin-lingkungan); }
+.ring--lain .ring__arc { stroke: rgba(255, 255, 255, .6); }
 
-/* Pecahan per dampak: cabang pohon dari tahap "memuat konten dampak". */
-.lineage__leaves ul { position: relative; display: grid; gap: 10px; margin: 0; padding: 0 0 0 16px; list-style: none; border-left: 2px solid var(--lin-line); }
-.lineage__leaf { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: baseline; }
-.lineage__leaf::before { content: ""; position: absolute; top: .7em; left: -16px; width: 12px; height: 2px; background: var(--lin-line); }
-.lineage__leaf-name { color: #fff; font-size: .9rem; font-weight: 700; }
-.lineage__leaf-value { color: #fff; font-size: .95rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.lineage__leaf-bar { grid-column: 1 / -1; height: 5px; overflow: hidden; border-radius: 99px; background: rgba(255, 255, 255, .12); }
-.lineage__leaf-bar span { display: block; height: 100%; border-radius: inherit; }
-.lineage__leaf--sosial .lineage__leaf-bar span { background: var(--lin-sosial); }
-.lineage__leaf--ekonomi .lineage__leaf-bar span { background: var(--lin-ekonomi); }
-.lineage__leaf--lingkungan .lineage__leaf-bar span { background: var(--lin-lingkungan); }
+/* Rasio "diambil vs memuat konten dampak": satu-satunya panel beraksen emas. */
+.lineage__ratio { display: grid; grid-template-columns: minmax(130px, 168px) minmax(0, 1fr); gap: 20px; align-items: center; padding: 18px; border: 1px solid color-mix(in srgb, var(--gold) 50%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--gold) 6%, transparent); }
+.ring-legend { display: grid; gap: 12px; margin: 0; }
+.ring-legend div { display: grid; gap: 2px; }
+.ring-legend dt { display: flex; align-items: center; gap: 8px; color: var(--text-on-dark-muted); font-size: .78rem; font-weight: 700; }
+.ring-legend dd { margin: 0 0 0 18px; color: #fff; font-family: var(--font-display); font-size: 1.45rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.ring-legend dd small { color: var(--text-on-dark-muted); font-family: var(--font-body); font-size: .75rem; font-weight: 600; }
+.ring-legend__rest dd { font-size: 1rem; }
+.ring-key { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%; }
+.ring-key--total { border: 2px solid rgba(255, 255, 255, .75); }
+.ring-key--impact { background: var(--gold); }
+.ring-key--rest { background: rgba(255, 255, 255, .22); }
+.ring-key--sosial { background: var(--lin-sosial); }
+.ring-key--ekonomi { background: var(--lin-ekonomi); }
+.ring-key--lingkungan { background: var(--lin-lingkungan); }
+.ring-key--lain { background: rgba(255, 255, 255, .6); }
+
+/* Tiga cincin per dampak (terpisah, bukan pie: dampak bisa tumpang tindih). */
+.lineage__pillars ul { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.lineage__pillars li { text-align: center; }
+.lineage__pillars .ring { max-width: 116px; margin: 0 auto; }
+.lineage__pillar-name { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 10px 0 0; color: #fff; font-size: .9rem; font-weight: 700; }
+.lineage__pillar-count { margin: 2px 0 0; color: var(--text-on-dark-muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+.lineage__pillars .lineage__caption { margin-top: 12px; }
 
 /* Sumber internal: belum bisa diakses, digambar putus-putus supaya tidak terbaca sebagai data aktif. */
 .lineage__internal { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
@@ -287,21 +308,28 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .pillar-tag--lingkungan { background: color-mix(in srgb, var(--pillar-2) 20%, var(--surface-card)); }
 .pillar-tag--lain { background: var(--surface-tint); }
 
-/* Tablet: dua kolom (sumber melebar di atas, tahap berdampingan, pecahan di bawah); penghubung vertikal di kiri. */
+/* Tablet: sumber melebar di atas, rasio dan per dampak berdampingan; penghubung vertikal di kiri. */
 @media (max-width: 1080px) {
   .lineage__lane { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 20px 20px 20px 36px; }
   .lineage__lane::before { content: ""; position: absolute; top: 28px; bottom: 28px; left: 18px; width: 2px; background: var(--lin-line); }
-  .lineage__source, .lineage__leaves { grid-column: 1 / -1; }
+  .lineage__source { grid-column: 1 / -1; }
   .lineage__lane > :not(:first-child)::before { top: 22px; left: -18px; width: 12px; }
   .lineage__lane > :not(:first-child)::after { display: none; }
-  .lineage__lane > .lineage__stage + .lineage__stage::before { left: -26px; width: 26px; }
+  .lineage__lane > .lineage__ratio + .lineage__pillars::before { left: -26px; width: 26px; }
+}
+@media (max-width: 820px) {
+  .lineage__lane { grid-template-columns: 1fr; }
+  .lineage__lane > .lineage__ratio + .lineage__pillars::before { left: -18px; width: 12px; }
 }
 /* HP: satu kolom, alur dibaca atas ke bawah. */
 @media (max-width: 640px) {
   .lineage__lane { grid-template-columns: 1fr; padding: 18px 16px 18px 32px; }
   .lineage__lane::before { left: 15px; }
   .lineage__lane > :not(:first-child)::before { left: -17px; width: 12px; }
-  .lineage__lane > .lineage__stage + .lineage__stage::before { left: -17px; width: 12px; }
+  .lineage__lane > .lineage__ratio + .lineage__pillars::before { left: -17px; width: 12px; }
+  .lineage__ratio { grid-template-columns: 124px minmax(0, 1fr); gap: 14px; padding: 14px; }
+  .ring-legend dd { font-size: 1.2rem; }
+  .lineage__pillars ul { gap: 8px; }
   .source-news__controls .field { max-width: none; }
   /* Tabel 4 kolom tidak muat di HP: tiap berita jadi kartu bertumpuk (tanggal, judul, dampak). */
   .source-news__table { min-width: 0; }
