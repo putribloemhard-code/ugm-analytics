@@ -22,7 +22,7 @@
   --text-on-dark-muted: #ffffffc7;
   --text-link: #01416b;
 
-  --border: #c6c9cb;
+  --border: #848d96;
   --border-subtle: #e3e5e7;
   --focus: #1c75bc;
 
@@ -66,7 +66,7 @@
   --text-muted: #c9d2d8;
   --text-link: #8fc8ef;
 
-  --border: #637582;
+  --border: #78909f;
   --border-subtle: #405565;
   --focus: #73b7e4;
 
@@ -416,7 +416,7 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .button:disabled { cursor: wait; opacity: .65; }
 .notice { padding: 14px 16px; border-radius: 10px; line-height: 1.55; }
 .notice.info { border: 1px solid var(--status-info); background: var(--surface-tint); }
-.notice.warning { border: 1px solid var(--status-attention); background: var(--surface-warm); }
+.notice.warning { border: 1px solid #a67c00; background: var(--surface-warm); }
 .notice.error { border: 1px solid var(--status-critical); color: var(--text); background: color-mix(in srgb, var(--status-critical) 12%, var(--surface-card)); }
 
 /* position: relative supaya caption .sr-only (absolute) ikut terkliping -- tanpa ini tabel lebar
