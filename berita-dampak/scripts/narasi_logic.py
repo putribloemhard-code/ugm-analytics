@@ -320,7 +320,7 @@ def hitung_stats_sdg_saja(
 
     tied_sdg, top_sdg_n = _top_tied(ss_f.groupby("sdg")["url"].nunique())
     tied_sdg = [int(s) for s in tied_sdg]
-    # Label lengkap sudah termasuk "SDG n — Nama" per SDG, digabung "dan"/koma
+    # Label lengkap sudah termasuk "SDG n: Nama" per SDG, digabung "dan"/koma
     # kalau ada beberapa yang seri di angka tertinggi -- JANGAN cuma tampilkan
     # satu secara sembarang.
     top_sdg_label = _join_labels([sdg_label(s) for s in tied_sdg]) if tied_sdg else "-"

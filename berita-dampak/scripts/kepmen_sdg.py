@@ -119,8 +119,8 @@ TOPIK_KEPMEN = {
 
 
 def sdg_label(sdg: int) -> str:
-    """Label ringkas: 'SDG 13 — Penanganan Perubahan Iklim'."""
-    return f"SDG {sdg} — {SDG_NAMA[sdg]}"
+    """Label ringkas: 'SDG 13: Penanganan Perubahan Iklim'."""
+    return f"SDG {sdg}: {SDG_NAMA[sdg]}"
 
 
 # ---- 14 tema resmi Kepmen 361/M/KEP/2025 (semua pilar) ----
