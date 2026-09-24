@@ -199,7 +199,7 @@ function ComboView({ chart }: { chart: Chart }) {
 function HeatmapView({ chart }: { chart: Chart }) {
   const data = chart.data as { rows: string[]; cols: string[]; values: number[][] };
   const max = Math.max(...data.values.flat(), 1);
-  return <div className="heatmap-scroll" role="img" aria-label={chart.title}><table className="heatmap-table"><thead><tr><th />{data.cols.map(col => <th key={col}>{col}</th>)}</tr></thead><tbody>{data.rows.map((row, i) => <tr key={row}><th scope="row">{row}</th>{data.cols.map((col, j) => { const v = data.values[i]?.[j] ?? 0; const pct = Math.round((v / max) * 100); return <td key={col} title={`${row} × ${col}: ${fmt(v)}`} style={{ background: v ? `color-mix(in srgb, var(--chart-primary) ${Math.max(pct, 8)}%, var(--surface-card))` : undefined, color: pct > 55 ? '#fff' : undefined }}>{v ? fmt(v) : ''}</td>; })}</tr>)}</tbody></table></div>;
+  return <div className="heatmap-scroll" role="img" aria-label={chart.title}><table className="heatmap-table"><thead><tr><th />{data.cols.map(col => <th key={col}>{col}</th>)}</tr></thead><tbody>{data.rows.map((row, i) => <tr key={row}><th scope="row">{row}</th>{data.cols.map((col, j) => { const v = data.values[i]?.[j] ?? 0; const pct = Math.round((v / max) * 100); const bg = v ? Math.min(80, pct >= 55 ? Math.max(pct, 70) : Math.max(pct, 8)) : 0; return <td key={col} title={`${row} × ${col}: ${fmt(v)}`} style={{ background: bg ? `color-mix(in srgb, var(--chart-primary) ${bg}%, var(--surface-card))` : undefined, color: pct >= 55 ? 'var(--text-on-dark)' : undefined }}>{v ? fmt(v) : ''}</td>; })}</tr>)}</tbody></table></div>;
 }
 
 /* --------------------------------------------------- bingkai chart utama ---- */
