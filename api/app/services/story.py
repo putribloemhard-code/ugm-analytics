@@ -487,7 +487,7 @@ def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str,
         "metrics": [
             {"label": "Total berita dampak", "value": ringkasan["total_berita"], "note": None},
             {
-                "label": "Dampak pertumbuhan tertinggi", "value": ringkasan["pilar_top"], "note": delta_label,
+                "label": "Dampak dengan perubahan terbesar", "value": ringkasan["pilar_top"], "note": delta_label,
                 "help": (f"Dibandingkan sejak {ringkasan['pilar_top_baseline_tahun']} (baseline 5 tahun terakhir, bukan "
                          "dari titik awal rentang filter -- basis awal yang terlalu kecil bisa membuat persentase menyesatkan)."),
             },
