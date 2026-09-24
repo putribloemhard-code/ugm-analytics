@@ -587,7 +587,7 @@ def _chapter_subsection(ctx: _Ctx, topik: str, nomor: str) -> dict[str, Any]:
     uk_tema, dist_unit = _unit_dist(ctx.uk, urls_nounit, units().UNIT_KERJA)
     if len(uk_tema):
         charts.append(_chart(
-            f"chapter_{topik}_unit", "bar", f"Fakultas/Unit Kerja penyumbang berita — {label}",
+            f"chapter_{topik}_unit", "bar", f"Fakultas/Unit Kerja penyumbang berita ({label})",
             _bar_data(dist_unit, "nama", "jumlah", group_col="kategori"),
             insight=insight_top2(dist_unit, "nama", "jumlah"),
             note=("Hasil keyword matching nama resmi 44 fakultas/sekolah/unit kerja UGM pada judul + deskripsi berita -- "
@@ -598,7 +598,7 @@ def _chapter_subsection(ctx: _Ctx, topik: str, nomor: str) -> dict[str, Any]:
 
     latest = berita_tema.sort_values("tanggal", ascending=False, kind="stable").head(MAX_ROWS)
     tables = [_table(
-        f"chapter_{topik}_berita", f"Daftar berita — {label}",
+        f"chapter_{topik}_berita", f"Daftar berita ({label})",
         [("tanggal", "Tanggal"), ("judul", "Judul"), ("sumber", "Sumber"), ("url", "Tautan")],
         _news_rows(latest, {"tanggal": "tanggal", "judul": "judul", "sumber": "sumber", "url": "url"}),
         note=(f"{len(latest):,} berita terbaru tema ini (maks. {MAX_ROWS} baris, tampil {NEWS_PAGE_SIZE} per halaman). "
@@ -689,7 +689,7 @@ def chapter_rows(ctx: _Ctx) -> list[dict[str, Any]]:
         if piv.shape[1]:
             piv.index = [label_topic.get(i, i) for i in piv.index]
             charts_bab.append(_chart(
-                f"bab_{pilar.lower()}_tema_tahun", "heatmap", f"Tema × Tahun — dampak {pilar}",
+                f"bab_{pilar.lower()}_tema_tahun", "heatmap", f"Tema × Tahun (dampak {pilar})",
                 _heatmap_data(piv), insight=insight_heatmap(piv),
                 note="Baris gelap = tema yang konsisten diberitakan; kolom gelap = tahun dengan banyak aktivitas dampak ini.",
             ))
@@ -1060,7 +1060,7 @@ def _pillar_detail(ctx: _Ctx, pilar: str, topic: str | None) -> dict[str, Any]:
     dist_k = dist.groupby("topik_kepmen")["jumlah"].sum().reset_index().sort_values("jumlah", ascending=False, kind="stable")
     if len(dist_k):
         kepmen_charts.append(_chart(
-            "kepmen", "bar", f"Berita per Tema Resmi Kepmen — dampak {pilar}", _bar_data(dist_k, "topik_kepmen", "jumlah"),
+            "kepmen", "bar", f"Berita per Tema Resmi Kepmen (dampak {pilar})", _bar_data(dist_k, "topik_kepmen", "jumlah"),
             insight=insight_top2(dist_k, "topik_kepmen", "jumlah"),
             note=("Angka = berita unik dari tema dalam dampak ini yang dipetakan ke Tema Resmi Kepmen ini (pemetaan resmi "
                   "dari UGM Analytics.xlsx); beberapa tema bisa memetakan ke Tema Resmi yang sama, jumlahnya digabung."),
@@ -1100,7 +1100,7 @@ def _pillar_detail(ctx: _Ctx, pilar: str, topic: str | None) -> dict[str, Any]:
     if piv.shape[1]:
         piv.index = [label_topic.get(i, i) for i in piv.index]
         tren_charts.append(_chart(
-            "tema_tahun", "heatmap", f"Tema × Tahun — dampak {pilar}", _heatmap_data(piv),
+            "tema_tahun", "heatmap", f"Tema × Tahun (dampak {pilar})", _heatmap_data(piv),
             insight=insight_heatmap(piv),
             note="Baris gelap = tema yang konsisten diberitakan; kolom gelap = tahun dengan banyak aktivitas dampak ini.",
         ))
@@ -1111,7 +1111,7 @@ def _pillar_detail(ctx: _Ctx, pilar: str, topic: str | None) -> dict[str, Any]:
         bulan_sum = musim.groupby("bulan")["jumlah"].sum().reset_index()
         bulan_sum["label_bulan"] = "Bulan " + bulan_sum["bulan"]
         tren_charts.append(_chart(
-            "musiman", "stacked_bar", f"Tren bulanan (musiman) — dampak {pilar}",
+            "musiman", "stacked_bar", f"Tren bulanan musiman (dampak {pilar})",
             _stacked_data(musim, "bulan", "label", "jumlah", [label_topic[k] for k in tampil_pilar]),
             insight=insight_top2(bulan_sum, "label_bulan", "jumlah"),
             note="Bulan kalender, semua tahun digabung. Bulan 01-12 = Januari-Desember.",
@@ -1122,7 +1122,7 @@ def _pillar_detail(ctx: _Ctx, pilar: str, topic: str | None) -> dict[str, Any]:
     kata_charts = []
     if pilih:
         tema_label = label_topic.get(pilih, pilih)
-        kata_charts = _keyword_charts_pilar(ctx, pilih, f"Keyword pemicu match — {tema_label}", f"15 kata teratas — {tema_label}")
+        kata_charts = _keyword_charts_pilar(ctx, pilih, f"Keyword pemicu match: {tema_label}", f"15 kata teratas: {tema_label}")
     latest = selected_news.sort_values("tanggal", ascending=False, kind="stable").head(MAX_ROWS)
     latest_urls = set(latest["url"])
     kep_by_url = (
@@ -1171,7 +1171,7 @@ def _sdg_charts_pilar(bs_pilar: pd.DataFrame, selected_t: pd.DataFrame, tampil_p
     dist["label"] = dist["sdg"].map(lambda s: f"SDG {s}")
     dist["nama"] = dist["sdg"].map(lambda s: mapping.sdg_label(int(s)))
     charts = [_chart(
-        "sdg", "bar", f"Berita per SDG — dampak {pilar}", _bar_data(dist, "label", "jumlah", detail_col="nama"),
+        "sdg", "bar", f"Berita per SDG (dampak {pilar})", _bar_data(dist, "label", "jumlah", detail_col="nama"),
         insight=insight_top2(dist, "nama", "jumlah"),
         note=("Angka = berita unik dampak ini yang temanya memetakan ke klaster SDG ini "
               "(klaster resmi per tema, bukan keyword SDG langsung)."),
@@ -1186,7 +1186,7 @@ def _sdg_charts_pilar(bs_pilar: pd.DataFrame, selected_t: pd.DataFrame, tampil_p
         piv.index = [mapping.LABEL_TOPIC_ALL.get(i, i) for i in piv.index]
         piv.columns = [f"SDG {c}" for c in piv.columns]
         charts.append(_chart(
-            "tema_sdg", "heatmap", f"Tema × SDG — dampak {pilar}", _heatmap_data(piv), insight=insight_heatmap(piv),
+            "tema_sdg", "heatmap", f"Tema × SDG (dampak {pilar})", _heatmap_data(piv), insight=insight_heatmap(piv),
             note=("Sel kosong (0) = tidak ada berita pada kombinasi itu. Baris gelap = tema tersebar di banyak SDG; "
                   "kolom gelap = SDG yang paling sering tersentuh."),
         ))
@@ -1211,7 +1211,7 @@ def _unit_tab(ctx: _Ctx, pilar: str, unit_map: dict[str, Any]) -> dict[str, Any]
     charts, tables = [], []
     if len(uk_pilar):
         charts.append(_chart(
-            "unit", "bar", f"Berita per Fakultas/Unit Kerja — dampak {pilar}",
+            "unit", "bar", f"Berita per Fakultas/Unit Kerja (dampak {pilar})",
             _bar_data(dist, "nama", "jumlah", group_col="kategori"),
             insight=insight_top2(dist, "nama", "jumlah"),
             note=("Hasil keyword matching nama resmi 44 fakultas/sekolah/unit kerja UGM pada judul + deskripsi berita -- "
@@ -1362,8 +1362,8 @@ def _cross(ctx: _Ctx, fr: StoryFrames, topic: str | None) -> dict[str, Any]:
     if pilih:
         kw_label = f"{meta[pilih]['dampak']} - {label_topic.get(pilih, pilih)}"
         charts.extend(_keyword_charts(
-            ctx, pilih, "lintas", f"Jumlah berita yang match tiap keyword — {kw_label}",
-            f"15 kata teratas — {label_topic[pilih]}",
+            ctx, pilih, "lintas", f"Jumlah berita yang match tiap keyword: {kw_label}",
+            f"15 kata teratas: {label_topic[pilih]}",
         ))
 
     # 10. Multi-tema

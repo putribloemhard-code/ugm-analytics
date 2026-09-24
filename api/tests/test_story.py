@@ -173,7 +173,7 @@ def test_impact_story_pillar_detail_tabs_and_semantics():
                for opt in detail["topic_options"])
     kata = next(t for t in detail["tabs"] if t["id"] == "kata_kunci")
     kw = chart_by_id(kata["charts"], "pilar_keyword")
-    assert kw["title"] == "Keyword pemicu match — Keanekaragaman Hayati"
+    assert kw["title"] == "Keyword pemicu match: Keanekaragaman Hayati"
     assert {row["label"]: row["value"] for row in kw["data"]}["hutan"] == 2  # u1 + u2
     assert kata["tables"][0]["rows"][0]["tanggal"] == "2024-03-10"  # terbaru dulu
 
@@ -184,7 +184,7 @@ def test_impact_sdgs_story_adds_sdg_tab_and_cross_charts():
     assert ids == ["ringkasan", "kepmen", "sdgs", "tren", "kata_kunci", "unit"]
     sdg_tab = next(t for t in story["pillar_detail"]["tabs"] if t["id"] == "sdgs")
     bars = chart_by_id(sdg_tab["charts"], "sdg")
-    assert bars["title"] == "Berita per SDG — dampak Sosial" and bars["orientation"] == "v"
+    assert bars["title"] == "Berita per SDG (dampak Sosial)" and bars["orientation"] == "v"
     assert {row["label"]: row["value"] for row in bars["data"]} == {"SDG 4": 2, "SDG 1": 1}
     titles = [c["title"] for c in story["cross"]["charts"]]
     assert "Jumlah berita per SDG (klaster resmi)" in titles
