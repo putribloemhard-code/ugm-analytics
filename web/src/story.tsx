@@ -155,7 +155,7 @@ function LineView({ chart }: { chart: Chart }) {
       <Axes max={max} labels={xs} skip={Math.ceil(xs.length / 12)} />
       {series.map((item, index) => hidden.has(item.name) ? null : <g key={item.name} style={{ color: seriesColor(index) }}>
         <polyline fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" points={[...item.points].sort((a, b) => naturalSort(a.x, b.x)).map(point => `${xAt(point.x)},${yAt(point.y)}`).join(' ')} />
-        {item.points.map(point => <circle key={point.x} cx={xAt(point.x)} cy={yAt(point.y)} r="3.5" fill="currentColor"><title>{`${item.name} — ${point.x}: ${fmt(point.y)}`}</title></circle>)}
+        {item.points.map(point => <circle key={point.x} cx={xAt(point.x)} cy={yAt(point.y)} r="3.5" fill="currentColor"><title>{`${item.name}, ${point.x}: ${fmt(point.y)}`}</title></circle>)}
       </g>)}
     </svg>
     {series.length > 1 && <Legend items={series.map((item, index) => ({ name: item.name, color: seriesColor(index) }))} hidden={hidden} onToggle={toggle} />}
@@ -173,7 +173,7 @@ function StackedView({ chart }: { chart: Chart }) {
   return <div>
     <svg viewBox={`0 0 ${W} ${H}`} className="chart-svg" role="img" aria-label={chart.title}>
       <Axes max={max} labels={data.x} skip={Math.ceil(data.x.length / 12)} />
-      {data.x.map((x, i) => { let acc = 0; return <g key={x}>{data.series.map((item, index) => { if (hidden.has(item.name)) return null; const v = item.values[i] ?? 0; const h = (v / max) * plotH; const y = PAD.t + plotH - acc - h; acc += h; return v > 0 ? <rect key={item.name} x={PAD.l + slot * i + (slot - bar) / 2} y={y} width={bar} height={h} fill={seriesColor(index)}><title>{`${item.name} — ${x}: ${fmt(v)}`}</title></rect> : null; })}</g>; })}
+      {data.x.map((x, i) => { let acc = 0; return <g key={x}>{data.series.map((item, index) => { if (hidden.has(item.name)) return null; const v = item.values[i] ?? 0; const h = (v / max) * plotH; const y = PAD.t + plotH - acc - h; acc += h; return v > 0 ? <rect key={item.name} x={PAD.l + slot * i + (slot - bar) / 2} y={y} width={bar} height={h} fill={seriesColor(index)}><title>{`${item.name}, ${x}: ${fmt(v)}`}</title></rect> : null; })}</g>; })}
     </svg>
     <Legend items={data.series.map((item, index) => ({ name: item.name, color: seriesColor(index) }))} hidden={hidden} onToggle={toggle} />
   </div>;
@@ -187,9 +187,9 @@ function ComboView({ chart }: { chart: Chart }) {
   return <div>
     <svg viewBox={`0 0 ${W} ${H}`} className="chart-svg" role="img" aria-label={chart.title}>
       <Axes max={max} labels={data.x} skip={Math.ceil(data.x.length / 12)} />
-      {data.bars.values.map((v, i) => <rect key={i} x={PAD.l + slot * i + (slot - bar) / 2} y={yAt(v)} width={bar} height={(v / max) * plotH} fill="var(--series-1)" opacity=".35"><title>{`${data.bars.name} — ${data.x[i]}: ${fmt(v)}`}</title></rect>)}
+      {data.bars.values.map((v, i) => <rect key={i} x={PAD.l + slot * i + (slot - bar) / 2} y={yAt(v)} width={bar} height={(v / max) * plotH} fill="var(--series-1)" opacity=".35"><title>{`${data.bars.name}, ${data.x[i]}: ${fmt(v)}`}</title></rect>)}
       <polyline fill="none" stroke="var(--series-3)" strokeWidth="2.5" strokeLinejoin="round" points={data.line.values.map((v, i) => `${PAD.l + slot * (i + .5)},${yAt(v)}`).join(' ')} />
-      {data.line.values.map((v, i) => <circle key={i} cx={PAD.l + slot * (i + .5)} cy={yAt(v)} r="3.5" fill="var(--series-3)"><title>{`${data.line.name} — ${data.x[i]}: ${fmt(v)}`}</title></circle>)}
+      {data.line.values.map((v, i) => <circle key={i} cx={PAD.l + slot * (i + .5)} cy={yAt(v)} r="3.5" fill="var(--series-3)"><title>{`${data.line.name}, ${data.x[i]}: ${fmt(v)}`}</title></circle>)}
     </svg>
     <Legend items={[{ name: data.bars.name, color: 'var(--series-1)' }, { name: data.line.name, color: 'var(--series-3)' }]} />
   </div>;

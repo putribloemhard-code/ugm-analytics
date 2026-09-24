@@ -126,7 +126,7 @@ function SiteHeader() {
   return <header className="site-header">
     <div className="reading-progress" role="progressbar" aria-label="Kemajuan membaca" aria-valuemin={0} aria-valuemax={100} aria-valuenow={0}><div ref={progress} /></div>
     <div className="site-header__inner">
-      <Link className="site-header__brand" to="/" aria-label="UGM Analytics — beranda"><img src={assetUrl('logo/LogoUGM.png')} alt="" /><span>UGM Analytics</span></Link>
+      <Link className="site-header__brand" to="/" aria-label="UGM Analytics, beranda"><img src={assetUrl('logo/LogoUGM.png')} alt="" /><span>UGM Analytics</span></Link>
       <nav className="site-header__nav" aria-label="Navigasi utama">
         <Link to="/" className={onLanding ? 'active' : ''} aria-current={onLanding ? 'location' : undefined}>Beranda</Link>
         {showReportNav ? reportSections.map(section => <Link key={section.id} to={{ pathname: '/dampak', hash: `#${section.id}` }} className={active === section.id ? 'active' : ''} aria-current={active === section.id ? 'location' : undefined}>{section.label}</Link>)

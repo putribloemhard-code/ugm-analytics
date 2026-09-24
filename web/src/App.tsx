@@ -76,7 +76,7 @@ function Overview({ story, pillar, onPick }: { story: Story; pillar: string; onP
     <div className="pillar-cards">{story.overview.map(item => <button type="button" key={item.pillar} aria-pressed={pillar === item.pillar} className={`pillar-card ${pillarAccent[item.pillar] ?? 'blue'} ${pillar === item.pillar ? 'is-selected' : ''}`} onClick={() => onPick(item.pillar)}>
       <span className="pillar-card__name">{item.pillar}</span>
       <strong>{item.total.toLocaleString('id-ID')}</strong><span className="pillar-card__unit">berita</span>
-      {item.top_topic && <small>Tema terbanyak: {item.top_topic} — {item.top_topic_count.toLocaleString('id-ID')} berita</small>}
+      {item.top_topic && <small>Tema terbanyak: {item.top_topic} ({item.top_topic_count.toLocaleString('id-ID')} berita)</small>}
     </button>)}</div>
   </section>;
 }
