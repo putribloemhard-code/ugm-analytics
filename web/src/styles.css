@@ -726,8 +726,6 @@ td { line-height: 1.45; }
 .upload-status.diekstrak { color: var(--status-positive); }
 .upload-status.gagal_ekstrak, .upload-status.terhenti { color: var(--status-critical); }
 .upload-status.sedang_diekstrak { color: var(--status-info); }
-.update-log summary { color: var(--text-link); font-weight: 700; cursor: pointer; }
-.update-log pre { max-height: 320px; margin: 8px 0 0; padding: 12px; overflow: auto; border-radius: 8px; color: var(--text); background: var(--surface-subtle); font-size: .78rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 .add-program h2 { margin: 0 0 14px; font-size: 1.3rem; }
 .add-program__fields { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
 

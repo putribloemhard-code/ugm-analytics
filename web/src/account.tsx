@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 
-import { accreditationAdminAction, accreditationAdminUsers, accreditationMe, accreditationProfile, daftarPengajuanReset, downloadAccreditationHistory, getRefreshStatus, putuskanReset, simpanBlob, startRefresh, type AdminOverview, type PengajuanReset, type ProfileResult, type RefreshStatus } from './lib/api';
+import { accreditationAdminAction, accreditationAdminUsers, accreditationMe, accreditationProfile, daftarPengajuanReset, downloadAccreditationHistory, putuskanReset, simpanBlob, type AdminOverview, type PengajuanReset, type ProfileResult } from './lib/api';
 import { Notice, PageHeader, ProgressLine, StatCard } from './ui';
 
 /** Gerbang halaman terproteksi: alihkan ke /akreditasi bila belum login. */
@@ -127,46 +127,6 @@ function waktuLokal(iso: string | null): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-const REFRESH_LABEL: Record<RefreshStatus['status'], string> = {
-  running: 'Sedang berjalan', finished: 'Selesai', idle: 'Belum pernah dijalankan dari web', stale_lock: 'Terhenti (lock lama akan dibersihkan)',
-};
-
-/** Tombol update data berita (padanan "🔄 Update Berita Terbaru" dashboard Streamlit lama). */
-function UpdateDataPanel() {
-  const [st, setSt] = useState<RefreshStatus | null>(null);
-  const [pesan, setPesan] = useState<{ type: 'info' | 'error'; text: string } | null>(null);
-  const [sibuk, setSibuk] = useState(false);
-  const muat = () => getRefreshStatus().then(setSt).catch(e => setPesan({ type: 'error', text: e instanceof Error ? e.message : 'Status update belum dapat dimuat.' }));
-  useEffect(() => { muat(); }, []);
-  // Selama pipeline berjalan, pantau status + log tiap 5 detik.
-  useEffect(() => {
-    if (st?.status !== 'running') return;
-    const t = window.setTimeout(muat, 5000);
-    return () => window.clearTimeout(t);
-  }, [st]);
-  async function mulai() {
-    setSibuk(true); setPesan(null);
-    try { const r = await startRefresh(); setPesan({ type: 'info', text: `${r.message} (PID ${r.pid})` }); await muat(); }
-    catch (e) { setPesan({ type: 'error', text: e instanceof Error ? e.message : 'Update gagal dimulai.' }); }
-    finally { setSibuk(false); }
-  }
-  return <section className="section">
-    <div className="section-title-row"><div><p className="section-kicker">Data berita ugm.ac.id</p><h2>Update data</h2></div>
-      {st && <span className="status-pill">{REFRESH_LABEL[st.status]}</span>}</div>
-    <p className="section-note">Menjalankan seluruh pipeline (sitemap → RSS → ambil berita baru → normalisasi → tagging → narasi → laporan) di latar belakang, ±10 menit. Cron mingguan tetap berjalan setiap Sabtu 06:00; keduanya tidak akan jalan bersamaan.</p>
-    {st && <dl className="requirement-meta">
-      <div><dt>Data terakhir</dt><dd>{waktuLokal(st.updated_at)}</dd></div>
-      <div><dt>Log update web terakhir</dt><dd>{waktuLokal(st.log_updated_at)}{st.last_exit !== null && (st.last_exit === 0 ? ' · berhasil' : ' · gagal, cek log')}</dd></div>
-    </dl>}
-    <div className="action-row">
-      <button className="button" type="button" disabled={sibuk || !st?.trigger_available || st?.status === 'running'} onClick={mulai}>{st?.status === 'running' ? 'Update sedang berjalan…' : 'Update berita terbaru'}</button>
-      {st && !st.trigger_available && <span className="field-hint">Tidak tersedia di server ini: venv pipeline tidak ditemukan (set UGM_ANALYTICS_PYTHON).</span>}
-    </div>
-    {pesan && <Notice type={pesan.type}>{pesan.text}</Notice>}
-    {st && st.log_tail.length > 0 && <details className="update-log" open={st.status === 'running'}><summary>Log terakhir</summary><pre>{st.log_tail.join('\n')}</pre></details>}
-  </section>;
-}
-
 const STATUS_RESET: Record<PengajuanReset['status'], string> = { menunggu: 'Menunggu', disetujui: 'Disetujui', ditolak: 'Ditolak', gugur: 'Gugur (PIN sudah diganti)' };
 
 /** Pengajuan reset PIN prodi: admin melihat siapa yang mengajukan lalu menyetujui / menolak. */
@@ -239,7 +199,6 @@ export function AdminPage() {
       <StatCard label="Diblokir" value={data.summary.diblokir} note="tidak bisa login" />
     </section>
     <ResetPasswordPanel />
-    <UpdateDataPanel />
     <section className="section">
       <div className="section-title-row"><div><p className="section-kicker">Semua pengguna</p><h2>Daftar akun</h2></div></div>
       <div className="data-table-wrap"><table className="data-table"><caption className="sr-only">Daftar akun portal akreditasi</caption>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
-  accreditationUpload, addAccreditationProgram, ajukanResetPin, buatLaporan, buatPinProdi, bukaProdi, downloadLaporanWord, hapusLaporan,
+  ApiError, accreditationUpload, addAccreditationProgram, ajukanResetPin, buatLaporan, buatPinProdi, bukaProdi, downloadLaporanWord, hapusLaporan,
   generateAccreditationDocument, getAccreditationWorkspace, getDaftarLaporan, saveAccreditationItem, simpanBlob, startAccreditationExtraction,
   type AccreditationResult, type AuthUser, type DaftarLaporan, type Dokumen, type ItemRow, type RiwayatEkstraksi, type Workspace, type WorkspaceItem, type WorkspaceUpload,
 } from './lib/api';
@@ -85,7 +85,10 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
   const [fakultas, setFakultas] = useState(awal ? String(awal.fakultas_id) : '');
   const [prodi, setProdi] = useState(awal ? initialProdi : '');
   const [dokumen, setDokumen] = useState<Dokumen>(initialDokumen);
-  const [laporanId, setLaporanId] = useState<number | null>(awal ? initialLaporan : null);
+  const [laporanId, setLaporanId] = useState<number | null>(null);
+  // Laporan yang diminta lewat tautan (?laporan= dari Profil) atau yang sesinya habis: daftar laporan
+  // + formulir PIN ditampilkan dulu, lalu laporan ini dibuka otomatis begitu PIN prodi benar.
+  const [laporanTarget, setLaporanTarget] = useState<number | null>(awal ? initialLaporan : null);
   // "Buka di LKPS" dari laporan LED: buka laporan LKPS tahun yang sama bila sudah ada.
   const [tahunTarget, setTahunTarget] = useState<number | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -106,7 +109,10 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
       const hasil = await getAccreditationWorkspace(laporanId);
       if (id === permintaan.current) setWorkspace(hasil);
     } catch (e) {
-      if (id === permintaan.current) setError(pesan(e, 'Data akreditasi gagal dimuat.'));
+      if (id !== permintaan.current) return;
+      if (e instanceof ApiError && e.status === 403) {  // PIN prodi belum/tidak lagi dibuka di sesi ini
+        setLaporanTarget(laporanId); setLaporanId(null); setWorkspace(null);
+      } else setError(pesan(e, 'Data akreditasi gagal dimuat.'));
     } finally {
       if (id === permintaan.current && !diam) setLoading(false);
     }
@@ -188,8 +194,8 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
         : !prodi
           ? <Notice type="info">Pilih Fakultas dan Program Studi dulu untuk melihat kelengkapan data.</Notice>
           : !laporanId
-            ? <PilihLaporan prodi={prodi} dokumen={dokumen} tahunTarget={tahunTarget}
-                onPilih={id => { setLaporanId(id); setTahunTarget(null); }} />
+            ? <PilihLaporan prodi={prodi} dokumen={dokumen} tahunTarget={tahunTarget} laporanTarget={laporanTarget}
+                onPilih={id => { setLaporanId(id); setTahunTarget(null); setLaporanTarget(null); }} />
             : error
               ? <div className="laporan-galat"><Notice type="error">{error}</Notice><button className="button secondary" onClick={() => { setError(''); setLaporanId(null); }}>Kembali ke daftar laporan</button></div>
               : !workspace || workspace.laporan.id !== laporanId
@@ -575,7 +581,7 @@ function GeneratePanel({ workspace, onChange }: { workspace: Workspace; onChange
 }
 
 /** Riwayat laporan prodi + dokumen: lanjutkan draft, hapus, atau buat laporan baru; dibuka dengan PIN prodi. */
-function PilihLaporan({ prodi, dokumen, tahunTarget, onPilih }: { prodi: string; dokumen: Dokumen; tahunTarget: number | null; onPilih: (id: number) => void }) {
+function PilihLaporan({ prodi, dokumen, tahunTarget, laporanTarget, onPilih }: { prodi: string; dokumen: Dokumen; tahunTarget: number | null; laporanTarget: number | null; onPilih: (id: number) => void }) {
   const [data, setData] = useState<DaftarLaporan | null>(null);
   const [galat, setGalat] = useState('');
   const [pesanInfo, setPesanInfo] = useState('');
@@ -596,10 +602,11 @@ function PilihLaporan({ prodi, dokumen, tahunTarget, onPilih }: { prodi: string;
   }, [prodi, dokumen]);
   useEffect(() => { setData(null); setPin(''); setPin2(''); setModeReset(false); setHapusId(null); setPesanInfo(''); muat(); }, [muat]);
   useEffect(() => {
-    if (!data?.terbuka || tahunTarget == null) return;
-    const cocok = data.laporan.find(l => l.tahun === tahunTarget);
-    if (cocok) onPilih(cocok.id);
-  }, [data, tahunTarget]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!data?.terbuka) return;
+    const cocok = data.laporan.find(l => (laporanTarget != null ? l.id === laporanTarget : l.tahun === tahunTarget));
+    if (cocok && (laporanTarget != null || tahunTarget != null)) onPilih(cocok.id);
+  }, [data, tahunTarget, laporanTarget]); // eslint-disable-line react-hooks/exhaustive-deps
+  const namaTarget = data?.laporan.find(l => l.id === laporanTarget)?.nama;
 
   async function jalankan(aksi: () => Promise<unknown>, sukses?: string) {
     setSibuk(true); setGalat(''); setPesanInfo('');
@@ -616,6 +623,7 @@ function PilihLaporan({ prodi, dokumen, tahunTarget, onPilih }: { prodi: string;
       <span className={`status-pill ${data.terbuka ? '' : 'is-locked'}`}>{!data.terkunci ? 'Belum ada PIN prodi' : data.terbuka ? 'Terbuka untuk sesi ini' : 'Terkunci'}</span>
     </div>
     <p className="section-note">Semua staf prodi mengerjakan laporan yang sama. Pilih laporan untuk melanjutkan draft, atau buat laporan tahun baru. Isi laporan hanya bisa dibuka dengan PIN prodi, dan PIN diminta lagi setiap kali login.</p>
+    {namaTarget && !data.terbuka && <Notice type="info">Masukkan PIN prodi di bawah untuk melanjutkan <b>{namaTarget}</b>; laporan akan langsung terbuka.</Notice>}
 
     {data.laporan.length === 0
       ? <p className="chart-empty">Belum ada laporan {dokumen} untuk prodi ini.</p>

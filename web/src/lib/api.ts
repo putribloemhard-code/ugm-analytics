@@ -191,10 +191,14 @@ export type ProfileResult = { user: ProfileUser; stats: { dokumen_digenerate: nu
 export type AdminUserRow = { id: number; nama: string; email: string; is_admin: boolean; is_blocked: boolean; terdaftar: string | null; login_terakhir: string | null; n_generate: number; diri_sendiri: boolean };
 export type AdminOverview = { summary: { total_akun: number; admin: number; diblokir: number }; users: AdminUserRow[] };
 
+/** Galat API yang membawa status HTTP (mis. 403 = PIN prodi belum dibuka di sesi ini). */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
 async function kirim<T>(path: string, method: string, body?: unknown): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { method, credentials: 'include', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
   const hasil = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(hasil.detail ?? `Permintaan gagal (${response.status})`);
+  if (!response.ok) throw new ApiError(hasil.detail ?? `Permintaan gagal (${response.status})`, response.status);
   return hasil as T;
 }
 
