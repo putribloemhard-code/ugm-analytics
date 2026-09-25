@@ -129,3 +129,21 @@ def test_endpoint_pratinjau_dan_unduh(monkeypatch, mode):
     finally:
         app.dependency_overrides.clear()
         app.dependency_overrides.update(sebelumnya)
+
+
+def test_suntingan_paragraf_hanya_mengubah_narasi_dan_tidak_menyentuh_cache():
+    from app.services.laporan_dampak import terapkan_suntingan
+    lap = laporan("impact")
+    i_par = next(i for i, b in enumerate(lap["blocks"]) if b["type"] == "paragraph")
+    i_hapus = next(i for i, b in enumerate(lap["blocks"]) if b["type"] == "paragraph" and i > i_par)
+    i_judul = next(i for i, b in enumerate(lap["blocks"]) if b["type"] == "heading")
+    asli = lap["blocks"][i_par]["text"]
+    baru = terapkan_suntingan(lap, {str(i_par): "Narasi hasil suntingan tim.", str(i_hapus): "  "})
+    assert baru["blocks"][i_par]["text"] == "Narasi hasil suntingan tim."
+    assert len(baru["blocks"]) == len(lap["blocks"]) - 1          # paragraf yang dikosongkan dihapus
+    assert lap["blocks"][i_par]["text"] == asli                    # laporan asli (cache) utuh
+    for salah in ({str(i_judul): "x"}, {"999999": "x"}, {"abc": "x"}, {str(i_par): "x" * 5001}):
+        with pytest.raises(ValueError):
+            terapkan_suntingan(lap, salah)
+    doc = Document(io.BytesIO(render_docx(baru)))
+    assert "Narasi hasil suntingan tim." in "\n".join(p.text for p in doc.paragraphs)

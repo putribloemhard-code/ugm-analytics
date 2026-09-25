@@ -9,15 +9,22 @@ function pesan(e: unknown, cadangan: string) {
   return e instanceof Error && e.message ? e.message : cadangan;
 }
 
-/** Satu blok dokumen. Blok yang sama dirender server ke Word, jadi pratinjau = isi file. */
-function Blok({ blok }: { blok: LaporanBlok }) {
+type Suntingan = Record<number, string>;
+
+/** Satu blok dokumen. Blok yang sama dirender server ke Word, jadi pratinjau = isi file.
+ *  Paragraf narasi bisa disunting langsung; judul, angka, gambar, dan tabel tetap dari data. */
+function Blok({ blok, indeks, suntingan, onSunting }: { blok: LaporanBlok; indeks: number; suntingan: Suntingan; onSunting: (i: number, teks: string) => void }) {
   switch (blok.type) {
     case 'heading':
-      if (blok.level === 1) return <h2 className="kertas__bab">{blok.text}</h2>;
-      if (blok.level === 2) return <h3 className="kertas__sub">{blok.text}</h3>;
+      if (blok.level === 1) return <h2 className="kertas__bab" id={`pv-bab-${indeks}`}>{blok.text}</h2>;
+      if (blok.level === 2) return <h3 className="kertas__sub" id={`pv-bab-${indeks}`}>{blok.text}</h3>;
       return <h4 className="kertas__subsub">{blok.text}</h4>;
-    case 'paragraph':
-      return <p className="kertas__p">{blok.text}</p>;
+    case 'paragraph': {
+      const nilai = suntingan[indeks] ?? blok.text;
+      return <textarea className={`kertas__p kertas__p--edit ${indeks in suntingan && nilai !== blok.text ? 'is-diedit' : ''}`}
+        aria-label="Paragraf laporan (bisa disunting)" value={nilai} rows={3}
+        onChange={e => onSunting(indeks, e.target.value)} />;
+    }
     case 'list': {
       const Tag = blok.ordered ? 'ol' : 'ul';
       return <Tag className="kertas__list">{blok.items.map(item => <li key={item}>{item}</li>)}</Tag>;
@@ -51,7 +58,10 @@ function Blok({ blok }: { blok: LaporanBlok }) {
   }
 }
 
-function Pratinjau({ laporan, sibuk, galat, onUnduh, onTutup }: { laporan: Laporan; sibuk: boolean; galat: string; onUnduh: () => void; onTutup: () => void }) {
+function Pratinjau({ laporan, sibuk, galat, suntingan, onSunting, onReset, onUnduh, onTutup }: {
+  laporan: Laporan; sibuk: boolean; galat: string; suntingan: Suntingan;
+  onSunting: (i: number, teks: string) => void; onReset: () => void; onUnduh: () => void; onTutup: () => void;
+}) {
   const dialog = useRef<HTMLDivElement>(null);
   const tutup = useRef(onTutup);
   tutup.current = onTutup;
@@ -70,15 +80,34 @@ function Pratinjau({ laporan, sibuk, galat, onUnduh, onTutup }: { laporan: Lapor
   const indeksBab1 = laporan.blocks.findIndex(b => b.type === 'heading' && b.level === 1 && b.text.startsWith('BAB I '));
   const sebelum = indeksBab1 < 0 ? laporan.blocks : laporan.blocks.slice(0, indeksBab1);
   const sesudah = indeksBab1 < 0 ? [] : laporan.blocks.slice(indeksBab1);
+  // Navigasi bab: judul tingkat 1-2 (BAB dan sub-bab), dengan indeks blok sebagai anchor.
+  const bab = laporan.blocks.map((b, i) => ({ b, i })).filter(({ b }) => b.type === 'heading' && b.level <= 2);
+  const [babAktif, setBabAktif] = useState(0);
+  const nDiedit = Object.entries(suntingan).filter(([i, t]) => { const b = laporan.blocks[Number(i)]; return b?.type === 'paragraph' && b.text !== t; }).length;
+  function lompat(pos: number) {
+    const tujuan = bab[Math.max(0, Math.min(bab.length - 1, pos))];
+    if (!tujuan) return;
+    setBabAktif(bab.indexOf(tujuan));
+    document.getElementById(`pv-bab-${tujuan.i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
   return <div className="pratinjau" role="dialog" aria-modal="true" aria-labelledby="pratinjau-judul" tabIndex={-1} ref={dialog}>
     <div className="pratinjau__bar">
       <div className="pratinjau__info">
         <strong id="pratinjau-judul">Pratinjau laporan {laporan.mode_label}</strong>
-        <span>{laporan.toc.length} judul · {laporan.figures.length} gambar · {laporan.tables.length} tabel</span>
+        <span><b className="pratinjau__tahap">1. Review</b> Klik paragraf mana pun untuk menyuntingnya · <b className="pratinjau__tahap">2. Unduh</b> Word memakai suntingan Anda</span>
       </div>
       <div className="pratinjau__aksi">
-        <button type="button" className="button" disabled={sibuk} onClick={onUnduh}>{sibuk ? 'Menyiapkan file…' : 'Unduh Word (.docx)'}</button>
+        <button type="button" className="button" disabled={sibuk} onClick={onUnduh}>{sibuk ? 'Menyiapkan file…' : nDiedit ? `Unduh Word (${nDiedit} suntingan)` : 'Unduh Word (.docx)'}</button>
         <button type="button" className="button secondary" onClick={onTutup}>Tutup</button>
+      </div>
+      <div className="pratinjau__nav">
+        <button type="button" className="button secondary" disabled={babAktif <= 0} onClick={() => lompat(babAktif - 1)}>‹ Prev</button>
+        <label className="sr-only" htmlFor="pratinjau-bab">Lompat ke bab</label>
+        <select id="pratinjau-bab" value={babAktif} onChange={e => lompat(Number(e.target.value))}>
+          {bab.map(({ b, i }, pos) => <option key={i} value={pos}>{b.type === 'heading' && b.level === 2 ? `   ${b.text}` : (b as { text: string }).text}</option>)}
+        </select>
+        <button type="button" className="button secondary" disabled={babAktif >= bab.length - 1} onClick={() => lompat(babAktif + 1)}>Next ›</button>
+        {nDiedit > 0 && <span className="pratinjau__diedit">{nDiedit} paragraf disunting · <button type="button" className="link-button" onClick={onReset}>Kembalikan semua</button></span>}
       </div>
     </div>
     {galat && <div className="pratinjau__galat"><Notice type="error">{galat}</Notice></div>}
@@ -90,7 +119,7 @@ function Pratinjau({ laporan, sibuk, galat, onUnduh, onTutup }: { laporan: Lapor
           <p>Periode data {laporan.period}</p>
           <div className="kertas__sampul-kaki"><strong>{laporan.institution}</strong><span>Yogyakarta</span><span>{laporan.generated}</span></div>
         </section>
-        <section className="kertas__halaman">{sebelum.map((b, i) => <Blok key={i} blok={b} />)}</section>
+        <section className="kertas__halaman">{sebelum.map((b, i) => <Blok key={i} blok={b} indeks={i} suntingan={suntingan} onSunting={onSunting} />)}</section>
         {indeksBab1 >= 0 && <section className="kertas__halaman">
           <h2 className="kertas__bab">DAFTAR ISI</h2>
           <ol className="kertas__toc">{laporan.toc.map((e, i) => <li key={i} className={e.level > 1 ? 'is-sub' : ''}>{e.text}</li>)}</ol>
@@ -99,7 +128,7 @@ function Pratinjau({ laporan, sibuk, galat, onUnduh, onTutup }: { laporan: Lapor
           <h2 className="kertas__bab">DAFTAR TABEL</h2>
           <ol className="kertas__toc">{laporan.tables.map(t => <li key={t}>{t}</li>)}</ol>
         </section>}
-        {sesudah.length > 0 && <section className="kertas__halaman">{sesudah.map((b, i) => <Blok key={i} blok={b} />)}</section>}
+        {sesudah.length > 0 && <section className="kertas__halaman">{sesudah.map((b, i) => <Blok key={indeksBab1 + i} blok={b} indeks={indeksBab1 + i} suntingan={suntingan} onSunting={onSunting} />)}</section>}
       </article>
     </div>
   </div>;
@@ -112,9 +141,10 @@ export function LaporanUnduh({ story }: { story: Story }) {
   const [mengunduh, setMengunduh] = useState(false);
   const [galat, setGalat] = useState('');
   const [galatUnduh, setGalatUnduh] = useState('');
+  const [suntingan, setSuntingan] = useState<Suntingan>({});
   const payload = { mode: story.mode, ...story.filters };
   const filterKey = JSON.stringify(payload);
-  useEffect(() => { setLaporan(null); setGalat(''); }, [filterKey]);
+  useEffect(() => { setLaporan(null); setGalat(''); setSuntingan({}); }, [filterKey]);
 
   async function pratinjau() {
     setMemuat(true); setGalat('');
@@ -123,7 +153,10 @@ export function LaporanUnduh({ story }: { story: Story }) {
   async function unduh() {
     setMengunduh(true); setGalatUnduh('');
     try {
-      const { blob, nama } = await downloadReport(payload);
+      // Hanya paragraf yang benar-benar berubah yang dikirim.
+      const berubah = Object.fromEntries(Object.entries(suntingan).filter(([i, t]) => laporan?.blocks[Number(i)]?.type === 'paragraph'
+        && (laporan.blocks[Number(i)] as { text: string }).text !== t));
+      const { blob, nama } = await downloadReport({ ...payload, suntingan: berubah });
       const href = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = href; link.download = nama ?? `Laporan_${NAMA_MODE[story.mode] ?? story.mode}_UGM.docx`;
@@ -136,13 +169,16 @@ export function LaporanUnduh({ story }: { story: Story }) {
     <p className="section-note">
       Dokumen Word berkerangka <em>Laporan Dampak Sosial, Ekonomi, dan Lingkungan UGM 2025</em>: ringkasan eksekutif,
       lembar identifikasi, daftar isi, {story.mode === 'sdgs' ? 'sebaran dan profil per SDG' : 'BAB I sampai BAB V per tema Kepmen'},
-      gambar dan tabel bernomor, referensi, serta lampiran metodologi. Isinya mengikuti filter yang sedang aktif.
+      gambar dan tabel bernomor, referensi, serta lampiran metodologi. Isinya mengikuti filter yang sedang aktif;
+      paragraf narasi bisa disunting langsung di pratinjau sebelum diunduh.
     </p>
     <div className="laporan-unduh__aksi">
       <button type="button" className="button" disabled={memuat} onClick={pratinjau}>{memuat ? 'Menyusun laporan…' : 'Pratinjau laporan'}</button>
       {memuat && <span className="section-note" role="status">Menyusun bab dan menggambar grafik, bisa memakan waktu hingga 30 detik.</span>}
     </div>
     {galat && <Notice type="error">{galat}</Notice>}
-    {laporan && <Pratinjau laporan={laporan} sibuk={mengunduh} galat={galatUnduh} onUnduh={unduh} onTutup={() => { setLaporan(null); setGalatUnduh(''); }} />}
+    {laporan && <Pratinjau laporan={laporan} sibuk={mengunduh} galat={galatUnduh} suntingan={suntingan}
+      onSunting={(i, teks) => setSuntingan(s => ({ ...s, [i]: teks }))} onReset={() => setSuntingan({})}
+      onUnduh={unduh} onTutup={() => { setLaporan(null); setGalatUnduh(''); }} />}
   </section>;
 }

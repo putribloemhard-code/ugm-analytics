@@ -361,6 +361,15 @@ def accreditation_save_item(item_id: str, payload: dict[str, Any], request: Requ
     return _workspace_call(_workspace(api).save_item, laporan, item_id, payload.get("rows"), user["email"])
 
 
+@router.post("/accreditation/workspace/final")
+def accreditation_item_final(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
+    """Tandai / batalkan status final bagian laporan saat review dokumen (satu item atau daftar item)."""
+    user = _auth_user(request, api)
+    laporan = _laporan_terbuka(request, api, payload.get("laporan_id"))
+    return _workspace_call(_workspace(api).set_final, laporan, payload.get("item_ids"),
+                           bool(payload.get("final", True)), user["email"])
+
+
 @router.post("/accreditation/programs")
 def accreditation_add_program(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
     """Tambah program studi baru di bawah satu fakultas (padanan "+ Tambah prodi baru")."""
@@ -613,7 +622,8 @@ _LAPORAN_MAKS = 4
 
 def _laporan(payload: ReportRequest, api: AnalyticsService) -> dict[str, Any]:
     from app.services.story import StoryService
-    kunci = f"{payload.model_dump_json()}|{StoryService(api.engine).frames().data_as_of}"
+    # Suntingan tidak ikut kunci: unduhan memakai laporan yang sama dengan pratinjau, lalu disunting.
+    kunci = f"{payload.model_dump_json(exclude={'suntingan'})}|{StoryService(api.engine).frames().data_as_of}"
     sekarang = time.monotonic()
     hit = _LAPORAN_CACHE.get(kunci)
     if hit and sekarang - hit[0] < _LAPORAN_TTL:
@@ -664,10 +674,10 @@ def report_preview(payload: ReportRequest, api: AnalyticsService = Depends(servi
 
 @router.post("/reports")
 def report(payload: ReportRequest, api: AnalyticsService = Depends(service)):
-    """Unduh laporan dampak (.docx) untuk filter aktif."""
-    from app.services.laporan_dampak import render_docx
+    """Unduh laporan dampak (.docx) untuk filter aktif, dengan suntingan narasi dari pratinjau (bila ada)."""
+    from app.services.laporan_dampak import render_docx, terapkan_suntingan
     try:
-        content = render_docx(_laporan(payload, api))
+        content = render_docx(terapkan_suntingan(_laporan(payload, api), payload.suntingan))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:

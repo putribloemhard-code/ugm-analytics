@@ -656,6 +656,36 @@ def build_laporan(story: dict[str, Any], sumber: dict[str, Any] | None = None,
     }
 
 
+# ------------------------------------------------------------------ suntingan pratinjau
+MAX_SUNTINGAN = 500
+MAX_TEKS_PARAGRAF = 5000
+
+
+def terapkan_suntingan(lap: dict[str, Any], suntingan: dict[str, str] | None) -> dict[str, Any]:
+    """Salinan laporan dengan teks paragraf yang disunting di pratinjau.
+
+    Hanya blok `paragraph` yang boleh diubah (judul, gambar, tabel, dan angka tetap dari data).
+    Paragraf yang dikosongkan dihapus dari dokumen. Laporan di cache tidak diubah.
+    """
+    if not suntingan:
+        return lap
+    if len(suntingan) > MAX_SUNTINGAN:
+        raise ValueError(f"Maksimal {MAX_SUNTINGAN} paragraf disunting per unduhan.")
+    blocks = list(lap["blocks"])
+    for kunci, teks in suntingan.items():
+        try:
+            i = int(kunci)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Indeks suntingan tidak valid.") from exc
+        if not 0 <= i < len(blocks) or blocks[i]["type"] != "paragraph":
+            raise ValueError("Hanya paragraf narasi yang bisa disunting.")
+        teks = str(teks or "").strip()
+        if len(teks) > MAX_TEKS_PARAGRAF:
+            raise ValueError(f"Paragraf maksimal {MAX_TEKS_PARAGRAF} karakter.")
+        blocks[i] = {**blocks[i], "text": teks}
+    return {**lap, "blocks": [b for b in blocks if not (b["type"] == "paragraph" and not b["text"])]}
+
+
 # ------------------------------------------------------------------ render .docx
 def _font(run: Any, size: float | None = None, bold: bool | None = None, color: str | None = None,
           italic: bool | None = None) -> None:

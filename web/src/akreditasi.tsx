@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   ApiError, accreditationUpload, addAccreditationProgram, ajukanResetPin, buatLaporan, buatPinProdi, bukaProdi, downloadLaporanWord, hapusLaporan,
-  generateAccreditationDocument, getAccreditationWorkspace, getDaftarLaporan, saveAccreditationItem, simpanBlob, startAccreditationExtraction,
-  type AccreditationResult, type AuthUser, type DaftarLaporan, type Dokumen, type ItemRow, type RiwayatEkstraksi, type Workspace, type WorkspaceItem, type WorkspaceUpload,
+  generateAccreditationDocument, getAccreditationWorkspace, getDaftarLaporan, simpanBlob, startAccreditationExtraction,
+  type AccreditationResult, type AuthUser, type DaftarLaporan, type Dokumen, type RiwayatEkstraksi, type Workspace, type WorkspaceItem, type WorkspaceUpload,
 } from './lib/api';
 import { Notice, PageHeader, ProgressLine, StatCard } from './ui';
+import { pesan, useItemEditor, waktu } from './akreditasi-edit';
+import { ReviewDokumen } from './akreditasi-dokumen';
+
+type Mode = 'isi' | 'review' | 'download';
+const MODE_LABEL: Record<Mode, string> = { isi: 'Isi data & upload', review: '1. Review dokumen', download: '2. Download Word' };
 
 /* Ruang kerja akreditasi. Alur: Lingkup -> Fakultas & Prodi -> Dokumen (LED/LKPS) -> pilih laporan (tahun)
    dari riwayat atau buat baru, dibuka dengan PIN prodi -> Upload & ekstraksi -> isi item -> Generate Word.
@@ -50,15 +55,6 @@ const UPLOAD_LABEL: Record<WorkspaceUpload['status'], string> = {
   gagal_ekstrak: 'Gagal diekstrak', terhenti: 'Terhenti — bisa diulang',
 };
 
-function waktu(iso: string | null): string {
-  if (!iso) return '-';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
-}
-
-function pesan(e: unknown, cadangan: string): string {
-  return e instanceof Error && e.message ? e.message : cadangan;
-}
 
 /** Jenjang sering sudah terkandung di nama (mis. "Doktor Ilmu Fisika"), jangan diulang. */
 function labelProdi(p: Record<string, unknown>): string {
@@ -96,6 +92,7 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
   const [error, setError] = useState('');
   const [groupKey, setGroupKey] = useState('');
   const [fokus, setFokus] = useState('');
+  const [mode, setMode] = useState<Mode>('isi');
   const permintaan = useRef(0);
 
   const prodiDariFakultas = catalog.programs.filter(p => String(p.fakultas_id) === fakultas);
@@ -195,7 +192,7 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
           ? <Notice type="info">Pilih Fakultas dan Program Studi dulu untuk melihat kelengkapan data.</Notice>
           : !laporanId
             ? <PilihLaporan prodi={prodi} dokumen={dokumen} tahunTarget={tahunTarget} laporanTarget={laporanTarget}
-                onPilih={id => { setLaporanId(id); setTahunTarget(null); setLaporanTarget(null); }} />
+                onPilih={id => { setLaporanId(id); setTahunTarget(null); setLaporanTarget(null); setMode('isi'); }} />
             : error
               ? <div className="laporan-galat"><Notice type="error">{error}</Notice><button className="button secondary" onClick={() => { setError(''); setLaporanId(null); }}>Kembali ke daftar laporan</button></div>
               : !workspace || workspace.laporan.id !== laporanId
@@ -205,6 +202,17 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
                   <div><p className="section-kicker">Laporan yang sedang dikerjakan</p><h2>{workspace.laporan.nama}</h2><p className="section-note">{workspace.prodi.nama} · dikerjakan bersama staf prodi yang memegang PIN prodi.</p></div>
                   <button className="button secondary" onClick={() => { setLaporanId(null); setWorkspace(null); }}>Ganti laporan</button>
                 </div>
+                <nav className="ruang-mode" aria-label="Tahap pengerjaan laporan">
+                  {(Object.keys(MODE_LABEL) as Mode[]).map(m => <button key={m} type="button" aria-current={mode === m ? 'step' : undefined}
+                    className={mode === m ? 'is-on' : ''} onClick={() => setMode(m)}>{MODE_LABEL[m]}</button>)}
+                </nav>
+                {mode === 'review' && <ReviewDokumen workspace={workspace} onChange={() => muat(true)} onLanjut={() => setMode('download')}
+                  onEditTabel={(itemId, grup) => { setMode('isi'); setGroupKey(grup); setFokus(''); window.setTimeout(() => setFokus(itemId), 0); }} />}
+                {mode === 'download' && <>
+                  {workspace.ringkasan.final < workspace.ringkasan.total && <Notice type="info">{workspace.ringkasan.final} dari {workspace.ringkasan.total} bagian sudah ditandai final. Word tetap bisa diunduh; bagian yang masih draft ikut dengan isi terakhirnya. <button className="link-button" onClick={() => setMode('review')}>Kembali ke review</button></Notice>}
+                  <GeneratePanel workspace={workspace} onChange={() => muat(true)} />
+                </>}
+                {mode === 'isi' && <>
                 <Ringkasan workspace={workspace} />
                 <UploadPanel workspace={workspace} dokumen={dokumen} onChange={() => muat(true)} />
                 <RiwayatEkstraksiPanel workspace={workspace} onBuka={(itemId, grup) => { setGroupKey(grup); setFokus(''); window.setTimeout(() => setFokus(itemId), 0); }} />
@@ -237,7 +245,11 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
                     </div>}
                   </div>}
                 </section>
-                <GeneratePanel workspace={workspace} onChange={() => muat(true)} />
+                <div className="ruang-mode__lanjut">
+                  <p>Selesai mengisi? Periksa laporan seperti dokumen, tandai tiap bagian final, lalu unduh Word.</p>
+                  <button className="button" onClick={() => { setMode('review'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Review dokumen ›</button>
+                </div>
+                </>}
               </>}
   </div>;
 }
@@ -445,51 +457,13 @@ function DataPendukung({ data, teks }: { data: NonNullable<WorkspaceItem['penduk
   </details>;
 }
 
-function barisKosong(kolom: string[]): ItemRow { return Object.fromEntries(kolom.map(k => [k, ''])); }
 
 function ItemCard({ item, laporanId, fokus, onSaved }: { item: WorkspaceItem; laporanId: number; fokus: boolean; onSaved: () => void }) {
-  // Tanda tangan data server: kalau berubah (simpan staf lain / hasil ekstraksi baru), editor dimuat ulang
-  // -- kecuali user sedang mengedit, maka hanya diberi tahu supaya isiannya tidak hilang.
-  const tanda = useMemo(() => JSON.stringify([item.updated_at, item.rows]), [item]);
-  const [rows, setRows] = useState<ItemRow[]>(item.rows);
-  const [dirty, setDirty] = useState(false);
-  const [basi, setBasi] = useState(false);
+  const { rows, dirty, basi, status, sibuk, ubah, salinLive, tambahBaris, hapusBaris, batal, simpan } = useItemEditor(item, laporanId, onSaved);
   const [open, setOpen] = useState(fokus);
-  const [status, setStatus] = useState<{ type: 'info' | 'error'; text: string } | null>(null);
-  const [sibuk, setSibuk] = useState(false);
-  const tandaTerakhir = useRef(tanda);
   const el = useRef<HTMLElement>(null);
 
-  useEffect(() => {
-    if (tanda === tandaTerakhir.current) return;
-    tandaTerakhir.current = tanda;
-    if (dirty) setBasi(true); else setRows(item.rows);
-  }, [tanda]); // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => { if (fokus) { setOpen(true); el.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }, [fokus]);
-
-  function ubah(i: number, kolom: string, nilai: string) {
-    setRows(rs => rs.map((r, j) => j === i ? { ...r, [kolom]: nilai } : r)); setDirty(true); setStatus(null);
-  }
-  function salinLive() {
-    if (!item.live) return;
-    const salinan = item.live.rows.map(r => Object.fromEntries(item.kolom.map(k => [k, r[k] ?? ''])));
-    setRows(item.tipe === 'narasi' ? salinan.slice(0, 1) : salinan); setDirty(true); setStatus(null);
-  }
-  function tambahBaris() { setRows(rs => [...rs, barisKosong(item.kolom)]); setDirty(true); }
-  function hapusBaris(i: number) { setRows(rs => rs.length > 1 ? rs.filter((_, j) => j !== i) : [barisKosong(item.kolom)]); setDirty(true); }
-  function batal() { setRows(item.rows); setDirty(false); setBasi(false); setStatus(null); }
-
-  async function simpan() {
-    setSibuk(true); setStatus(null);
-    try {
-      const hasil = await saveAccreditationItem(laporanId, item.id, rows);
-      setDirty(false); setBasi(false);
-      setStatus({ type: 'info', text: hasil.sel ? `Tersimpan (${hasil.baris} baris).` : 'Tersimpan — item ini sekarang kosong.' });
-      onSaved();
-    } catch (e) { setStatus({ type: 'error', text: pesan(e, 'Gagal menyimpan.') }); }
-    finally { setSibuk(false); }
-  }
 
   const dariAi = Boolean(item.diisi_oleh?.startsWith('AI: '));
   return <article ref={el} className={`requirement-card state-${item.state}${open ? ' is-open' : ''}`}>

@@ -126,6 +126,14 @@ def _table_ddl(engine: Engine) -> list[str]:
             diputus_oleh VARCHAR(254),
             diputus_at TIMESTAMP
         )""",
+        # Status "final" per bagian (item) laporan saat review dokumen; dipakai bersama staf prodi.
+        """CREATE TABLE IF NOT EXISTS akreditasi_item_final (
+            laporan_id INTEGER NOT NULL,
+            item_id VARCHAR(64) NOT NULL,
+            oleh VARCHAR(254),
+            waktu TIMESTAMP NOT NULL,
+            PRIMARY KEY (laporan_id, item_id)
+        )""",
     ]
 
 
@@ -169,7 +177,7 @@ def ensure_schema(engine: Engine) -> None:
 
 
 TABEL_BARU = ("akreditasi_laporan", "akreditasi_prodi_kunci", "akreditasi_prodi_akses",
-              "akreditasi_kunci_attempts", "akreditasi_reset_kunci")
+              "akreditasi_kunci_attempts", "akreditasi_reset_kunci", "akreditasi_item_final")
 
 
 def _samakan_collation(engine: Engine, ada: set[str]) -> None:

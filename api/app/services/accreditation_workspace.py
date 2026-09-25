@@ -9,6 +9,8 @@ staf satu prodi mengerjakan data yang sama dan laporan tahun berbeda tidak salin
 - Item berstatus "belum_tersedia" tidak bisa diisi.
 - Hasil ekstraksi AI langsung diterapkan ke data laporan tanpa menimpa isian yang ada
   (accreditation_laporan.terapkan_ekstraksi); status tiap nilai tercatat sebagai riwayat.
+- Review dokumen: tiap item bisa ditandai "final" (akreditasi_item_final, dipakai bersama staf);
+  menyimpan ulang isian item mengembalikannya ke draft supaya perubahan dicek lagi.
 - Status tiap item = akreditasi/data_source_map.json (services/accreditation_sumber.py).
   Item "tersedia" membawa data live pipeline Fase 2; isian tim tetap bisa menggantikannya.
 - Generate Word memakai builder akreditasi/scripts/generate_template.py (isian tim + data live +
@@ -141,6 +143,9 @@ class AccreditationWorkspaceService:
                 WHERE l.prodi_id = :p AND l.dokumen = 'LKPS' AND l.tahun = :t
             """), {"p": prodi_id, "t": laporan["tahun"]})} if dokumen == "LED" else set()
             live = sumber.data_live(conn, prodi_id)
+            final = {r["item_id"]: {"oleh": r["oleh"], "waktu": _iso(r["waktu"])} for r in conn.execute(text("""
+                SELECT item_id, oleh, waktu FROM akreditasi_item_final WHERE laporan_id = :l
+            """), {"l": lap_id}).mappings()}
 
         manual_by_item: dict[str, list[dict]] = {}
         for row in manual:
@@ -154,7 +159,8 @@ class AccreditationWorkspaceService:
             group = {
                 "key": key,
                 "label": labels.get(key, key),
-                "items": [self._item_payload(registry, item, manual_by_item.get(item["id"], []), live) for item in items],
+                "items": [{**self._item_payload(registry, item, manual_by_item.get(item["id"], []), live),
+                           "final": final.get(item["id"])} for item in items],
                 "cuplikan": [],
             }
             if dokumen == "LED" and key not in ("Umum", "D"):
@@ -173,7 +179,8 @@ class AccreditationWorkspaceService:
             "laporan": {"id": lap_id, "tahun": int(laporan["tahun"]), "nama": _nama_laporan(laporan)},
             "prodi": program,
             "dokumen": dokumen,
-            "ringkasan": sumber.ringkasan(item_ids, filled_ids, set(live["items"])),
+            "ringkasan": {**sumber.ringkasan(item_ids, filled_ids, set(live["items"])),
+                          "final": sum(1 for i in item_ids if i in final)},
             "groups": groups,
             "uploads": [self._upload_payload(dict(row)) for row in uploads],
             "ekstraksi": {
@@ -285,6 +292,9 @@ class AccreditationWorkspaceService:
         with self.engine.begin() as conn:
             conn.execute(text("DELETE FROM akreditasi_data_manual WHERE laporan_id = :l AND item_id = :i"),
                          {"l": int(laporan["id"]), "i": item_id})
+            # Isian berubah -> kembali ke draft; perlu difinalisasi ulang setelah dicek.
+            conn.execute(text("DELETE FROM akreditasi_item_final WHERE laporan_id = :l AND item_id = :i"),
+                         {"l": int(laporan["id"]), "i": item_id})
             if cells:
                 conn.execute(text("""
                     INSERT INTO akreditasi_data_manual
@@ -292,6 +302,31 @@ class AccreditationWorkspaceService:
                     VALUES (:prodi_id, :laporan_id, :item_id, :baris_ke, :kolom, NULL, :nilai, NULL, :diisi_oleh, :updated_at)
                 """), cells)
         return {"message": "Tersimpan.", "baris": baris_ke, "sel": len(cells)}
+
+    def set_final(self, laporan: dict[str, Any], item_ids: Any, final: bool, user_email: str) -> dict[str, Any]:
+        """Tandai / batalkan status final item laporan (review dokumen). Item harus milik dokumen laporan."""
+        registry = _registry()
+        if isinstance(item_ids, str):
+            item_ids = [item_ids]
+        if not isinstance(item_ids, list) or not item_ids or len(item_ids) > MAX_ROWS_PER_ITEM:
+            raise WorkspaceError("Daftar item tidak valid.")
+        for item_id in item_ids:
+            item = registry.KEBUTUHAN_DATA.get(str(item_id))
+            if not item:
+                raise NotFound("Item kebutuhan data tidak dikenal.")
+            if registry.dokumen_dari_item(item) != laporan["dokumen"]:
+                raise WorkspaceError(f"Item ini bukan bagian dokumen {laporan['dokumen']}.")
+        lap_id, now = int(laporan["id"]), datetime.now()
+        with self.engine.begin() as conn:
+            for item_id in item_ids:
+                conn.execute(text("DELETE FROM akreditasi_item_final WHERE laporan_id = :l AND item_id = :i"),
+                             {"l": lap_id, "i": str(item_id)})
+                if final:
+                    conn.execute(text("""
+                        INSERT INTO akreditasi_item_final (laporan_id, item_id, oleh, waktu) VALUES (:l, :i, :o, :w)
+                    """), {"l": lap_id, "i": str(item_id), "o": user_email, "w": now})
+        n = len(item_ids)
+        return {"message": (f"{n} bagian ditandai final." if final else f"{n} bagian dikembalikan ke draft.")}
 
     def add_program(self, fakultas_id: Any, nama: str, jenjang: str) -> dict[str, Any]:
         nama = (nama or "").strip()
@@ -405,7 +440,7 @@ class AccreditationWorkspaceService:
             n_isian = conn.execute(text("SELECT COUNT(*) FROM akreditasi_data_manual WHERE laporan_id = :l"),
                                    {"l": lap_id}).scalar() or 0
             for tabel in ("akreditasi_upload_ekstraksi", "akreditasi_upload_file", "akreditasi_data_manual",
-                          "akreditasi_riwayat_generate"):
+                          "akreditasi_riwayat_generate", "akreditasi_item_final"):
                 conn.execute(text(f"DELETE FROM {tabel} WHERE laporan_id = :l"), {"l": lap_id})
             conn.execute(text("DELETE FROM akreditasi_laporan WHERE id = :l"), {"l": lap_id})
         akar = [r.resolve() for r in (self.upload_root, self.generated_root) if r is not None]

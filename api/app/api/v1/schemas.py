@@ -24,6 +24,8 @@ class ReportRequest(BaseModel):
     topics: list[str] = Field(default_factory=list)
     sdgs: list[int] = Field(default_factory=list)
     units: list[str] = Field(default_factory=list)
+    # Suntingan narasi dari pratinjau: indeks blok paragraf -> teks baru (hanya dipakai saat unduh Word).
+    suntingan: dict[str, str] = Field(default_factory=dict)
 
 
 class ErrorResponse(BaseModel):

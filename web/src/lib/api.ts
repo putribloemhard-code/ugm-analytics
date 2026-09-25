@@ -219,6 +219,8 @@ export type WorkspaceItem = {
   kategori: KategoriSumber; kategori_label: string; sumber_asli: string | null; catatan: string | null; sumber_tambahan: string | null;
   live: { kolom: string[]; rows: ItemRow[]; sumber: string[]; fetched_at: string | null } | null;
   pendukung: { judul: string; total: number; kolom: string[]; rows: string[][]; tautan: string[] | null } | null;
+  /** Status review dokumen: null = draft; terisi = sudah ditandai final (kembali null bila diedit lagi). */
+  final: { oleh: string | null; waktu: string | null } | null;
 };
 export type KategoriSumber = 'tersedia' | 'akses_data' | 'penyusunan';
 /** Satu nilai hasil ekstraksi AI dan apa yang terjadi saat diterapkan ke data laporan. */
@@ -240,7 +242,7 @@ export type Workspace = {
   prodi: { slug: string; nama: string; jenjang: string | null; fakultas: string | null };
   dokumen: Dokumen;
   ringkasan: {
-    total: number; lengkap: number; persen: number; terisi_manual: number;
+    total: number; lengkap: number; persen: number; terisi_manual: number; final: number;
     tersedia: { total: number; lengkap: number }; akses_data: { total: number; lengkap: number }; penyusunan: { total: number; lengkap: number };
   };
   groups: WorkspaceGroup[];
@@ -290,6 +292,9 @@ export function getAccreditationWorkspace(laporanId: number) {
 }
 export function saveAccreditationItem(laporanId: number, itemId: string, rows: ItemRow[]) {
   return kirim<{ message: string; baris: number; sel: number }>(`/analytics/accreditation/workspace/items/${encodeURIComponent(itemId)}`, 'POST', { laporan_id: laporanId, rows });
+}
+export function setItemFinal(laporanId: number, itemIds: string[], final: boolean) {
+  return kirim<{ message: string }>('/analytics/accreditation/workspace/final', 'POST', { laporan_id: laporanId, item_ids: itemIds, final });
 }
 export function addAccreditationProgram(fakultasId: string, nama: string, jenjang: string) {
   return kirim<{ slug: string; nama: string }>('/analytics/accreditation/programs', 'POST', { fakultas_id: fakultasId, nama, jenjang });

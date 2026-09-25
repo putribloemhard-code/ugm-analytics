@@ -100,6 +100,8 @@ button, a, input, select { min-height: 44px; }
 .skip-link { position: absolute; left: 12px; top: -80px; z-index: 100; padding: 10px 16px; border-radius: 8px; color: var(--ugm-blue); background: var(--gold); font-weight: 700; }
 .skip-link:focus { top: 12px; }
 [id] { scroll-margin-top: var(--header-height); }
+/* Header lengket menutupi bagian atas layar: gulir otomatis (Tab, scrollIntoView) berhenti di bawahnya. */
+html { scroll-padding-top: calc(var(--header-height) + 12px); }
 
 h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-height: 1.15; letter-spacing: -.01em; text-wrap: balance; }
 
@@ -1116,3 +1118,90 @@ td { line-height: 1.45; }
   .profil-riwayat li { grid-template-columns: auto minmax(0, 1fr); }
   .profil-riwayat li > :last-child { grid-column: 2; }
 }
+
+/* Akreditasi: tahap pengerjaan (Isi data / Review / Download) dan review dokumen per bagian.
+   Halaman dokumen memakai kertas putih .kertas__halaman (sama dengan pratinjau Laporan Dampak). */
+.ruang-mode { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 18px; }
+.ruang-mode button { min-height: 44px; padding: 0 18px; border: 1px solid var(--border); border-radius: 999px; color: var(--text); background: var(--surface-card); font-weight: 700; cursor: pointer; }
+.ruang-mode button.is-on { border-color: var(--ugm-blue); color: #fff; background: var(--ugm-blue); }
+:root[data-theme="dark"] .ruang-mode button.is-on { border-color: var(--gold); color: var(--ugm-blue); background: var(--gold); }
+.ruang-mode__lanjut { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding: 16px 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
+.ruang-mode__lanjut p { margin: 0; }
+.ruang-mode__lanjut .button { min-height: 44px; }
+.review { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 330px); gap: 18px; align-items: start; }
+.review__doc { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--border-subtle); border-radius: 14px; background: var(--surface-subtle); }
+.review__toolbar { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 10px; }
+.review__posisi { margin: 0; color: var(--text-heading); font-weight: 800; }
+.review__status { margin: 4px 0 0; color: var(--text-muted); font-size: .85rem; }
+.review__status small { margin-left: 6px; }
+.review__nav { display: flex; gap: 8px; }
+.review__nav .button { min-height: 40px; }
+.review__konfirmasi { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px; border: 1px solid var(--status-attention); border-radius: 10px; background: var(--surface-warm); }
+.review__konfirmasi p { margin: 0; flex-basis: 100%; font-weight: 700; }
+.review__sumber { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-muted); font-size: .72rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.review__sumber .state-badge { text-transform: none; letter-spacing: 0; }
+.review__halaman { padding: clamp(22px, 5vw, 56px) clamp(16px, 5vw, 60px); color: #1f2d3a; font-family: Arial, "Helvetica Neue", sans-serif; }
+.review__kop { margin-bottom: 20px; text-align: center; }
+.review__kop p { margin: 0; font-weight: 700; }
+.review__kop hr { margin: 12px 0; border: 0; border-top: 1px solid #b9c2ca; }
+.review__kop-judul { margin-top: 6px !important; color: #01416b; letter-spacing: .02em; }
+.review__grup { margin: 18px 0 2px; color: #55606b; font-size: .8rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.review__judul { margin: 0 0 6px; color: #01416b; font-size: 1.1rem; }
+.review__deskripsi { margin: 0 0 14px; color: #55606b; font-size: .9rem; font-style: italic; }
+.review__live { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 12px; padding: 10px 12px; border: 1px solid #199e70; border-radius: 6px; background: #eef7f3; font-size: .85rem; }
+.review__live p { margin: 0; }
+.review__live .link-button { color: #01416b; }
+.review__paragraf { margin-bottom: 14px; }
+.review__paragraf label { display: block; margin-bottom: 2px; color: #1f2d3a; font-size: .9rem; font-weight: 700; }
+.review__teks, .review__sel { display: block; width: 100%; min-height: 2.6em; padding: 6px 8px; border: 1px dashed transparent; border-radius: 4px; color: #1f2d3a; background: transparent; font: inherit; font-size: .95rem; line-height: 1.6; resize: vertical; field-sizing: content; }
+.review__teks { text-align: justify; }
+.review__teks:hover, .review__sel:hover { border-color: #b9c2ca; }
+.review__teks:focus, .review__sel:focus { border-color: #01416b; outline: 2px solid color-mix(in srgb, #01416b 25%, transparent); background: #f7fafc; }
+.review__teks::placeholder, .review__sel::placeholder { color: #993333; font-weight: 700; }
+.review__tabel-wrap { overflow-x: auto; }
+.review__tabel { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.review__tabel th, .review__tabel td { padding: 2px; border: 1px solid #b9c2ca; vertical-align: top; }
+.review__tabel thead th { padding: 6px 8px; color: #fff; background: #01416b; text-align: left; }
+.review__tabel td:first-child { padding: 6px; width: 2.5em; text-align: center; color: #55606b; }
+.review__tabel .review__sel { min-height: 2.2em; min-width: 9em; font-size: .85rem; }
+.review__tabel .link-button { padding: 6px; color: #01416b; font-size: .8rem; }
+.review__tambah { margin-top: 8px; color: #01416b; }
+.review__aksi { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.review__aksi .button { min-height: 44px; }
+.review__side { display: grid; gap: 12px; position: sticky; top: calc(var(--header-height) + 16px); }
+.review__side-isi { display: grid; gap: 8px; justify-items: start; padding: 14px 16px; }
+.review__side-sumber { margin: 0; font-size: .85rem; }
+.review__bar-list { display: grid; margin: 0; padding: 6px 0; list-style: none; }
+.review__bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; width: 100%; padding: 8px 16px; border: 0; color: var(--text); background: none; text-align: left; cursor: pointer; }
+.review__bar:hover, .review__bar.is-aktif { background: var(--surface-tint); }
+.review__bar-nama { overflow: hidden; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
+.review__bar-angka { color: var(--text-muted); font-size: .78rem; font-variant-numeric: tabular-nums; }
+.review__bar-track { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--chart-track); overflow: hidden; }
+.review__bar-track span { display: block; height: 100%; border-radius: 3px; background: var(--chart-primary); }
+.review__final { display: grid; gap: 10px; padding: 14px 16px; }
+.review__final p { margin: 0; }
+.review__final .button { min-height: 44px; }
+@media (max-width: 1000px) {
+  .review { grid-template-columns: 1fr; }
+  .review__side { position: static; }
+}
+@media (max-width: 600px) {
+  .review__doc { padding: 10px; }
+  .review__nav { width: 100%; }
+  .review__nav .button, .review__aksi .button, .ruang-mode button { flex: 1; }
+}
+
+/* Pratinjau Laporan Dampak yang bisa disunting: paragraf tampil seperti teks dokumen, garis putus
+   muncul saat diarahkan/difokus; paragraf yang sudah diubah diberi latar kuning tipis. */
+.pratinjau__nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; width: 100%; }
+.pratinjau__nav .button { min-height: 40px; }
+.pratinjau__nav select { min-height: 40px; max-width: min(520px, 100%); padding: 0 10px; border: 1px solid #ffffff59; border-radius: 8px; color: #fff; background: #ffffff14; }
+.pratinjau__nav select option { color: #1f2d3a; }
+.pratinjau__nav .button.secondary { color: var(--text-on-dark); background: transparent; border-color: #ffffff80; }
+.pratinjau__diedit { color: var(--text-on-dark-muted); font-size: .85rem; }
+.pratinjau__diedit .link-button { color: var(--gold); }
+.pratinjau__tahap { margin-right: 4px; color: var(--gold); }
+.kertas__p--edit { display: block; width: 100%; padding: 4px 6px; border: 1px dashed transparent; border-radius: 4px; color: inherit; background: transparent; font: inherit; line-height: 1.6; resize: vertical; field-sizing: content; }
+.kertas__p--edit:hover { border-color: #b9c2ca; }
+.kertas__p--edit:focus { border-color: #01416b; outline: 2px solid color-mix(in srgb, #01416b 25%, transparent); background: #f7fafc; }
+.kertas__p--edit.is-diedit { background: #fff8db; }

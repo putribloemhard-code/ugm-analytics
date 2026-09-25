@@ -325,3 +325,20 @@ def test_hapus_laporan_membersihkan_data_dan_berkas(svc, engine, tmp_path, lkps)
     assert not unggah.exists() and not word.exists()
     assert luar.exists()  # berkas di luar folder upload/generate tidak disentuh
     assert _item(svc.workspace(lain), TABEL)["rows"][0][k[0]] == "Tetap"  # laporan lain utuh
+
+
+def test_final_review_dan_kembali_draft_saat_diedit(svc, engine, led, lkps):
+    k = _item(svc.workspace(led), NARASI)["kolom"]
+    svc.save_item(led, NARASI, [{k[0]: "SK"}], EMAIL)
+    svc.set_final(led, [NARASI, "led_b2_vmts"], True, EMAIL)
+    w = svc.workspace(led)
+    assert _item(w, NARASI)["final"]["oleh"] == EMAIL and w["ringkasan"]["final"] == 2
+    with pytest.raises(WorkspaceError):  # item LKPS bukan bagian laporan LED
+        svc.set_final(led, [TABEL], True, EMAIL)
+    with pytest.raises(NotFound):
+        svc.set_final(led, ["tidak_ada"], True, EMAIL)
+    svc.save_item(led, NARASI, [{k[0]: "SK revisi"}], EMAIL)  # diedit -> kembali draft
+    w = svc.workspace(led)
+    assert _item(w, NARASI)["final"] is None and w["ringkasan"]["final"] == 1
+    svc.set_final(led, "led_b2_vmts", False, EMAIL)
+    assert svc.workspace(led)["ringkasan"]["final"] == 0
