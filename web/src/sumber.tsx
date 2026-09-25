@@ -69,16 +69,19 @@ function PerDampak({ data, dari, satuan, catatan }: { data: JumlahPilar[]; dari:
   </div>;
 }
 
-function Jalur({ nomor, nama, sumber, catatan, detail, children }: { nomor: string; nama: string; sumber: string; catatan?: string; detail: string; children: React.ReactNode }) {
+/** Satu jalur sumber: kepala (nomor, nama, asal, fakta ringkas) lalu dua panel angka berdampingan. */
+function Jalur({ nomor, nama, sumber, catatan, fakta, children }: { nomor: string; nama: string; sumber: string; catatan?: string; fakta: string[]; children: React.ReactNode }) {
   return <li className="lineage__lane">
-    <div className="lineage__source">
+    <header className="lineage__source">
       <span className="lineage__index" aria-hidden="true">{nomor}</span>
-      <h3>{nama}</h3>
-      <p className="lineage__caption">{sumber}</p>
-      <p className="lineage__detail">{detail}</p>
-      {catatan && <p className="lineage__note">{catatan}</p>}
-    </div>
-    {children}
+      <div className="lineage__title">
+        <h3>{nama}</h3>
+        <p className="lineage__caption">{sumber}</p>
+      </div>
+      <ul className="lineage__facts" aria-label={`Fakta ${nama}`}>{fakta.map(f => <li key={f}>{f}</li>)}</ul>
+    </header>
+    <div className="lineage__body">{children}</div>
+    {catatan && <p className="lineage__note">{catatan}</p>}
   </li>;
 }
 
@@ -91,16 +94,16 @@ function Diagram({ data }: { data: SumberData }) {
       <p className="lineage__group-label">Sumber publik</p>
       <ol className="lineage__lanes">
         <Jalur nomor="01" nama="Berita UGM" sumber={`Scraping sitemap & RSS ${b.situs}`}
-          detail={`Terbit ${rentang} · ${fmt(b.sitemap)} URL di sitemap`}
-          catatan={`Bahasa Indonesia ${fmt(b.bahasa.id)} · English ${fmt(b.bahasa.en)}. Dampak = cocok dengan minimal satu dari 14 tema Kepmen 361/M/KEP/2025 (keyword judul & deskripsi).`}>
+          fakta={[`Terbit ${rentang}`, `${fmt(b.sitemap)} URL di sitemap`, `Indonesia ${fmt(b.bahasa.id)} · English ${fmt(b.bahasa.en)}`]}
+          catatan="Dampak = cocok dengan minimal satu dari 14 tema Kepmen 361/M/KEP/2025 (keyword judul & deskripsi).">
           <RasioDampak diambil={b.diambil} berdampak={b.berdampak} satuan="berita" label="Berita diambil" />
           <PerDampak data={b.per_pilar} dari={b.berdampak} satuan="berita"
             catatan="Satu berita bisa masuk lebih dari satu dampak, jadi jumlah ketiganya lebih dari 100%." />
         </Jalur>
         {mk.tersedia
-          ? <Jalur nomor="02" nama="Mata kuliah" sumber={`Web kurikulum publik ${fmt(mk.prodi)} program studi · ${fmt(mk.fakultas)} fakultas/sekolah`}
-            detail={`${fmt(mk.baris)} baris penawaran · dihitung per MK unik`}
-            catatan={`Data bersumber dari web setiap program studi (lebih dari 20 situs), dikurasi ke satu berkas. ${fmt(mk.indikator_resmi)} MK di antaranya indikator resmi Kepmen (tema 4.5).`}>
+          ? <Jalur nomor="02" nama="Mata kuliah" sumber="Web kurikulum publik tiap program studi (lebih dari 20 situs), dikurasi ke satu berkas"
+            fakta={[`${fmt(mk.prodi)} program studi`, `${fmt(mk.fakultas)} fakultas/sekolah`, `${fmt(mk.baris)} baris penawaran`]}
+            catatan={`Dihitung per MK unik. ${fmt(mk.indikator_resmi)} MK di antaranya indikator resmi Kepmen (tema 4.5).`}>
             <RasioDampak diambil={mk.mk_unik} berdampak={mk.berdampak} satuan="MK" label="Mata kuliah diambil" />
             <PerDampak data={mk.per_pilar} dari={mk.berdampak} satuan="MK"
               catatan="Satu mata kuliah bisa masuk lebih dari satu dampak, jadi jumlah ketiganya lebih dari 100%." />
@@ -200,7 +203,7 @@ export function SumberSection() {
         <p className="chapter-intro__number">Bagian I</p>
         <div className="chapter-intro__rule" aria-hidden="true" />
         <h2 id="sumber-title">Sumber Data</h2>
-        <p className="chapter-intro__description">Setiap angka di laporan ini bisa ditelusuri ke asalnya. Diagram di bawah menunjukkan apa yang diambil dari tiap sumber, berapa yang memuat konten dampak, dan bagaimana angka itu terbagi ke tiga dampak Kepmen.</p>
+        <p className="chapter-intro__description">Setiap angka di laporan ini bisa ditelusuri ke asalnya. Tiap sumber di bawah menunjukkan berapa data yang diambil, berapa yang memuat konten dampak, dan bagaimana angka itu terbagi ke tiga dampak Kepmen.</p>
       </header>
       {error ? <Notice type="error">{error}</Notice> : !data ? <div className="loading loading--scene" role="status">Memuat ringkasan sumber data…</div> : <>
         <Diagram data={data} />

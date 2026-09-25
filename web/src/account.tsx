@@ -28,6 +28,33 @@ function UnduhRiwayat({ id }: { id: number }) {
   return <>{galat ? <span className="field-hint">{galat}</span> : <button className="link-button" disabled={sibuk} onClick={unduh}>{sibuk ? 'Mengunduh…' : 'Unduh .docx'}</button>}</>;
 }
 
+/* Ikon garis sederhana untuk kotak statistik profil: menandai jenis angka (dokumen Word, file
+   upload, laporan berjalan, riwayat), bukan hiasan. */
+const IKON: Record<string, string> = {
+  word: 'M7 3h7l5 5v13H7zM14 3v5h5M9.5 12l1.2 5 1.3-4 1.3 4 1.2-5',
+  upload: 'M12 16V4m0 0-4 4m4-4 4 4M5 15v4h14v-4',
+  laporan: 'M4 5h16v14H4zM8 9h8M8 13h5M16 16l2 2 3-4',
+  riwayat: 'M3 12a9 9 0 1 0 3-6.7M3 4v4h4M12 7v5l3 3',
+};
+function Ikon({ nama }: { nama: keyof typeof IKON }) {
+  return <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false"><path d={IKON[nama]} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
+function KotakStat({ ikon, label, nilai, catatan }: { ikon: keyof typeof IKON; label: string; nilai: number; catatan: string }) {
+  return <div className="profil-stat">
+    <span className="profil-stat__ikon"><Ikon nama={ikon} /></span>
+    <div className="profil-stat__isi">
+      <span className="profil-stat__label">{label}</span>
+      <strong>{nilai.toLocaleString('id-ID')}</strong>
+      <span className="profil-stat__catatan">{catatan}</span>
+    </div>
+  </div>;
+}
+
+function inisial(nama: string): string {
+  return nama.split(/\s+/).filter(Boolean).slice(0, 2).map(k => k[0]?.toUpperCase() ?? '').join('') || '?';
+}
+
 export function ProfilePage() {
   const { loading, user } = useRequireUser();
   const [profil, setProfil] = useState<ProfileResult | null>(null);
@@ -38,41 +65,57 @@ export function ProfilePage() {
   if (error) return <div className="content"><PageHeader title="Profil Saya" kicker="Akun akreditasi" /><Notice type="error">{error}</Notice></div>;
   if (!profil) return <div className="content loading">Memuat profil...</div>;
   const { user: identitas, stats, ongoing, riwayat } = profil;
-  return <div className="content account-page">
-    <PageHeader title="Profil Saya" kicker="Akun akreditasi" caption="Identitas akun, pekerjaan yang sedang berjalan, dan riwayat laporan yang pernah dibuat." />
-    <section className="profile-identity">
-      <div className="field"><span className="field__label">Nama</span><b>{identitas.nama}</b></div>
-      <div className="field"><span className="field__label">Email</span><b>{identitas.email}</b></div>
-      <div className="field"><span className="field__label">Terdaftar sejak</span><b>{identitas.terdaftar ?? '-'}</b></div>
-      <div className="field"><span className="field__label">Login terakhir</span><b>{identitas.login_terakhir ?? '-'}</b></div>
+  return <div className="content account-page profil">
+    <PageHeader title="Profil Saya" kicker="Akun akreditasi" caption="Identitas akun, laporan yang sedang Anda kerjakan, dan riwayat dokumen Word." />
+
+    <section className="profil-stats" aria-label="Ringkasan aktivitas">
+      <KotakStat ikon="word" label="Dokumen digenerate" nilai={stats.dokumen_digenerate} catatan="laporan Word" />
+      <KotakStat ikon="upload" label="Dokumen diupload" nilai={stats.dokumen_diupload} catatan="file pendukung" />
+      <KotakStat ikon="laporan" label="Laporan berjalan" nilai={ongoing.length} catatan="yang Anda isi" />
+      <KotakStat ikon="riwayat" label="Riwayat tersimpan" nilai={riwayat.total} catatan={`ditampilkan maks. ${riwayat.batas}`} />
     </section>
-    <section className="progress-overview">
-      <StatCard label="Dokumen digenerate" value={stats.dokumen_digenerate} note="laporan Word" />
-      <StatCard label="Dokumen diupload" value={stats.dokumen_diupload} note="file pendukung" />
-      <StatCard label="Pekerjaan berjalan" value={ongoing.length} note="laporan yang Anda isi" />
-      <StatCard label="Riwayat tersimpan" value={riwayat.total} note={`ditampilkan maks. ${riwayat.batas}`} />
-    </section>
-    <section className="section">
-      <div className="section-title-row"><div><p className="section-kicker">Sedang dikerjakan</p><h2>Laporan yang Anda isi</h2></div>{identitas.is_admin && <span className="status-pill">Admin</span>}</div>
-      {ongoing.length === 0
-        ? <Notice type="info">Belum ada pekerjaan. Laporan yang item-nya Anda simpan di halaman Akreditasi akan muncul di sini.</Notice>
-        : <div className="ongoing-list">{ongoing.map(k => <article className="ongoing-card" key={k.laporan_id}>
-          <div className="ongoing-card__head"><b>{k.nama_prodi}</b><span className="status-pill">{k.nama_laporan}</span></div>
-          <p className="section-note">{k.nama_fakultas ?? 'Prodi tidak terhubung ke fakultas.'}</p>
-          <ProgressLine value={k.lengkap} total={k.total} percent={k.persen} note={`${k.item_milik_user} item disimpan oleh Anda`} />
-          <Link className="button" to={`/akreditasi?prodi=${encodeURIComponent(k.prodi_id)}&dokumen=${k.dokumen}&laporan=${k.laporan_id}`}>Lanjutkan</Link>
-        </article>)}</div>}
-    </section>
-    <section className="section">
-      <div className="section-title-row"><div><p className="section-kicker">Riwayat dokumen</p><h2>Laporan yang pernah dibuat</h2></div></div>
+
+    <div className="profil-grid">
+      <section className="profil-panel profil-akun" aria-labelledby="profil-akun-judul">
+        <h2 className="profil-panel__head" id="profil-akun-judul">Informasi akun</h2>
+        <div className="profil-akun__kepala">
+          <span className="profil-avatar" aria-hidden="true">{inisial(identitas.nama)}</span>
+          <div><b>{identitas.nama}</b><span>{identitas.is_admin ? 'Admin portal akreditasi' : 'Penyusun laporan'}</span></div>
+        </div>
+        <dl className="profil-kv">
+          <div><dt>Email</dt><dd>{identitas.email}</dd></div>
+          <div><dt>Peran</dt><dd>{identitas.is_admin ? 'Admin' : 'Penyusun'}</dd></div>
+          <div><dt>Terdaftar sejak</dt><dd>{identitas.terdaftar ?? '-'}</dd></div>
+          <div><dt>Login terakhir</dt><dd>{identitas.login_terakhir ?? '-'}</dd></div>
+        </dl>
+      </section>
+
+      <section className="profil-panel" aria-labelledby="profil-laporan-judul">
+        <h2 className="profil-panel__head" id="profil-laporan-judul">Laporan yang Anda isi</h2>
+        {ongoing.length === 0
+          ? <p className="profil-kosong">Belum ada. Laporan yang item-nya Anda simpan di halaman Akreditasi akan muncul di sini.</p>
+          : <ul className="profil-laporan">{ongoing.map(k => <li key={k.laporan_id}>
+            <div className="profil-laporan__atas">
+              <div><b>{k.nama_prodi}</b><span>{k.nama_fakultas ?? 'Prodi tidak terhubung ke fakultas'}</span></div>
+              <span className="status-pill">{k.nama_laporan}</span>
+            </div>
+            <ProgressLine value={k.lengkap} total={k.total} percent={k.persen} note={`${k.item_milik_user} item disimpan oleh Anda`} />
+            <Link className="button profil-laporan__aksi" to={`/akreditasi?prodi=${encodeURIComponent(k.prodi_id)}&dokumen=${k.dokumen}&laporan=${k.laporan_id}`}>Lanjutkan</Link>
+          </li>)}</ul>}
+      </section>
+    </div>
+
+    <section className="profil-panel" aria-labelledby="profil-riwayat-judul">
+      <h2 className="profil-panel__head" id="profil-riwayat-judul">Riwayat dokumen Word</h2>
       {riwayat.rows.length === 0
-        ? <Notice type="info">Belum ada laporan yang Anda buat.</Notice>
+        ? <p className="profil-kosong">Belum ada laporan Word yang Anda buat.</p>
         : <>
-          {riwayat.total > riwayat.batas && <p className="section-note">Menampilkan {riwayat.batas} laporan terbaru dari {riwayat.total}.</p>}
-          <div className="data-table-wrap"><table className="data-table"><caption className="sr-only">Riwayat laporan akreditasi milik Anda</caption>
-            <thead><tr><th scope="col">Program studi</th><th scope="col">Dokumen</th><th scope="col">Digenerate</th><th scope="col"><span className="sr-only">Unduh</span></th></tr></thead>
-            <tbody>{riwayat.rows.map(r => <tr key={r.id}><td>{r.nama_prodi}</td><td>{r.jenis_dokumen}</td><td>{r.digenerate ?? '-'}</td><td><UnduhRiwayat id={r.id} /></td></tr>)}</tbody>
-          </table></div>
+          {riwayat.total > riwayat.batas && <p className="section-note">Menampilkan {riwayat.batas} dokumen terbaru dari {riwayat.total}.</p>}
+          <ul className="profil-riwayat">{riwayat.rows.map(r => <li key={r.id}>
+            <span className="profil-riwayat__dok">{r.jenis_dokumen}</span>
+            <div><b>{r.nama_prodi}</b><span>Digenerate {r.digenerate ?? '-'}</span></div>
+            <UnduhRiwayat id={r.id} />
+          </li>)}</ul>
         </>}
     </section>
   </div>;
