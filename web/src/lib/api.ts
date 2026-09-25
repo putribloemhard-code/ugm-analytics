@@ -144,7 +144,7 @@ export type Story = {
   caveats: string[];
   executive: { metrics: StoryMetric[]; narrative: string; narrative_source?: 'llm' | 'template'; pembagian?: PembagianDampak };
   overview: { pillar: string; total: number; top_topic: string | null; top_topic_count: number }[];
-  cross: { title: string; charts: Chart[]; tables: StoryTable[]; topic_options?: TopicOption[]; selected_topic?: string };
+  cross: { title: string; charts: Chart[]; tables: StoryTable[]; topic_options?: TopicOption[]; selected_topic?: string; pemetaan?: PemetaanKepmen };
   pillar_detail: PillarDetail | null;
   chapters: Chapter[];
   mata_kuliah?: MataKuliahBlok;
@@ -322,6 +322,16 @@ export function getBeritaTanpaSdg(params: { page: number; page_size: number; q?:
 }
 export function tandaiSdg(url: string, sdgs: number[]) { return kirim<{ url: string; sdgs: number[]; message: string }>('/analytics/sdg-manual', 'POST', { url, sdgs }); }
 export function batalkanSdg(url: string) { return kirim<{ url: string; sdgs: number[]; message: string }>('/analytics/sdg-manual/delete', 'POST', { url }); }
+
+/* ---- Pemetaan resmi 14 tema Kepmen + tag tema manual (api/app/services/tema_manual.py) ---- */
+export type PemetaanTema = { id: string; tema: string; dampak: string; tema_kepmen: string; sdg: string; indikator: string; definisi: string; kriteria: string; formula: string; satuan: string };
+export type PemetaanKepmen = { rows: PemetaanTema[]; note: string };
+export type BeritaTanpaTema = { url: string; tautan: string | null; judul: string; tanggal: string; deskripsi: string };
+export function getBeritaTanpaTema(params: { page: number; page_size: number; q?: string; year_from?: string; year_to?: string; units?: string[] }) {
+  return get<{ page: number; page_size: number; total: number; rows: BeritaTanpaTema[] }>(`/analytics/tema-manual/untagged?${toQuery(params)}`);
+}
+export function tandaiTema(url: string, topiks: string[]) { return kirim<{ url: string; topiks: string[]; message: string }>('/analytics/tema-manual', 'POST', { url, topiks }); }
+export function batalkanTema(url: string) { return kirim<{ url: string; topiks: string[]; message: string }>('/analytics/tema-manual/delete', 'POST', { url }); }
 
 export function getHomeSummary() { return get<Record<string, string | number | null>>('/analytics/home-summary'); }
 export function searchAnalytics(q: string) { return get<{ page: string; pillars: string[]; topics: string[]; sdgs: number[]; years: string[] | null; explanation: string }>(`/analytics/search?${toQuery({ q })}`); }

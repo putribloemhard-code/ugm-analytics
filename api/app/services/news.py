@@ -61,7 +61,9 @@ class NewsService:
             count_sql = f"SELECT COUNT(DISTINCT s.url) AS total {from_sql} WHERE {where_sql}"
             sql = f"SELECT DISTINCT s.url, s.lastmod AS tanggal, ss.sdg {from_sql} WHERE {where_sql} ORDER BY s.lastmod DESC LIMIT :limit OFFSET :offset"
         else:
-            from_sql = "FROM berita_berita b JOIN berita_berita_kepmen_all bk ON bk.url = b.url"
+            # Tema pipeline + tag tema manual (services/tema_manual.py, tabel terpisah, kolom sama).
+            from_sql = ("FROM berita_berita b JOIN (SELECT url, topik, dampak, topik_kepmen, sdg FROM berita_berita_kepmen_all "
+                        "UNION SELECT url, topik, dampak, topik_kepmen, sdg FROM berita_tema_manual) bk ON bk.url = b.url")
             where = ["SUBSTRING(b.tanggal FROM 1 FOR 4) BETWEEN :year_from AND :year_to"]
             if pillars:
                 where.append(f"bk.dampak IN ({self._in_clause(pillars, 'pillar', params)})")

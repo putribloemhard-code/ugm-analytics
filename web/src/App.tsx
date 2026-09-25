@@ -13,6 +13,7 @@ import { SumberSection } from './sumber';
 import { LaporanUnduh } from './laporan-unduh';
 import { PembagianDampakChart } from './pembagian';
 import { SdgPetaView, TagSdgManual } from './sdg';
+import { PemetaanKepmenPanel, TagTemaManual } from './tema';
 
 type FilterState = { yearFrom: string; yearTo: string; pillars: string[]; topics: string[]; sdgs: number[]; units: string[] };
 const emptyFilters: FilterState = { yearFrom: '', yearTo: '', pillars: [], topics: [], sdgs: [], units: [] };
@@ -138,6 +139,8 @@ function AnalyticsContent({ story, pillar, onPickPillar, topic, onTopic, busy, o
     {story.overview.length > 0 && <Overview story={story} pillar={pillar} onPick={onPickPillar} />}
     {story.pillar_detail && <PillarDetailView detail={story.pillar_detail} topic={topic} onTopic={onTopic} busy={busy} />}
     <CrossSection story={story} topic={topic} onTopic={onTopic} />
+    {story.cross.pemetaan && <PemetaanKepmenPanel data={story.cross.pemetaan} mode={story.mode} />}
+    {story.mode !== 'sdgs' && story.cross.pemetaan && <TagTemaManual tema={story.cross.pemetaan.rows} mode={story.mode} filter={{ year_from: story.filters.year_from as string, year_to: story.filters.year_to as string, units: story.filters.units as string[] }} onChanged={onDataChanged} />}
     {story.mode === 'sdgs' && story.sdg_peta && <SdgPetaView peta={story.sdg_peta} />}
     {story.mode === 'sdgs' && <TagSdgManual filter={{ year_from: story.filters.year_from as string, year_to: story.filters.year_to as string, units: story.filters.units as string[] }} onChanged={onDataChanged} />}
     <section className="story-block"><h3>Daftar berita</h3>{newsError ? <Notice type="error">{newsError}</Notice> : !news ? <div className="loading" role="status">Memuat daftar berita...</div> : <><Table title="Berita terpilih" rows={news.rows} /><div className="action-row"><button className="button secondary" disabled={page <= 1} onClick={() => setPage(current => current - 1)}>Halaman sebelumnya</button><span aria-live="polite">Halaman {page} dari {totalPages}</span><button className="button secondary" disabled={page >= totalPages} onClick={() => setPage(current => current + 1)}>Halaman berikutnya</button></div></>}</section>

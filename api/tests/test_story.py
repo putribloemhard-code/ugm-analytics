@@ -143,8 +143,16 @@ def test_impact_story_cross_charts_and_kinds():
     assert combo["line"]["values"] == [1, 2, 2]
     dist = chart_by_id(charts, "multi_tema")["data"]
     assert {row["label"]: row["value"] for row in dist} == {"1": 4, "2": 1}  # hanya u1 masuk 2 tema
-    multi = next(t for t in story["cross"]["tables"] if t["id"] == "multi_tema")
-    assert multi["rows"] == [{"kombinasi": "Energi + Keanekaragaman Hayati", "n_tema": 2, "berita": 1}]
+    # Kombinasi tema = peta pasangan (heatmap simetris, diagonal kosong) + 10 kombinasi teratas, bukan tabel.
+    peta = chart_by_id(charts, "multi_tema_peta")["data"]
+    # Segitiga bawah tanpa baris pertama/kolom terakhir yang selalu kosong: tiap pasangan sekali.
+    assert peta["rows"] == ["4.4 Keanekaragaman Hayati"] and peta["cols"] == ["4.1"] and peta["values"] == [[1]]
+    top = chart_by_id(charts, "multi_tema_kombinasi")["data"]
+    assert top == [{"label": "Energi + Keanekaragaman Hayati", "value": 1, "group": None}]
+    ids = {t["id"] for t in story["cross"]["tables"]}
+    assert not ids & {"multi_tema", "pemetaan", "tanpa_tema"}
+    # Pemetaan 14 tema dikirim terpisah (web: terlipat + filter dampak).
+    assert len(story["cross"]["pemetaan"]["rows"]) == 14
 
 
 def test_impact_story_pillar_detail_tabs_and_semantics():
@@ -203,7 +211,7 @@ def test_units_filter_narrows_news_but_unit_tab_ignores_it():
     chart = chart_by_id(unit_tab["charts"], "unit")
     assert chart["data"] == [{"label": "Fakultas Teknik", "value": 1, "group": "Fakultas"}]
     no_unit = next(t for t in unit_tab["tables"] if t["id"] == "tanpa_unit")
-    assert [row["url"] for row in no_unit["rows"]] == ["u5"]
+    assert [row["url"] for row in no_unit["rows"]] == ["u5"] and no_unit["page_size"] == 5
 
 
 def test_news_tables_are_paginated_but_summary_tables_are_not():

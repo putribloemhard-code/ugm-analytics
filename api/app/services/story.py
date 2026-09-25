@@ -1250,7 +1250,8 @@ def _unit_tab(ctx: _Ctx, pilar: str, unit_map: dict[str, Any]) -> dict[str, Any]
         [("tanggal", "Tanggal"), ("judul", "Judul"), ("url", "Tautan")],
         _news_rows(belum.head(MAX_ROWS), {"tanggal": "tanggal", "judul": "judul", "url": "url"}),
         note=(f"{len(belum):,} berita (dampak ini, dalam filter tahun/tema -- TIDAK termasuk filter Fakultas/Unit Kerja) "
-              "tidak menyebut fakultas/unit kerja mana pun."),
+              f"tidak menyebut fakultas/unit kerja mana pun (maks. {MAX_ROWS} terbaru, tampil {NEWS_PAGE_SIZE} per halaman)."),
+        page_size=NEWS_PAGE_SIZE,
     ))
     tab = {"id": "unit", "label": "Fakultas/Unit Kerja", "charts": charts, "tables": tables}
     if not len(uk_pilar):
@@ -1411,45 +1412,66 @@ def _cross(ctx: _Ctx, fr: StoryFrames, topic: str | None) -> dict[str, Any]:
             .sort_values(["n_tema", "berita"], ascending=[False, False], kind="stable")
         )
         top_combo = agg.iloc[0]
-        tables.append(_table(
-            "multi_tema", "Kombinasi tema pada berita multi-tema",
-            [("kombinasi", "Kombinasi tema"), ("n_tema", "Jumlah tema"), ("berita", "Jumlah berita")],
-            _native(agg.to_dict("records")),
-            note=(f"Berita dengan tema terbanyak sekaligus: {int(top_combo['n_tema'])} tema ({top_combo['kombinasi']}). "
-                  "Satu baris = satu kombinasi tema; diurutkan dari kombinasi dengan tema terbanyak."),
+        # Peta pasangan: sel (A, B) = berita yang memuat tema A DAN tema B (diagonal dikosongkan).
+        # Urutan daftar isi laporan (2.1 ... 4.5) supaya tema satu dampak berdekatan di kedua sumbu.
+        urutan_resmi = [k for bab in CHAPTER_ORDER.values() for k, _ in bab["topics"]]
+        urut = [k for k in urutan_resmi + list(label_topic) if k in set(sub["topik"])]
+        urut = list(dict.fromkeys(urut))
+        nama = [label_topic.get(k, k) for k in urut]
+        sets = sub.groupby("url")["topik"].apply(set)
+        pasangan = pd.DataFrame(0, index=urut, columns=urut)
+        for tema in sets:
+            daftar = [k for k in urut if k in tema]
+            for i, a in enumerate(daftar):
+                for c in daftar[i + 1:]:
+                    pasangan.loc[a, c] += 1
+                    pasangan.loc[c, a] += 1
+        atas = pasangan.set_axis(nama, axis=0).set_axis(nama, axis=1).stack()
+        (pa, pb), n_pa = atas.idxmax(), int(atas.max())
+        # Hanya segitiga bawah (tiap pasangan sekali); kolom memakai kode sub-bab supaya 14 kolom muat.
+        nomor = {k: n for bab in CHAPTER_ORDER.values() for k, n in bab["topics"]}
+        for i in range(len(urut)):
+            pasangan.iloc[i, i:] = 0
+        pasangan.index = [f"{nomor[k]} {label_topic.get(k, k)}" if k in nomor else label_topic.get(k, k) for k in urut]
+        pasangan.columns = [nomor.get(k, label_topic.get(k, k)) for k in urut]
+        charts.append(_chart(
+            # Baris pertama & kolom terakhir segitiga bawah selalu kosong -> dibuang.
+            "multi_tema_peta", "heatmap", "Peta pasangan tema pada berita multi-tema", _heatmap_data(pasangan.iloc[1:, :-1]),
+            insight=f"Pasangan tema yang paling sering muncul bersama: {pa} dan {pb} ({n_pa:,} berita).",
+            note=("Sel = jumlah berita yang memuat tema baris DAN tema kolom sekaligus; tiap pasangan ditulis sekali "
+                  "(kolom memakai kode sub-bab laporan, lihat awal nama baris). Berita dengan 3 tema atau lebih "
+                  "dihitung di setiap pasangannya."),
+        ))
+        top10 = agg.sort_values("berita", ascending=False, kind="stable").head(10)
+        charts.append(_chart(
+            "multi_tema_kombinasi", "bar", "10 kombinasi tema yang paling sering muncul",
+            _bar_data(top10, "kombinasi", "berita"),
+            insight=(f"Kombinasi terbanyak: {top10.iloc[0]['kombinasi']} ({int(top10.iloc[0]['berita']):,} berita). "
+                     f"Berita dengan tema terbanyak sekaligus memuat {int(top_combo['n_tema'])} tema."),
+            note=f"10 teratas dari {len(agg):,} kombinasi tema berbeda pada berita multi-tema.",
+            orientation="h",
         ))
 
     # 11. Pemetaan resmi Kepmen
     map_rows = [
         {
-            "tema": label_topic.get(k, k), "dampak": m["dampak"], "tema_kepmen": m["topik_kepmen"],
+            "id": k, "tema": label_topic.get(k, k), "dampak": m["dampak"], "tema_kepmen": m["topik_kepmen"],
             "sdg": ", ".join(mapping.sdg_label(s) for s in m["sdg"]) or "-", "indikator": m["indikator"],
             "definisi": m["definisi"], "kriteria": m["kriteria"], "formula": m["formula"], "satuan": m["satuan"],
         }
         for k, m in meta.items()
     ]
-    tables.append(_table(
-        "pemetaan", "Pemetaan resmi + indikator Kepmen (14 tema)",
-        [("tema", "Tema dampak berita"), ("dampak", "Dampak"), ("tema_kepmen", "Tema Resmi Kepmen"),
-         ("sdg", "Klaster SDGs"), ("indikator", "Indikator Kepmen"), ("definisi", "Definisi"),
-         ("kriteria", "Kriteria"), ("formula", "Formula"), ("satuan", "Satuan")],
-        map_rows,
-        note=("14 tema resmi Kepmen 361/M/KEP/2025 (klaster SDG dari sheet '#Ref' UGM Analytics.xlsx). Definisi & kriteria "
-              "dari Salinan Kepmen 361/M/KEP/2025 (OCR)."),
-    ))
+    pemetaan = {
+        "rows": map_rows,
+        "note": ("14 tema resmi Kepmen 361/M/KEP/2025 (klaster SDG dari sheet '#Ref' UGM Analytics.xlsx). Definisi & kriteria "
+                 "dari Salinan Kepmen 361/M/KEP/2025 (OCR)."),
+    }
 
-    # Berita tanpa match tema (cek manual)
-    belum = b[~b["url"].isin(set(t["url"]))].sort_values("tanggal", ascending=False, kind="stable")
-    tables.append(_table(
-        "tanpa_tema", "Berita tanpa match tema (cek manual)",
-        [("tanggal", "Tanggal"), ("judul", "Judul"), ("url", "Tautan")],
-        _news_rows(belum.head(MAX_ROWS), {"tanggal": "tanggal", "judul": "judul", "url": "url"}),
-        note=f"{len(belum):,} berita (dalam filter) tidak masuk tema mana pun.",
-    ))
-
+    # Berita tanpa match tema: daftar + tagging manual lewat /analytics/tema-manual (5 per halaman di web).
     return {
         "title": "Analisis Lintas-Dampak", "charts": charts, "tables": tables,
         "topic_options": cross_topic_options, "selected_topic": pilih or "",
+        "pemetaan": pemetaan,
     }
 
 
@@ -1724,6 +1746,16 @@ class StoryService:
             ss = pd.concat([ss, manual], ignore_index=True).drop_duplicates(["url", "sdg"])
         except Exception:  # noqa: BLE001 -- tabel belum ada (dibuat saat API start)
             pass
+        bk = self._read("SELECT url, topik, dampak, topik_kepmen FROM berita_berita_kepmen_all")
+        # Tag tema manual (services/tema_manual.py): tabel terpisah dari pipeline, kolom sama;
+        # klaster SDG temanya ikut ditambahkan ke bs supaya mode Dampak x SDGs ikut berubah.
+        try:
+            from app.services.tema_manual import sdg_dari
+            tema_manual = self._read("SELECT url, topik, dampak, topik_kepmen, sdg FROM berita_tema_manual")
+            bk = pd.concat([bk, tema_manual[["url", "topik", "dampak", "topik_kepmen"]]], ignore_index=True)
+            bs = pd.concat([bs, sdg_dari(tema_manual)], ignore_index=True).drop_duplicates(["url", "sdg"])
+        except Exception:  # noqa: BLE001 -- tabel belum ada (dibuat saat API start)
+            pass
         bs["sdg"] = bs["sdg"].astype(int)
         ss["sdg"] = ss["sdg"].astype(int)
         # Data mata kuliah (CSV kurasi, bukan DB) dimuat di sini supaya ikut cache frame;
@@ -1735,7 +1767,7 @@ class StoryService:
             matkul = None
         return StoryFrames(
             berita=self._read("SELECT url, judul, tanggal, deskripsi, sumber FROM berita_berita"),
-            bk=self._read("SELECT url, topik, dampak, topik_kepmen FROM berita_berita_kepmen_all"),
+            bk=bk,
             bs=bs,
             uk=self._read("SELECT url, unit_kerja, kategori FROM berita_unit_kerja"),
             sitemap=sitemap,

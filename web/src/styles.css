@@ -605,7 +605,7 @@ td { line-height: 1.45; }
 .vbars__value { margin-bottom: 4px; color: var(--text-muted); font-size: .68rem; font-variant-numeric: tabular-nums; }
 .vbars__label { margin-top: 6px; color: var(--text-muted); font-size: .68rem; white-space: nowrap; }
 
-.heatmap-scroll { overflow: auto; max-height: 460px; border: 1px solid var(--border-subtle); border-radius: 8px; }
+.heatmap-scroll { overflow: auto; max-height: 500px; border: 1px solid var(--border-subtle); border-radius: 8px; }
 .heatmap-table { min-width: 100%; width: max-content; border-collapse: separate; border-spacing: 2px; font-size: .74rem; }
 .heatmap-table th, .heatmap-table td { padding: 6px 8px; border: 0; text-align: center; font-variant-numeric: tabular-nums; }
 .heatmap-table thead th { position: sticky; top: 0; z-index: 2; color: var(--text-muted); background: var(--surface-card); font-weight: 700; }
@@ -992,3 +992,45 @@ td { line-height: 1.45; }
 .pembagian--multi3 { stroke: var(--pb-multi3); background: var(--pb-multi3); }
 @media (max-width: 900px) { .pembagian__grid { grid-template-columns: 1fr; } }
 @media (max-width: 480px) { .pembagian__donat-wrap { grid-template-columns: 1fr; } .pembagian__donat { max-width: 200px; margin: 0 auto; } }
+
+/* Pemetaan resmi 14 tema Kepmen: terlipat, filter dampak, kartu per tema (bukan tabel 9 kolom). */
+.pemetaan__head { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 12px 20px; }
+.pemetaan__head h3 { margin-bottom: 4px; }
+.pemetaan__head .button { min-height: 44px; }
+.pemetaan__filter { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 14px; }
+.pemetaan__filter button { min-height: 40px; padding: 0 14px; border: 1px solid var(--border); border-radius: 999px; color: var(--text); background: var(--surface-card); font-weight: 600; cursor: pointer; }
+.pemetaan__filter button.is-on { border-color: var(--ugm-blue); color: #fff; background: var(--ugm-blue); }
+:root[data-theme="dark"] .pemetaan__filter button.is-on { border-color: var(--gold); color: var(--ugm-blue); background: var(--gold); }
+.pemetaan__list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.pemetaan__item { display: grid; align-content: start; gap: 8px; padding: 14px 16px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-card); }
+.pemetaan__item-head { display: grid; gap: 4px; justify-items: start; }
+.pemetaan__item-head h4 { margin: 0; color: var(--text-heading); font-size: 1rem; }
+.pemetaan__alias { color: var(--text-muted); font-size: .8rem; }
+.pemetaan__indikator { margin: 0; font-size: .9rem; }
+.pemetaan__meta, .pemetaan__detail dl { display: grid; gap: 6px; margin: 0; }
+.pemetaan__meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pemetaan__meta dt, .pemetaan__detail dt { color: var(--text-muted); font-size: .75rem; font-weight: 700; }
+.pemetaan__meta dd, .pemetaan__detail dd { margin: 0; font-size: .85rem; }
+.pemetaan__detail summary { min-height: 40px; display: flex; align-items: center; color: var(--text-link); font-size: .88rem; font-weight: 600; cursor: pointer; }
+.pemetaan__detail dl { margin-top: 4px; }
+
+/* Tag tema manual: pilihan 14 tema dikelompokkan per dampak. */
+.tema-tag__row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 18px; align-items: center; padding: 14px 16px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-card); }
+.tema-tag__row.is-open { grid-template-columns: minmax(0, 1fr); align-items: start; }
+.tema-tag__buka { min-height: 44px; white-space: nowrap; }
+.tema-tag__aksi { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.tema-tag__desc { color: var(--text-muted); font-size: .82rem; }
+.tema-tag__pick { display: grid; gap: 8px; }
+.tema-tag__grup { display: grid; grid-template-columns: 10ch minmax(0, 1fr); gap: 8px; align-items: start; }
+.tema-tag__pilar { justify-self: start; margin-top: 8px; }
+.tema-tag__opsi { display: flex; flex-wrap: wrap; gap: 6px; }
+.tema-tag__opsi button { min-height: 38px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface-card); font-size: .82rem; font-weight: 600; cursor: pointer; }
+.tema-tag__opsi button.is-on { border-color: var(--ugm-blue); color: #fff; background: var(--ugm-blue); }
+:root[data-theme="dark"] .tema-tag__opsi button.is-on { border-color: var(--gold); color: var(--ugm-blue); background: var(--gold); }
+@media (max-width: 760px) {
+  .tema-tag__row { grid-template-columns: 1fr; }
+  .tema-tag__buka, .tema-tag__row .sdg-tag__save { width: 100%; }
+  .tema-tag__grup { grid-template-columns: 1fr; }
+  .tema-tag__pilar { margin-top: 0; }
+  .tema-tag__opsi button { min-height: 44px; }
+}
