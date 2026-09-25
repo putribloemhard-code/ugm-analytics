@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 
-import { accreditationAdminAction, accreditationAdminUsers, accreditationMe, accreditationProfile, downloadAccreditationHistory, getRefreshStatus, simpanBlob, startRefresh, type AdminOverview, type ProfileResult, type RefreshStatus } from './lib/api';
+import { accreditationAdminAction, accreditationAdminUsers, accreditationMe, accreditationProfile, daftarPengajuanReset, downloadAccreditationHistory, getRefreshStatus, putuskanReset, simpanBlob, startRefresh, type AdminOverview, type PengajuanReset, type ProfileResult, type RefreshStatus } from './lib/api';
 import { Notice, PageHeader, ProgressLine, StatCard } from './ui';
 
 /** Gerbang halaman terproteksi: alihkan ke /akreditasi bila belum login. */
@@ -49,18 +49,18 @@ export function ProfilePage() {
     <section className="progress-overview">
       <StatCard label="Dokumen digenerate" value={stats.dokumen_digenerate} note="laporan Word" />
       <StatCard label="Dokumen diupload" value={stats.dokumen_diupload} note="file pendukung" />
-      <StatCard label="Pekerjaan berjalan" value={ongoing.length} note="prodi × dokumen" />
+      <StatCard label="Pekerjaan berjalan" value={ongoing.length} note="laporan yang Anda isi" />
       <StatCard label="Riwayat tersimpan" value={riwayat.total} note={`ditampilkan maks. ${riwayat.batas}`} />
     </section>
     <section className="section">
-      <div className="section-title-row"><div><p className="section-kicker">Sedang dikerjakan</p><h2>Prodi & dokumen yang Anda konfirmasi</h2></div>{identitas.is_admin && <span className="status-pill">Admin</span>}</div>
+      <div className="section-title-row"><div><p className="section-kicker">Sedang dikerjakan</p><h2>Laporan yang Anda isi</h2></div>{identitas.is_admin && <span className="status-pill">Admin</span>}</div>
       {ongoing.length === 0
-        ? <Notice type="info">Belum ada pekerjaan. Item yang Anda konfirmasi (klik Simpan) di halaman Akreditasi akan muncul di sini.</Notice>
-        : <div className="ongoing-list">{ongoing.map(k => <article className="ongoing-card" key={`${k.prodi_id}-${k.dokumen}`}>
-          <div className="ongoing-card__head"><b>{k.nama_prodi}</b><span className="status-pill">{k.dokumen}</span></div>
+        ? <Notice type="info">Belum ada pekerjaan. Laporan yang item-nya Anda simpan di halaman Akreditasi akan muncul di sini.</Notice>
+        : <div className="ongoing-list">{ongoing.map(k => <article className="ongoing-card" key={k.laporan_id}>
+          <div className="ongoing-card__head"><b>{k.nama_prodi}</b><span className="status-pill">{k.nama_laporan}</span></div>
           <p className="section-note">{k.nama_fakultas ?? 'Prodi tidak terhubung ke fakultas.'}</p>
-          <ProgressLine value={k.lengkap} total={k.total} percent={k.persen} note={`${k.item_milik_user} item dikonfirmasi oleh Anda`} />
-          <Link className="button" to={`/akreditasi?prodi=${encodeURIComponent(k.prodi_id)}&dokumen=${k.dokumen}`}>Lanjutkan</Link>
+          <ProgressLine value={k.lengkap} total={k.total} percent={k.persen} note={`${k.item_milik_user} item disimpan oleh Anda`} />
+          <Link className="button" to={`/akreditasi?prodi=${encodeURIComponent(k.prodi_id)}&dokumen=${k.dokumen}&laporan=${k.laporan_id}`}>Lanjutkan</Link>
         </article>)}</div>}
     </section>
     <section className="section">
@@ -124,6 +124,45 @@ function UpdateDataPanel() {
   </section>;
 }
 
+const STATUS_RESET: Record<PengajuanReset['status'], string> = { menunggu: 'Menunggu', disetujui: 'Disetujui', ditolak: 'Ditolak', gugur: 'Gugur (PIN sudah diganti)' };
+
+/** Pengajuan reset PIN prodi: admin melihat siapa yang mengajukan lalu menyetujui / menolak. */
+function ResetPasswordPanel() {
+  const [data, setData] = useState<PengajuanReset[] | null>(null);
+  const [pesan, setPesan] = useState<{ type: 'info' | 'error'; text: string } | null>(null);
+  const [sibuk, setSibuk] = useState<number | null>(null);
+  const muat = () => { daftarPengajuanReset().then(r => setData(r.pengajuan)).catch(e => setPesan({ type: 'error', text: e instanceof Error ? e.message : 'Pengajuan belum dapat dimuat.' })); };
+  useEffect(muat, []);
+  async function putuskan(id: number, setujui: boolean) {
+    setSibuk(id); setPesan(null);
+    try { const r = await putuskanReset(id, setujui); setPesan({ type: 'info', text: r.message }); muat(); }
+    catch (e) { setPesan({ type: 'error', text: e instanceof Error ? e.message : 'Keputusan gagal disimpan.' }); }
+    finally { setSibuk(null); }
+  }
+  const menunggu = (data ?? []).filter(r => r.status === 'menunggu');
+  return <section className="section">
+    <div className="section-title-row"><div><p className="section-kicker">PIN prodi</p><h2>Pengajuan reset PIN</h2></div>{menunggu.length > 0 && <span className="status-pill">{menunggu.length} menunggu</span>}</div>
+    <p className="section-note">Staf yang lupa PIN prodi mengajukan PIN baru di halaman Akreditasi. Setelah disetujui, PIN prodi diganti dan semua staf harus memakai PIN baru.</p>
+    {pesan && <Notice type={pesan.type}>{pesan.text}</Notice>}
+    {!data ? <div className="loading" role="status">Memuat pengajuan…</div>
+      : data.length === 0 ? <p className="section-note">Belum ada pengajuan.</p>
+        : <div className="data-table-wrap"><table className="data-table"><caption className="sr-only">Pengajuan reset PIN prodi</caption>
+          <thead><tr><th scope="col">Program studi</th><th scope="col">Diajukan oleh</th><th scope="col">Waktu</th><th scope="col">Alasan</th><th scope="col">Status</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
+          <tbody>{data.map(r => <tr key={r.id}>
+            <td>{r.nama_prodi ?? r.prodi_id}{r.fakultas && <small className="upload-summary">{r.fakultas}</small>}</td>
+            <td>{r.nama_pengaju ?? '-'}<small className="upload-summary">{r.diajukan_oleh}</small></td>
+            <td>{waktuLokal(r.created_at)}</td>
+            <td>{r.alasan ?? '-'}</td>
+            <td>{STATUS_RESET[r.status]}{r.diputus_oleh && <small className="upload-summary">oleh {r.diputus_oleh}, {waktuLokal(r.diputus_at)}</small>}</td>
+            <td>{r.status === 'menunggu' && <div className="admin-card__actions">
+              <button className="button" type="button" disabled={sibuk === r.id} onClick={() => putuskan(r.id, true)}>Setujui</button>
+              <button className="button button--danger" type="button" disabled={sibuk === r.id} onClick={() => putuskan(r.id, false)}>Tolak</button>
+            </div>}</td>
+          </tr>)}</tbody>
+        </table></div>}
+  </section>;
+}
+
 export function AdminPage() {
   const { loading, user } = useRequireUser();
   const [data, setData] = useState<AdminOverview | null>(null);
@@ -156,6 +195,7 @@ export function AdminPage() {
       <StatCard label="Admin" value={data.summary.admin} note="termasuk Anda" />
       <StatCard label="Diblokir" value={data.summary.diblokir} note="tidak bisa login" />
     </section>
+    <ResetPasswordPanel />
     <UpdateDataPanel />
     <section className="section">
       <div className="section-title-row"><div><p className="section-kicker">Semua pengguna</p><h2>Daftar akun</h2></div></div>

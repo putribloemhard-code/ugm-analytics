@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy import create_engine, text
 
 from app.services.accreditation_account import AccreditationAccountService, AksiDitolak
+from app.services.accreditation_laporan import ensure_schema as ensure_laporan
 
 DDL = [
     """
@@ -128,6 +129,8 @@ def engine():
             "INSERT INTO akreditasi_upload_file (id, prodi_id, nama_file, path_lokal, status, diupload_oleh, uploaded_at) "
             "VALUES (1, 'mei', 'a.pdf', 'D:/x/mei/a.pdf', 'belum_diekstrak', :m, '2026-09-16 11:51:49')"
         ), {"m": MHS["email"]})
+    # Skema laporan + migrasi: data lama mahasiswa masuk laporan "LED 2026".
+    ensure_laporan(eng)
     return eng
 
 
@@ -149,6 +152,7 @@ def test_profile_menampilkan_pekerjaan_berjalan_dan_riwayat(engine):
     assert kerja["dokumen"] == "LED"          # item led_b1_sejarah tergolong dokumen LED
     assert kerja["nama_fakultas"] == "Fakultas MIPA"
     assert kerja["item_milik_user"] == 1
+    assert kerja["tahun"] == 2026 and kerja["nama_laporan"] == "LED 2026" and kerja["laporan_id"] > 0
     assert kerja["total"] > 0 and 0 <= kerja["persen"] <= 100
     assert profil["riwayat"]["total"] == 1
     assert profil["riwayat"]["rows"][0]["nama_prodi"] == "Magister Elektronika dan Instrumentasi"

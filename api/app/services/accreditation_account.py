@@ -88,59 +88,57 @@ class AccreditationAccountService:
         }
 
     def _ongoing(self, email: str) -> list[dict[str, Any]]:
-        """(prodi, LED/LKPS) di mana user ini sudah mengonfirmasi >=1 item.
+        """Laporan (prodi + LED/LKPS + tahun) di mana user ini sudah mengisi >=1 item.
 
-        Kelengkapan dihitung persis seperti progress bar /akreditasi: item yang terisi oleh
-        siapa pun di prodi itu, bukan hanya oleh user ini (lihat page_profil.py).
+        Kelengkapan dihitung persis seperti progress bar /akreditasi: item laporan itu yang terisi
+        oleh siapa pun (staf satu prodi mengerjakan laporan yang sama), ditambah data live.
         """
         registry = load_accreditation_module("registry_kebutuhan_data.py")
         with self.engine.connect() as conn:
             milik = conn.execute(text(
-                "SELECT DISTINCT prodi_id, item_id FROM akreditasi_data_manual WHERE diisi_oleh = :e"
+                "SELECT laporan_id, COUNT(DISTINCT item_id) AS n FROM akreditasi_data_manual "
+                "WHERE diisi_oleh = :e AND laporan_id IS NOT NULL GROUP BY laporan_id"
             ), {"e": email}).all()
             if not milik:
                 return []
-            kombinasi: dict[tuple[str, str], int] = {}
-            for prodi_id, item_id in milik:
-                item = registry.KEBUTUHAN_DATA.get(item_id)
-                if item:
-                    kunci = (prodi_id, registry.dokumen_dari_item(item))
-                    kombinasi[kunci] = kombinasi.get(kunci, 0) + 1
-            prodi_ids = sorted({prodi for prodi, _ in kombinasi})
-            params = {f"p{i}": value for i, value in enumerate(prodi_ids)}
-            placeholders = ", ".join(f":p{i}" for i in range(len(prodi_ids)))
-            terisi = conn.execute(text(
-                f"SELECT DISTINCT prodi_id, item_id FROM akreditasi_data_manual "
-                f"WHERE prodi_id IN ({placeholders})"
-            ), params).all()
-            # Data live (pipeline Fase 2) ikut dihitung lengkap, sama dengan ruang kerja.
-            live_ids = {prodi: set(sumber.data_live(conn, prodi)["items"]) for prodi in prodi_ids}
-            info = {
-                row["slug"]: row for row in conn.execute(text(
-                    f"SELECT p.slug, p.nama AS nama_prodi, f.nama AS nama_fakultas "
-                    f"FROM akreditasi_prodi p LEFT JOIN akreditasi_fakultas f ON f.id = p.fakultas_id "
-                    f"WHERE p.slug IN ({placeholders})"
+            params = {f"l{i}": int(lap) for i, (lap, _) in enumerate(milik)}
+            placeholders = ", ".join(f":{k}" for k in params)
+            laporan = {
+                int(row["id"]): row for row in conn.execute(text(
+                    f"SELECT l.id, l.prodi_id, l.dokumen, l.tahun, l.nama, p.nama AS nama_prodi, f.nama AS nama_fakultas "
+                    f"FROM akreditasi_laporan l LEFT JOIN akreditasi_prodi p ON p.slug = l.prodi_id "
+                    f"LEFT JOIN akreditasi_fakultas f ON f.id = p.fakultas_id WHERE l.id IN ({placeholders})"
                 ), params).mappings()
             }
+            terisi = conn.execute(text(
+                f"SELECT DISTINCT laporan_id, item_id FROM akreditasi_data_manual WHERE laporan_id IN ({placeholders})"
+            ), params).all()
+            # Data live (pipeline Fase 2) ikut dihitung lengkap, sama dengan ruang kerja.
+            live_ids = {prodi: set(sumber.data_live(conn, prodi)["items"])
+                        for prodi in {row["prodi_id"] for row in laporan.values()}}
 
         hasil = []
-        for (prodi_id, dokumen), n_milik in sorted(kombinasi.items()):
-            item_ids = [k for k, v in registry.KEBUTUHAN_DATA.items()
-                        if registry.dokumen_dari_item(v) == dokumen]
-            terisi_ids = {item_id for prodi, item_id in terisi if prodi == prodi_id}
-            ringkasan = sumber.ringkasan(item_ids, terisi_ids, live_ids.get(prodi_id, set()))
-            baris = info.get(prodi_id)
+        for lap_id, n_milik in milik:
+            row = laporan.get(int(lap_id))
+            if not row:
+                continue
+            item_ids = [k for k, v in registry.KEBUTUHAN_DATA.items() if registry.dokumen_dari_item(v) == row["dokumen"]]
+            terisi_ids = {item_id for lap, item_id in terisi if int(lap) == int(lap_id)}
+            ringkasan = sumber.ringkasan(item_ids, terisi_ids, live_ids.get(row["prodi_id"], set()))
             hasil.append({
-                "prodi_id": prodi_id,
-                "nama_prodi": (baris["nama_prodi"] if baris else prodi_id) or prodi_id,
-                "nama_fakultas": baris["nama_fakultas"] if baris else None,
-                "dokumen": dokumen,
-                "item_milik_user": n_milik,
+                "laporan_id": int(lap_id),
+                "prodi_id": row["prodi_id"],
+                "nama_prodi": row["nama_prodi"] or row["prodi_id"],
+                "nama_fakultas": row["nama_fakultas"],
+                "dokumen": row["dokumen"],
+                "tahun": int(row["tahun"]),
+                "nama_laporan": row["nama"] or f"{row['dokumen']} {row['tahun']}",
+                "item_milik_user": int(n_milik),
                 "lengkap": int(ringkasan["lengkap"]),
                 "total": int(ringkasan["total"]),
                 "persen": _pct(ringkasan),
             })
-        return hasil
+        return sorted(hasil, key=lambda h: (h["nama_prodi"], h["dokumen"], -h["tahun"]))
 
     def _riwayat(self, email: str, batas: int = 50) -> dict[str, Any]:
         with self.engine.connect() as conn:

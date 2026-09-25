@@ -22,7 +22,8 @@ class UploadError(ValueError):
     pass
 
 
-def save_upload(engine: Engine, root: Path, prodi_id: str, filename: str, content_type: str | None, data: bytes, user_email: str) -> dict[str, Any]:
+def save_upload(engine: Engine, root: Path, laporan: dict[str, Any], filename: str, content_type: str | None, data: bytes, user_email: str) -> dict[str, Any]:
+    prodi_id = str(laporan["prodi_id"])
     if not prodi_id or len(prodi_id) > 64 or "/" in prodi_id or "\\" in prodi_id or ".." in prodi_id:
         raise UploadError("Program studi tidak valid.")
     if len(data) > MAX_UPLOAD_BYTES:
@@ -44,9 +45,9 @@ def save_upload(engine: Engine, root: Path, prodi_id: str, filename: str, conten
         with engine.begin() as conn:
             conn.execute(text("""
                 INSERT INTO akreditasi_upload_file
-                  (prodi_id, nama_file, path_lokal, tipe_file, ukuran_bytes, status, diupload_oleh, uploaded_at)
-                VALUES (:prodi, :name, :path, :type, :size, 'belum_diekstrak', :user, :now)
-            """), {"prodi": prodi_id, "name": original, "path": str(stored), "type": file_type, "size": len(data), "user": user_email, "now": now})
+                  (prodi_id, laporan_id, nama_file, path_lokal, tipe_file, ukuran_bytes, status, diupload_oleh, uploaded_at)
+                VALUES (:prodi, :lap, :name, :path, :type, :size, 'belum_diekstrak', :user, :now)
+            """), {"prodi": prodi_id, "lap": int(laporan["id"]), "name": original, "path": str(stored), "type": file_type, "size": len(data), "user": user_email, "now": now})
             # SELECT, bukan RETURNING (tidak dikenal MySQL); path_lokal memuat stempel waktu mikrodetik sehingga unik.
             row = conn.execute(text("""
                 SELECT id, prodi_id, nama_file, tipe_file, ukuran_bytes, status, uploaded_at, diekstrak_at

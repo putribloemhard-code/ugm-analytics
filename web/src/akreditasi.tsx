@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
-  accreditationUpload, addAccreditationProgram, generateAccreditationDocument, getAccreditationWorkspace,
-  saveAccreditationItem, simpanBlob, startAccreditationExtraction,
-  type AccreditationResult, type AuthUser, type Dokumen, type ItemRow, type PratinjauEkstraksi, type Workspace, type WorkspaceItem, type WorkspaceUpload,
+  accreditationUpload, addAccreditationProgram, ajukanResetPin, buatLaporan, buatPinProdi, bukaProdi, downloadLaporanWord, hapusLaporan,
+  generateAccreditationDocument, getAccreditationWorkspace, getDaftarLaporan, saveAccreditationItem, simpanBlob, startAccreditationExtraction,
+  type AccreditationResult, type AuthUser, type DaftarLaporan, type Dokumen, type ItemRow, type RiwayatEkstraksi, type Workspace, type WorkspaceItem, type WorkspaceUpload,
 } from './lib/api';
 import { Notice, PageHeader, ProgressLine, StatCard } from './ui';
 
-/* Ruang kerja akreditasi: pengganti dashboard Streamlit (dashboard_akreditasi.py / page_akreditasi.py).
-   Alur sama: Lingkup -> Fakultas & Prodi -> Dokumen (LED/LKPS) -> Upload & ekstraksi -> isi item -> Generate Word. */
+/* Ruang kerja akreditasi. Alur: Lingkup -> Fakultas & Prodi -> Dokumen (LED/LKPS) -> pilih laporan (tahun)
+   dari riwayat atau buat baru, dibuka dengan PIN prodi -> Upload & ekstraksi -> isi item -> Generate Word.
+   Staf satu prodi mengerjakan laporan yang sama; PIN prodi diminta lagi setiap login. */
 
 const TAMBAH_PRODI = '__tambah__';
 const JENJANG = ['Sarjana', 'Magister', 'Doktor', 'Profesi', 'Spesialis'];
@@ -16,13 +17,32 @@ const MAX_UPLOAD_MB = 25;
 const STATE_LABEL: Record<WorkspaceItem['state'], string> = {
   otomatis: 'Tersedia otomatis', live: 'Data live', terisi: 'Terisi', kosong: 'Perlu input', belum_tersedia: 'Belum tersedia',
 };
-const STATUS_PRATINJAU: Record<PratinjauEkstraksi['status'], { label: string; hint: string }> = {
-  dipakai: { label: 'Siap dicek', hint: 'Mengisi sel kosong; tersimpan setelah Anda klik Simpan di item.' },
-  bentrok: { label: 'Bentrok', hint: 'File berbeda memberi nilai berbeda; pilih sendiri di item.' },
-  tidak_menimpa: { label: 'Tidak menimpa', hint: 'Sel ini sudah berisi isian tim; nilai AI tidak dipakai.' },
-  kolom_lain: { label: 'Di luar kolom', hint: 'Kolom ini tidak dibutuhkan item; diabaikan saat disimpan.' },
+const STATUS_EKSTRAKSI: Record<RiwayatEkstraksi['status'], { label: string; hint: string }> = {
+  ditambahkan: { label: 'Ditambahkan', hint: 'Masuk ke tabel data: mengisi kolom kosong atau menjadi baris baru.' },
+  sudah_ada: { label: 'Sudah ada', hint: 'Nilai yang sama sudah ada di tabel data; tidak ditambahkan dua kali.' },
+  tidak_menimpa: { label: 'Tidak menimpa', hint: 'Kolom ini sudah berisi nilai lain; isian yang ada dipertahankan.' },
+  kolom_lain: { label: 'Di luar kolom', hint: 'Kolom ini tidak dibutuhkan item; tidak dipakai.' },
 };
-const PRATINJAU_PER_HALAMAN = 10;
+const RIWAYAT_PER_HALAMAN = 10;
+// PIN prodi: angka saja, 6-12 digit (dicek ulang di server).
+const PIN_MIN = 6;
+const PIN_MAX = 12;
+const pinValid = (pin: string) => new RegExp(`^[0-9]{${PIN_MIN},${PIN_MAX}}$`).test(pin);
+const hanyaAngka = (v: string) => v.replace(/[^0-9]/g, '').slice(0, PIN_MAX);
+
+/** Kolom PIN: tersamar, keyboard angka di ponsel, karakter selain angka dibuang saat diketik. */
+function KolomPin({ id, label, value, onChange, baru }: { id: string; label: string; value: string; onChange: (v: string) => void; baru?: boolean }) {
+  return <div className="field"><label htmlFor={id}>{label}</label>
+    <input id={id} type="password" inputMode="numeric" autoComplete={baru ? 'new-password' : 'current-password'} maxLength={PIN_MAX}
+      value={value} onChange={e => onChange(hanyaAngka(e.target.value))} /></div>;
+}
+
+/** Alasan tombol simpan PIN belum aktif, supaya tidak terasa "tombolnya tidak berfungsi". */
+function syaratPin(pin: string, ulang: string): string | null {
+  if (!pinValid(pin)) return `PIN harus ${PIN_MIN}–${PIN_MAX} angka (sekarang ${pin.length} angka).`;
+  if (ulang !== pin) return ulang ? 'Kedua PIN belum sama.' : 'Ketik ulang PIN untuk konfirmasi.';
+  return null;
+}
 // Narasi hasil AI bisa ratusan kata; di tabel cukup awalnya, sisanya dibuka per baris.
 const NILAI_RINGKAS = 180;
 const UPLOAD_LABEL: Record<WorkspaceUpload['status'], string> = {
@@ -56,14 +76,18 @@ type Props = {
   onCatalogChange: () => Promise<AccreditationResult>;
   initialProdi: string;
   initialDokumen: Dokumen;
+  initialLaporan: number | null;
 };
 
-export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChange, initialProdi, initialDokumen }: Props) {
+export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChange, initialProdi, initialDokumen, initialLaporan }: Props) {
   const [lingkup, setLingkup] = useState<'prodi' | 'universitas'>('prodi');
   const awal = catalog.programs.find(p => String(p.slug) === initialProdi);
   const [fakultas, setFakultas] = useState(awal ? String(awal.fakultas_id) : '');
   const [prodi, setProdi] = useState(awal ? initialProdi : '');
   const [dokumen, setDokumen] = useState<Dokumen>(initialDokumen);
+  const [laporanId, setLaporanId] = useState<number | null>(awal ? initialLaporan : null);
+  // "Buka di LKPS" dari laporan LED: buka laporan LKPS tahun yang sama bila sudah ada.
+  const [tahunTarget, setTahunTarget] = useState<number | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -75,18 +99,18 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
   const yatim = catalog.programs.filter(p => !p.fakultas_id || String(p.fakultas_id) === '').length;
 
   const muat = useCallback(async (diam = false) => {
-    if (!prodi || prodi === TAMBAH_PRODI) { setWorkspace(null); return; }
+    if (!laporanId) { setWorkspace(null); return; }
     const id = ++permintaan.current;
     if (!diam) { setLoading(true); setError(''); }
     try {
-      const hasil = await getAccreditationWorkspace(prodi, dokumen);
+      const hasil = await getAccreditationWorkspace(laporanId);
       if (id === permintaan.current) setWorkspace(hasil);
     } catch (e) {
       if (id === permintaan.current) setError(pesan(e, 'Data akreditasi gagal dimuat.'));
     } finally {
       if (id === permintaan.current && !diam) setLoading(false);
     }
-  }, [prodi, dokumen]);
+  }, [laporanId]);
 
   useEffect(() => { muat(); }, [muat]);
 
@@ -102,11 +126,12 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
     setFakultas(nilai);
     const pertama = catalog.programs.find(p => String(p.fakultas_id) === nilai);
     setProdi(pertama ? String(pertama.slug) : TAMBAH_PRODI);
-    setGroupKey('');
+    setGroupKey(''); setLaporanId(null);
   }
 
   function bukaDiLkps(itemId: string, tabel: string) {
-    setDokumen('LKPS'); setGroupKey(bagianLkps(tabel)); setFokus(itemId);
+    setTahunTarget(workspace?.laporan.tahun ?? null);
+    setDokumen('LKPS'); setLaporanId(null); setGroupKey(bagianLkps(tabel)); setFokus(itemId);
   }
 
   const groups = workspace?.groups ?? [];
@@ -140,7 +165,7 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
       </div>
       <div className="field">
         <label htmlFor="ak-prodi">Program Studi (wajib)</label>
-        <select id="ak-prodi" value={prodi} disabled={!fakultas || lingkup !== 'prodi'} onChange={e => { setProdi(e.target.value); setGroupKey(''); }}>
+        <select id="ak-prodi" value={prodi} disabled={!fakultas || lingkup !== 'prodi'} onChange={e => { setProdi(e.target.value); setGroupKey(''); setLaporanId(null); }}>
           {!fakultas && <option value="">Pilih fakultas dulu</option>}
           {prodiDariFakultas.map(p => <option key={String(p.id)} value={String(p.slug)}>{labelProdi(p)}</option>)}
           {fakultas && <option value={TAMBAH_PRODI}>+ Tambah prodi baru</option>}
@@ -148,7 +173,7 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
       </div>
       <div className="field">
         <label htmlFor="ak-dokumen">Dokumen</label>
-        <select id="ak-dokumen" value={dokumen} disabled={lingkup !== 'prodi'} onChange={e => { setDokumen(e.target.value as Dokumen); setGroupKey(''); }}>
+        <select id="ak-dokumen" value={dokumen} disabled={lingkup !== 'prodi'} onChange={e => { setDokumen(e.target.value as Dokumen); setGroupKey(''); setLaporanId(null); setTahunTarget(null); }}>
           <option value="LED">📘 LED — Laporan Evaluasi Diri</option>
           <option value="LKPS">📗 LKPS — Laporan Kinerja Program Studi</option>
         </select>
@@ -162,15 +187,21 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
             onAdded={async slug => { await onCatalogChange(); setProdi(slug); }} onCancel={() => { const p = prodiDariFakultas[0]; setProdi(p ? String(p.slug) : TAMBAH_PRODI); }} />
         : !prodi
           ? <Notice type="info">Pilih Fakultas dan Program Studi dulu untuk melihat kelengkapan data.</Notice>
-          : error
-            ? <Notice type="error">{error}</Notice>
-            : !workspace || workspace.prodi.slug !== prodi || workspace.dokumen !== dokumen
-              ? <div className="loading" role="status">Memuat kelengkapan data…</div>
-              : <>
+          : !laporanId
+            ? <PilihLaporan prodi={prodi} dokumen={dokumen} tahunTarget={tahunTarget}
+                onPilih={id => { setLaporanId(id); setTahunTarget(null); }} />
+            : error
+              ? <div className="laporan-galat"><Notice type="error">{error}</Notice><button className="button secondary" onClick={() => { setError(''); setLaporanId(null); }}>Kembali ke daftar laporan</button></div>
+              : !workspace || workspace.laporan.id !== laporanId
+                ? <div className="loading" role="status">Memuat kelengkapan data…</div>
+                : <>
+                <div className="laporan-bar">
+                  <div><p className="section-kicker">Laporan yang sedang dikerjakan</p><h2>{workspace.laporan.nama}</h2><p className="section-note">{workspace.prodi.nama} · dikerjakan bersama staf prodi yang memegang PIN prodi.</p></div>
+                  <button className="button secondary" onClick={() => { setLaporanId(null); setWorkspace(null); }}>Ganti laporan</button>
+                </div>
                 <Ringkasan workspace={workspace} />
-                <UploadPanel workspace={workspace} prodi={prodi} dokumen={dokumen} onChange={() => muat(true)} />
-                <PratinjauPanel workspace={workspace} dokumen={dokumen} onBuka={(itemId, grup) => { setGroupKey(grup); setFokus(''); window.setTimeout(() => setFokus(itemId), 0); }}
-                  onGantiDokumen={() => { setDokumen(dokumen === 'LED' ? 'LKPS' : 'LED'); setGroupKey(''); }} />
+                <UploadPanel workspace={workspace} dokumen={dokumen} onChange={() => muat(true)} />
+                <RiwayatEkstraksiPanel workspace={workspace} onBuka={(itemId, grup) => { setGroupKey(grup); setFokus(''); window.setTimeout(() => setFokus(itemId), 0); }} />
                 <section className="section requirement-section">
                   <div className="section-title-row">
                     <div><p className="section-kicker">Kelengkapan Data {dokumen}</p><h2>{dokumen === 'LED' ? 'Narasi evaluatif per Kriteria' : 'Tabel data per Bagian'}</h2></div>
@@ -178,7 +209,7 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
                   </div>
                   <p className="section-note">{dokumen === 'LED'
                     ? 'Narasi evaluatif per Kriteria A–D (siklus PPEPP). Tiap Kriteria A/B/C1–C6 juga menampilkan tabel LKPS terkait sebagai bukti evaluasi.'
-                    : 'Tabel data mentah per Bagian 1–6. Isi tabel lalu klik Simpan — tersimpan langsung sebagai data resmi prodi ini.'}</p>
+                    : 'Tabel data mentah per Bagian 1–6. Isi tabel lalu klik Simpan — tersimpan langsung sebagai data resmi laporan ini.'}</p>
                   <div className="accreditation-tabs" role="tablist" aria-label={dokumen === 'LED' ? 'Kriteria' : 'Bagian'}>
                     {groups.map(g => {
                       const lengkap = g.items.filter(i => i.state === 'terisi' || i.state === 'otomatis').length;
@@ -188,7 +219,7 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
                     })}
                   </div>
                   {activeGroup && <div className="requirement-list" role="tabpanel">
-                    {activeGroup.items.map(item => <ItemCard key={item.id} item={item} prodi={prodi} fokus={fokus === item.id} onSaved={() => muat(true)} />)}
+                    {activeGroup.items.map(item => <ItemCard key={item.id} item={item} laporanId={workspace.laporan.id} fokus={fokus === item.id} onSaved={() => muat(true)} />)}
                     {activeGroup.cuplikan.length > 0 && <div className="cuplikan">
                       <h3>Tabel LKPS terkait</h3>
                       <p className="section-note">Diisi dan dilihat lengkap di dokumen LKPS — ditampilkan di sini sebagai cuplikan bukti evaluasi.</p>
@@ -200,7 +231,7 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
                     </div>}
                   </div>}
                 </section>
-                <GeneratePanel prodi={prodi} dokumen={dokumen} />
+                <GeneratePanel workspace={workspace} onChange={() => muat(true)} />
               </>}
   </div>;
 }
@@ -243,7 +274,7 @@ function AddProgram({ fakultasId, fakultasNama, onAdded, onCancel }: { fakultasI
   </section>;
 }
 
-function UploadPanel({ workspace, prodi, dokumen, onChange }: { workspace: Workspace; prodi: string; dokumen: Dokumen; onChange: () => void }) {
+function UploadPanel({ workspace, dokumen, onChange }: { workspace: Workspace; dokumen: Dokumen; onChange: () => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [pesanUpload, setPesanUpload] = useState<{ type: 'info' | 'error'; text: string }[]>([]);
   const [sibuk, setSibuk] = useState(false);
@@ -256,7 +287,7 @@ function UploadPanel({ workspace, prodi, dokumen, onChange }: { workspace: Works
     const hasil: { type: 'info' | 'error'; text: string }[] = [];
     for (const f of files) {
       if (f.size > MAX_UPLOAD_MB * 1024 * 1024) { hasil.push({ type: 'error', text: `${f.name}: lebih dari ${MAX_UPLOAD_MB} MB.` }); continue; }
-      try { await accreditationUpload(prodi, f); hasil.push({ type: 'info', text: `${f.name} tersimpan.` }); }
+      try { await accreditationUpload(workspace.laporan.id, f); hasil.push({ type: 'info', text: `${f.name} tersimpan.` }); }
       catch (e) { hasil.push({ type: 'error', text: `${f.name}: ${pesan(e, 'upload gagal')}` }); }
     }
     setPesanUpload(hasil); setFiles([]); if (input.current) input.current.value = '';
@@ -266,8 +297,8 @@ function UploadPanel({ workspace, prodi, dokumen, onChange }: { workspace: Works
   async function ekstrak() {
     setSibuk(true); setPesanUpload([]);
     try {
-      const { dimulai } = await startAccreditationExtraction(prodi, dokumen);
-      setPesanUpload([{ type: 'info', text: dimulai ? `Ekstraksi ${dimulai} file dimulai (mode ${dokumen}). Proses berjalan di latar — halaman ini diperbarui otomatis.` : 'Tidak ada file yang perlu diekstrak.' }]);
+      const { dimulai } = await startAccreditationExtraction(workspace.laporan.id);
+      setPesanUpload([{ type: 'info', text: dimulai ? `Ekstraksi ${dimulai} file dimulai (mode ${dokumen}). Proses berjalan di latar; hasilnya langsung masuk ke tabel data dan halaman ini diperbarui otomatis.` : 'Tidak ada file yang perlu diekstrak.' }]);
     } catch (e) { setPesanUpload([{ type: 'error', text: pesan(e, 'Ekstraksi gagal dimulai.') }]); }
     setSibuk(false); onChange();
   }
@@ -276,7 +307,7 @@ function UploadPanel({ workspace, prodi, dokumen, onChange }: { workspace: Works
     <div>
       <p className="section-kicker">Dokumen pendukung</p>
       <h2>Upload & ekstraksi file</h2>
-      <p>PDF, DOCX, atau XLSX — maks. {MAX_UPLOAD_MB} MB per file. Setelah diupload, klik <b>Ekstrak data</b> supaya AI mencoba mengambil nilai yang relevan. Hasilnya hanya <b>preview</b> yang perlu Anda cek dan konfirmasi di tiap item, bukan langsung data resmi.</p>
+      <p>PDF, DOCX, atau XLSX — maks. {MAX_UPLOAD_MB} MB per file. Setelah diupload, klik <b>Ekstrak data</b>: nilai yang ditemukan AI <b>langsung masuk ke tabel data</b> laporan ini. Isian yang sudah ada tidak pernah ditimpa: kolom kosong diisi, baris baru ditambahkan, dan setiap file baru menambah detail. Periksa hasilnya di riwayat ekstraksi di bawah.</p>
     </div>
     <div className="upload-controls">
       <label className="sr-only" htmlFor="ak-upload">Pilih file pendukung</label>
@@ -285,14 +316,14 @@ function UploadPanel({ workspace, prodi, dokumen, onChange }: { workspace: Works
     </div>
     {pesanUpload.map((p, i) => <Notice key={i} type={p.type}>{p.text}</Notice>)}
     {workspace.uploads.length === 0
-      ? <p className="section-note">Belum ada file yang diupload untuk prodi ini.</p>
+      ? <p className="section-note">Belum ada file yang diupload untuk laporan ini.</p>
       : <div className="data-table-wrap"><table className="data-table">
-        <caption className="sr-only">File pendukung yang sudah diupload untuk prodi ini</caption>
+        <caption className="sr-only">File pendukung yang sudah diupload untuk laporan ini</caption>
         <thead><tr><th scope="col">Nama file</th><th scope="col">Tipe</th><th scope="col">Ukuran</th><th scope="col">Status</th><th scope="col">Diupload</th></tr></thead>
         <tbody>{workspace.uploads.map(u => <tr key={u.id}>
-          <td>{u.nama_file}{u.ringkasan && <small className="upload-summary">{u.ringkasan.error
+          <td>{u.nama_file}{u.diupload_oleh && <small className="upload-summary">oleh {u.diupload_oleh}</small>}{u.ringkasan && <small className="upload-summary">{u.ringkasan.error
             ? `Kendala: ${u.ringkasan.error}`
-            : `${u.ringkasan.n_item_ditemukan ?? 0} item ditemukan, ${u.ringkasan.n_kolom_terisi ?? 0} kolom terisi`}</small>}</td>
+            : `${u.ringkasan.n_item_ditemukan ?? 0} item ditemukan${u.ringkasan.diterapkan ? `, ${u.ringkasan.diterapkan.ditambahkan} nilai masuk tabel` : ''}`}</small>}</td>
           <td>{u.tipe_file.toUpperCase()}</td>
           <td>{(u.ukuran_bytes / 1024).toFixed(1)} KB</td>
           <td><span className={`upload-status ${u.status}`}>{UPLOAD_LABEL[u.status]}{u.progres && u.progres.total ? ` — batch ${u.progres.batch}/${u.progres.total}` : ''}</span></td>
@@ -309,64 +340,56 @@ function UploadPanel({ workspace, prodi, dokumen, onChange }: { workspace: Works
   </section>;
 }
 
-/** Semua nilai hasil ekstraksi AI yang belum direview untuk dokumen aktif, dalam satu tabel. */
-function PratinjauPanel({ workspace, dokumen, onBuka, onGantiDokumen }: { workspace: Workspace; dokumen: Dokumen; onBuka: (itemId: string, grup: string) => void; onGantiDokumen: () => void }) {
-  const semua = workspace.ekstraksi.pratinjau;
-  const [saring, setSaring] = useState<PratinjauEkstraksi['status'] | ''>('');
+/** Semua nilai hasil ekstraksi AI laporan ini dan apa yang terjadi saat diterapkan ke tabel data. */
+function RiwayatEkstraksiPanel({ workspace, onBuka }: { workspace: Workspace; onBuka: (itemId: string, grup: string) => void }) {
+  const semua = workspace.ekstraksi.riwayat;
+  const [saring, setSaring] = useState<RiwayatEkstraksi['status'] | ''>('');
   const [cari, setCari] = useState('');
   const [halaman, setHalaman] = useState(1);
   const q = cari.trim().toLowerCase();
   const tampil = semua.filter(r => (!saring || r.status === saring)
-    && (!q || `${r.item_nama} ${r.kolom} ${r.nilai}`.toLowerCase().includes(q)));
-  const jumlahHalaman = Math.max(1, Math.ceil(tampil.length / PRATINJAU_PER_HALAMAN));
+    && (!q || `${r.item_nama} ${r.kolom} ${r.nilai} ${r.nama_file}`.toLowerCase().includes(q)));
+  const jumlahHalaman = Math.max(1, Math.ceil(tampil.length / RIWAYAT_PER_HALAMAN));
   const hal = Math.min(halaman, jumlahHalaman);
-  const baris = tampil.slice((hal - 1) * PRATINJAU_PER_HALAMAN, hal * PRATINJAU_PER_HALAMAN);
-  const per = (st: PratinjauEkstraksi['status']) => semua.filter(r => r.status === st).length;
-  const nItem = new Set(semua.map(r => r.item_id)).size;
-  useEffect(() => { setHalaman(1); }, [saring, cari, dokumen]);
-
-  if (!semua.length) {
-    if (!workspace.ekstraksi.dokumen_lain) return null;
-    return <section className="section requirement-section ekstraksi-preview" aria-labelledby="ekstraksi-preview-title">
-      <p className="section-kicker">Hasil ekstraksi</p>
-      <h2 id="ekstraksi-preview-title">Pratinjau data hasil ekstraksi</h2>
-      <Notice type="info">Belum ada hasil ekstraksi untuk {dokumen}. Ada <b>{workspace.ekstraksi.dokumen_lain} nilai</b> hasil ekstraksi untuk dokumen {dokumen === 'LED' ? 'LKPS' : 'LED'}. <button className="link-button" onClick={onGantiDokumen}>Buka {dokumen === 'LED' ? 'LKPS' : 'LED'}</button></Notice>
-    </section>;
-  }
+  const baris = tampil.slice((hal - 1) * RIWAYAT_PER_HALAMAN, hal * RIWAYAT_PER_HALAMAN);
+  const per = (st: RiwayatEkstraksi['status']) => semua.filter(r => r.status === st).length;
+  const nFile = new Set(semua.map(r => r.nama_file)).size;
+  useEffect(() => { setHalaman(1); }, [saring, cari]);
+  if (!semua.length) return null;
   return <section className="section requirement-section ekstraksi-preview" aria-labelledby="ekstraksi-preview-title">
     <div className="section-title-row">
-      <div><p className="section-kicker">Hasil ekstraksi · belum direview</p><h2 id="ekstraksi-preview-title">Pratinjau data hasil ekstraksi</h2></div>
-      <span className="status-pill">{semua.length} nilai · {nItem} item</span>
+      <div><p className="section-kicker">Hasil ekstraksi</p><h2 id="ekstraksi-preview-title">Riwayat data hasil ekstraksi</h2></div>
+      <span className="status-pill">{per('ditambahkan')} nilai masuk tabel · {nFile} file</span>
     </div>
-    <p className="section-note">Nilai yang diambil AI dari file upload, belum menjadi data resmi. Cek nilainya di sini, lalu buka item untuk mengedit dan klik <b>Simpan</b>. Setelah disimpan, nilainya pindah dari daftar ini ke isian item.</p>
+    <p className="section-note">Setiap nilai yang ditemukan AI dan apa yang terjadi padanya. Nilai berstatus <b>Ditambahkan</b> sudah masuk tabel data (bisa diedit di item). Nilai yang sama atau yang bertentangan dengan isian yang ada tidak menimpa apa pun, tetapi tetap tercatat di sini.</p>
     <div className="ekstraksi-preview__tools">
       <div className="ekstraksi-preview__chips" role="group" aria-label="Saring status">
-        {([['', `Semua (${semua.length})`], ['dipakai', `Siap dicek (${per('dipakai')})`], ['bentrok', `Bentrok (${per('bentrok')})`], ['tidak_menimpa', `Tidak menimpa (${per('tidak_menimpa')})`], ['kolom_lain', `Di luar kolom (${per('kolom_lain')})`]] as const)
-          .filter(([k]) => !k || per(k as PratinjauEkstraksi['status']) > 0)
-          .map(([k, label]) => <button key={k} type="button" aria-pressed={saring === k} className={saring === k ? 'is-on' : ''} onClick={() => setSaring(k as PratinjauEkstraksi['status'] | '')}>{label}</button>)}
+        {([['', `Semua (${semua.length})`], ['ditambahkan', `Ditambahkan (${per('ditambahkan')})`], ['sudah_ada', `Sudah ada (${per('sudah_ada')})`], ['tidak_menimpa', `Tidak menimpa (${per('tidak_menimpa')})`], ['kolom_lain', `Di luar kolom (${per('kolom_lain')})`]] as const)
+          .filter(([k]) => !k || per(k as RiwayatEkstraksi['status']) > 0)
+          .map(([k, label]) => <button key={k} type="button" aria-pressed={saring === k} className={saring === k ? 'is-on' : ''} onClick={() => setSaring(k as RiwayatEkstraksi['status'] | '')}>{label}</button>)}
       </div>
       <div className="field">
-        <label htmlFor="ekstraksi-cari">Cari item, kolom, atau nilai</label>
+        <label htmlFor="ekstraksi-cari">Cari item, kolom, nilai, atau file</label>
         <input id="ekstraksi-cari" type="search" value={cari} maxLength={100} onChange={e => setCari(e.target.value)} />
       </div>
     </div>
     {baris.length === 0
       ? <p className="section-note">Tidak ada nilai yang cocok dengan saringan ini.</p>
       : <div className="data-table-wrap"><table className="data-table ekstraksi-preview__table">
-        <caption className="sr-only">Nilai hasil ekstraksi AI yang belum direview untuk {dokumen}</caption>
+        <caption className="sr-only">Riwayat nilai hasil ekstraksi AI laporan ini</caption>
         <thead><tr><th scope="col">Item</th><th scope="col">Kolom</th><th scope="col">Nilai hasil AI</th><th scope="col">Sumber</th><th scope="col">Status</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
         <tbody>{baris.map(r => <tr key={r.id}>
           <td data-label="Item">{r.item_nama}</td>
-          <td data-label="Kolom">{r.kolom}<small className="ekstraksi-preview__baris">baris {r.baris_ke}</small></td>
+          <td data-label="Kolom">{r.kolom}<small className="ekstraksi-preview__baris">baris {r.baris_ke} di file</small></td>
           <td data-label="Nilai hasil AI" className="ekstraksi-preview__nilai">{r.nilai.length > NILAI_RINGKAS
             ? <details><summary>{r.nilai.slice(0, NILAI_RINGKAS).trimEnd()}… <span className="ekstraksi-preview__lagi">Selengkapnya</span></summary><p>{r.nilai}</p></details>
             : r.nilai}</td>
           <td data-label="Sumber">{r.nama_file}{r.kutipan && <details><summary>Kutipan</summary><p>{r.kutipan}</p></details>}</td>
-          <td data-label="Status"><span className={`state-badge pratinjau-${r.status}`} title={STATUS_PRATINJAU[r.status].hint}>{STATUS_PRATINJAU[r.status].label}</span></td>
+          <td data-label="Status"><span className={`state-badge pratinjau-${r.status}`} title={STATUS_EKSTRAKSI[r.status].hint}>{STATUS_EKSTRAKSI[r.status].label}</span></td>
           <td><button type="button" className="link-button" onClick={() => onBuka(r.item_id, r.grup)}>Buka item<span className="sr-only"> {r.item_nama}</span></button></td>
         </tr>)}</tbody>
       </table></div>}
-    {tampil.length > PRATINJAU_PER_HALAMAN && <div className="table-pager">
+    {tampil.length > RIWAYAT_PER_HALAMAN && <div className="table-pager">
       <button type="button" className="link-button" disabled={hal <= 1} onClick={() => setHalaman(hal - 1)}>‹ Sebelumnya</button>
       <span className="table-pager__info" aria-live="polite">{tampil.length} nilai · halaman {hal} dari {jumlahHalaman}</span>
       <button type="button" className="link-button" disabled={hal >= jumlahHalaman} onClick={() => setHalaman(hal + 1)}>Berikutnya ›</button>
@@ -374,15 +397,28 @@ function PratinjauPanel({ workspace, dokumen, onBuka, onGantiDokumen }: { worksp
   </section>;
 }
 
-function DataLive({ live }: { live: NonNullable<WorkspaceItem['live']> }) {
-  return <div className="data-live">
-    <p className="data-live__title">Data live dari sumber resmi{live.fetched_at && <small> · diambil {waktu(live.fetched_at)}</small>}</p>
+/** Data live pipeline. Kalau item sudah diisi tim, isian tim yang dipakai di Word, jadi data live
+ *  hanya dilipat sebagai pembanding supaya sel kosongnya tidak terbaca seperti isian yang hilang. */
+function DataLive({ live, terisi }: { live: NonNullable<WorkspaceItem['live']>; terisi: boolean }) {
+  const tabel = <>
     <div className="data-table-wrap"><table className="data-table">
       <caption className="sr-only">Data live</caption>
       <thead><tr>{live.kolom.map(k => <th key={k} scope="col">{k}</th>)}</tr></thead>
-      <tbody>{live.rows.map((r, i) => <tr key={i}>{live.kolom.map(k => <td key={k}>{r[k] || <span className="data-live__kosong">tidak tersedia</span>}</td>)}</tr>)}</tbody>
+      <tbody>{live.rows.map((r, i) => <tr key={i}>{live.kolom.map(k => <td key={k}>{r[k] || <span className="data-live__kosong">tidak ditemukan di sumber</span>}</td>)}</tr>)}</tbody>
     </table></div>
-    <p className="field-hint">Sumber: {live.sumber.map((u, i) => <span key={u}>{i > 0 && ', '}<a className="table-link" href={u} target="_blank" rel="noopener noreferrer">{u.replace(/^https?:\/\//, '')}<span className="sr-only"> (buka di tab baru)</span></a></span>)}. Data ini dipakai di laporan Word selama item belum diisi tim; isi form di bawah untuk menggantinya.</p>
+    <p className="field-hint">Sumber: {live.sumber.map((u, i) => <span key={u}>{i > 0 && ', '}<a className="table-link" href={u} target="_blank" rel="noopener noreferrer">{u.replace(/^https?:\/\//, '')}<span className="sr-only"> (buka di tab baru)</span></a></span>)}.{' '}
+      {terisi ? 'Item ini sudah diisi tim, jadi laporan Word memakai isian tim di bawah, bukan data live ini.' : 'Data ini dipakai di laporan Word selama item belum diisi tim; isi form di bawah untuk menggantinya.'}</p>
+  </>;
+  const waktuAmbil = live.fetched_at && <small> · diambil {waktu(live.fetched_at)}</small>;
+  if (terisi) {
+    return <details className="data-live data-live--pendukung">
+      <summary>Bandingkan dengan data live dari sumber resmi{waktuAmbil}</summary>
+      {tabel}
+    </details>;
+  }
+  return <div className="data-live">
+    <p className="data-live__title">Data live dari sumber resmi{waktuAmbil}</p>
+    {tabel}
   </div>;
 }
 
@@ -405,12 +441,11 @@ function DataPendukung({ data, teks }: { data: NonNullable<WorkspaceItem['penduk
 
 function barisKosong(kolom: string[]): ItemRow { return Object.fromEntries(kolom.map(k => [k, ''])); }
 
-function ItemCard({ item, prodi, fokus, onSaved }: { item: WorkspaceItem; prodi: string; fokus: boolean; onSaved: () => void }) {
-  const sumber = item.draft?.rows ?? item.rows;
-  // Tanda tangan data server: kalau berubah (simpan / hasil ekstraksi baru), editor dimuat ulang
+function ItemCard({ item, laporanId, fokus, onSaved }: { item: WorkspaceItem; laporanId: number; fokus: boolean; onSaved: () => void }) {
+  // Tanda tangan data server: kalau berubah (simpan staf lain / hasil ekstraksi baru), editor dimuat ulang
   // -- kecuali user sedang mengedit, maka hanya diberi tahu supaya isiannya tidak hilang.
-  const tanda = useMemo(() => JSON.stringify([item.updated_at, item.rows, item.draft?.ekstraksi_ids ?? []]), [item]);
-  const [rows, setRows] = useState<ItemRow[]>(sumber);
+  const tanda = useMemo(() => JSON.stringify([item.updated_at, item.rows]), [item]);
+  const [rows, setRows] = useState<ItemRow[]>(item.rows);
   const [dirty, setDirty] = useState(false);
   const [basi, setBasi] = useState(false);
   const [open, setOpen] = useState(fokus);
@@ -422,13 +457,10 @@ function ItemCard({ item, prodi, fokus, onSaved }: { item: WorkspaceItem; prodi:
   useEffect(() => {
     if (tanda === tandaTerakhir.current) return;
     tandaTerakhir.current = tanda;
-    if (dirty) setBasi(true); else setRows(item.draft?.rows ?? item.rows);
+    if (dirty) setBasi(true); else setRows(item.rows);
   }, [tanda]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (fokus) { setOpen(true); el.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }, [fokus]);
-
-  const aiCells = new Map((item.draft?.ai_cells ?? []).map(c => [`${c.baris_ke}|${c.kolom}`, c]));
-  const konflik = new Set((item.draft?.conflicts ?? []).map(c => `${c.baris_ke}|${c.kolom}`));
 
   function ubah(i: number, kolom: string, nilai: string) {
     setRows(rs => rs.map((r, j) => j === i ? { ...r, [kolom]: nilai } : r)); setDirty(true); setStatus(null);
@@ -440,12 +472,12 @@ function ItemCard({ item, prodi, fokus, onSaved }: { item: WorkspaceItem; prodi:
   }
   function tambahBaris() { setRows(rs => [...rs, barisKosong(item.kolom)]); setDirty(true); }
   function hapusBaris(i: number) { setRows(rs => rs.length > 1 ? rs.filter((_, j) => j !== i) : [barisKosong(item.kolom)]); setDirty(true); }
-  function batal() { setRows(item.draft?.rows ?? item.rows); setDirty(false); setBasi(false); setStatus(null); }
+  function batal() { setRows(item.rows); setDirty(false); setBasi(false); setStatus(null); }
 
   async function simpan() {
     setSibuk(true); setStatus(null);
     try {
-      const hasil = await saveAccreditationItem(prodi, item.id, rows, item.draft?.ekstraksi_ids ?? []);
+      const hasil = await saveAccreditationItem(laporanId, item.id, rows);
       setDirty(false); setBasi(false);
       setStatus({ type: 'info', text: hasil.sel ? `Tersimpan (${hasil.baris} baris).` : 'Tersimpan — item ini sekarang kosong.' });
       onSaved();
@@ -453,12 +485,12 @@ function ItemCard({ item, prodi, fokus, onSaved }: { item: WorkspaceItem; prodi:
     finally { setSibuk(false); }
   }
 
-  const adaDraft = Boolean(item.draft);
+  const dariAi = Boolean(item.diisi_oleh?.startsWith('AI: '));
   return <article ref={el} className={`requirement-card state-${item.state}${open ? ' is-open' : ''}`}>
     <button className="requirement-card__head" aria-expanded={open} onClick={() => setOpen(o => !o)}>
       <span className={`state-badge ${item.state}`}>{STATE_LABEL[item.state]}</span>
       <span className="requirement-card__title">{item.nama}{item.tabel_lkps && <small> · Tabel {item.tabel_lkps}</small>}</span>
-      {adaDraft && <span className="state-badge ai">{item.narasi ? 'Draft AI' : 'Hasil ekstraksi AI'}</span>}
+      {dariAi && <span className="state-badge ai">Dari ekstraksi AI</span>}
       {dirty && <span className="state-badge dirty">Belum disimpan</span>}
       <span className="requirement-card__chevron" aria-hidden="true">{open ? '−' : '+'}</span>
     </button>
@@ -471,51 +503,35 @@ function ItemCard({ item, prodi, fokus, onSaved }: { item: WorkspaceItem; prodi:
       </dl>
       {item.kategori === 'akses_data' && item.catatan && <p className="field-hint"><b>Kenapa belum otomatis:</b> {item.catatan}</p>}
       {item.kategori === 'penyusunan' && <p className="field-hint">Item ini memang ditulis tim penyusun prodi (narasi/keputusan), bukan ditarik dari sistem.</p>}
-      {item.live && <DataLive live={item.live} />}
+      {item.live && <DataLive live={item.live} terisi={item.terisi} />}
       {item.pendukung && <DataPendukung data={item.pendukung} teks={item.sumber_tambahan} />}
       {!item.editable
         ? <Notice type="info">Belum ada pipeline/form untuk item ini. Sumber data seharusnya: <b>{item.sumber_data}</b>.</Notice>
         : <>
-          {item.narasi && <Notice type="info"><b>Narasi ini perlu disesuaikan tim penyusun dengan kondisi &amp; evaluasi terkini</b> sebelum digunakan — termasuk bila ada draft dari dokumen yang diupload. Ini soal kesegaran dan relevansi narasi, bukan akurasi kutipan.</Notice>}
-          {adaDraft && !item.narasi && <Notice type="warning"><b>Hasil ekstraksi AI — perlu diverifikasi.</b> Sel bertanda kuning diisi AI dari file yang diupload dan BELUM tersimpan sebagai data resmi. Cek kutipan sumbernya, edit bila perlu, lalu klik Simpan untuk mengonfirmasi.</Notice>}
-          {adaDraft && item.narasi && <Notice type="warning"><b>Draft AI dari dokumen yang diupload</b> — belum tersimpan sebagai data resmi. Baca dan sesuaikan isinya sebelum klik Simpan.</Notice>}
-          {basi && <Notice type="warning">Data item ini berubah di server (mis. hasil ekstraksi baru) saat Anda mengedit. Simpan untuk memakai isian Anda, atau <button className="link-button" onClick={batal}>muat versi terbaru</button>.</Notice>}
-          {item.draft?.conflicts.map(c => <Notice key={`${c.baris_ke}|${c.kolom}`} type="warning">
-            <b>{c.kolom}</b> (baris {c.baris_ke}): {c.opsi.length} nilai berbeda dari file berbeda — sengaja dikosongkan, pilih sendiri:
-            <span className="conflict-options">{c.opsi.map((o, i) => <button key={i} className="button secondary" title={o.kutipan ?? undefined} onClick={() => ubah(c.baris_ke - 1, c.kolom, o.nilai)}>“{o.nilai}” <small>dari {o.nama_file}</small></button>)}</span>
-          </Notice>)}
-          {item.draft?.skipped.map(s => <p key={`${s.baris_ke}|${s.kolom}`} className="field-hint">AI menemukan “{s.nilai}” untuk <b>{s.kolom}</b> (baris {s.baris_ke}, dari {s.nama_file}), tetapi kolom ini sudah berisi data manual — tidak ditimpa.</p>)}
+          {item.narasi && <Notice type="info"><b>Narasi ini perlu disesuaikan tim penyusun dengan kondisi &amp; evaluasi terkini</b> sebelum digunakan — termasuk bila isinya berasal dari ekstraksi dokumen yang diupload.</Notice>}
+          {dariAi && <p className="field-hint">Sebagian isian item ini berasal dari ekstraksi AI ({item.diisi_oleh?.slice(4)}). Periksa lalu klik Simpan untuk mengonfirmasi atas nama Anda.</p>}
+          {basi && <Notice type="warning">Data item ini berubah di server (mis. disimpan staf lain atau hasil ekstraksi baru) saat Anda mengedit. Simpan untuk memakai isian Anda, atau <button className="link-button" onClick={batal}>muat versi terbaru</button>.</Notice>}
 
           {item.tipe === 'narasi'
-            ? <div className="narasi-editor">{item.kolom.map(k => {
-              const ai = aiCells.get(`1|${k}`);
-              return <div className={`field${ai ? ' is-ai' : ''}`} key={k}>
+            ? <div className="narasi-editor">{item.kolom.map(k => <div className="field" key={k}>
                 <label htmlFor={`${item.id}-${k}`}>{k}</label>
                 <textarea id={`${item.id}-${k}`} rows={3} value={rows[0]?.[k] ?? ''} onChange={e => ubah(0, k, e.target.value)} />
-                {ai && <small className="ai-source">Dari AI · {ai.nama_file}{ai.kutipan ? ` — “${ai.kutipan}”` : ''}</small>}
-              </div>;
-            })}</div>
+              </div>)}</div>
             : <div className="data-table-wrap item-editor"><table>
               <caption className="sr-only">Isian {item.nama}</caption>
               <thead><tr><th scope="col" className="item-editor__no">#</th>{item.kolom.map(k => <th key={k} scope="col">{k}</th>)}<th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
               <tbody>{rows.map((r, i) => <tr key={i}>
                 <td className="item-editor__no">{i + 1}</td>
-                {item.kolom.map(k => {
-                  const kunci = `${i + 1}|${k}`; const ai = aiCells.get(kunci);
-                  return <td key={k} className={ai ? 'is-ai' : konflik.has(kunci) ? 'is-conflict' : undefined}>
-                    <input aria-label={`${k}, baris ${i + 1}`} value={r[k] ?? ''} title={ai ? `Dari AI (${ai.nama_file})${ai.kutipan ? `: ${ai.kutipan}` : ''}` : undefined} onChange={e => ubah(i, k, e.target.value)} />
-                  </td>;
-                })}
+                {item.kolom.map(k => <td key={k}>
+                  <input aria-label={`${k}, baris ${i + 1}`} value={r[k] ?? ''} onChange={e => ubah(i, k, e.target.value)} />
+                </td>)}
                 <td><button className="link-button" aria-label={`Hapus baris ${i + 1}`} onClick={() => hapusBaris(i)}>Hapus</button></td>
               </tr>)}</tbody>
             </table></div>}
-          {item.tipe === 'tabel' && aiCells.size > 0 && <details className="ai-sources"><summary>Kutipan sumber nilai AI ({aiCells.size})</summary><ul>
-            {[...aiCells.values()].map(c => <li key={`${c.baris_ke}|${c.kolom}`}><b>{c.kolom}</b> (baris {c.baris_ke}): “{c.nilai}” — {c.nama_file}{c.kutipan ? <>: <i>{c.kutipan}</i></> : null}</li>)}
-          </ul></details>}
           <div className="action-row">
             {item.live && !item.terisi && <button className="button secondary" onClick={salinLive}>Salin data live ke isian</button>}
             {item.tipe === 'tabel' && <button className="button secondary" onClick={tambahBaris}>+ Tambah baris</button>}
-            <button className="button" disabled={sibuk} onClick={simpan}>{sibuk ? 'Menyimpan…' : adaDraft ? 'Simpan & konfirmasi' : 'Simpan'}</button>
+            <button className="button" disabled={sibuk} onClick={simpan}>{sibuk ? 'Menyimpan…' : 'Simpan'}</button>
             {dirty && <button className="link-button" onClick={batal}>Batalkan perubahan</button>}
           </div>
           {status && <Notice type={status.type}>{status.text}</Notice>}
@@ -524,23 +540,149 @@ function ItemCard({ item, prodi, fokus, onSaved }: { item: WorkspaceItem; prodi:
   </article>;
 }
 
-function GeneratePanel({ prodi, dokumen }: { prodi: string; dokumen: Dokumen }) {
+function GeneratePanel({ workspace, onChange }: { workspace: Workspace; onChange: () => void }) {
   const [sibuk, setSibuk] = useState(false);
   const [status, setStatus] = useState<{ type: 'info' | 'error'; text: string } | null>(null);
+  const { dokumen, laporan } = workspace;
   async function generate() {
     setSibuk(true); setStatus(null);
     try {
-      const { blob, filename } = await generateAccreditationDocument(prodi, dokumen);
+      const { blob, filename } = await generateAccreditationDocument(laporan.id, dokumen);
       simpanBlob(blob, filename);
-      setStatus({ type: 'info', text: `${filename} diunduh. Salinannya tersimpan di riwayat Profil Saya.` });
+      setStatus({ type: 'info', text: `${filename} diunduh dan tersimpan di riwayat laporan ini.` });
+      onChange();
     } catch (e) { setStatus({ type: 'error', text: pesan(e, 'Dokumen gagal dibuat.') }); }
     finally { setSibuk(false); }
   }
+  async function unduhUlang(id: number) {
+    try { const { blob, filename } = await downloadLaporanWord(laporan.id, id); simpanBlob(blob, filename); }
+    catch (e) { setStatus({ type: 'error', text: pesan(e, 'Dokumen gagal diunduh.') }); }
+  }
   return <section className="section requirement-section">
     <p className="section-kicker">Dokumen Word</p>
-    <h2>Generate laporan {dokumen}</h2>
-    <p className="section-note">Satu dokumen .docx: cover dengan kelengkapan per status sumber, to-do item yang belum lengkap, lalu isi per {dokumen === 'LED' ? 'Kriteria (ditutup ringkasan tabel LKPS terkait)' : 'Bagian'}. Isi tiap item memakai isian tim yang sudah disimpan; kalau belum ada, data live dari sumber resmi. Item tanpa keduanya tetap dibuat dengan penanda <b>[DATA TIDAK TERSEDIA]</b> (sumber belum bisa diakses, disertai catatannya) atau <b>[NARASI PERLU DISUSUN TIM PENYUSUN PRODI]</b>. Hasil ekstraksi yang belum disimpan tidak ikut.</p>
-    <div className="action-row"><button className="button" disabled={sibuk} onClick={generate}>{sibuk ? 'Membuat dokumen…' : `Generate & unduh ${dokumen} (Word)`}</button></div>
+    <h2>Generate {laporan.nama}</h2>
+    <p className="section-note">Satu dokumen .docx: cover dengan kelengkapan per status sumber, to-do item yang belum lengkap, lalu isi per {dokumen === 'LED' ? 'Kriteria (ditutup ringkasan tabel LKPS terkait)' : 'Bagian'}. Isi tiap item memakai isian tim dan hasil ekstraksi yang sudah masuk tabel; kalau belum ada, data live dari sumber resmi. Item tanpa keduanya tetap dibuat dengan penanda <b>[DATA TIDAK TERSEDIA]</b> (sumber belum bisa diakses, disertai catatannya) atau <b>[NARASI PERLU DISUSUN TIM PENYUSUN PRODI]</b>.</p>
+    <div className="action-row"><button className="button" disabled={sibuk} onClick={generate}>{sibuk ? 'Membuat dokumen…' : `Generate & unduh ${laporan.nama} (Word)`}</button></div>
     {status && <Notice type={status.type}>{status.text}</Notice>}
+    {workspace.riwayat_word.length > 0 && <div className="riwayat-word">
+      <h3>Riwayat Word laporan ini</h3>
+      <ul>{workspace.riwayat_word.map(r => <li key={r.id}>
+        <span>{waktu(r.waktu)} · oleh {r.oleh}</span>
+        <button className="link-button" onClick={() => unduhUlang(r.id)}>Unduh</button>
+      </li>)}</ul>
+    </div>}
+  </section>;
+}
+
+/** Riwayat laporan prodi + dokumen: lanjutkan draft, hapus, atau buat laporan baru; dibuka dengan PIN prodi. */
+function PilihLaporan({ prodi, dokumen, tahunTarget, onPilih }: { prodi: string; dokumen: Dokumen; tahunTarget: number | null; onPilih: (id: number) => void }) {
+  const [data, setData] = useState<DaftarLaporan | null>(null);
+  const [galat, setGalat] = useState('');
+  const [pesanInfo, setPesanInfo] = useState('');
+  const [sibuk, setSibuk] = useState(false);
+  const [pin, setPin] = useState('');
+  const [pin2, setPin2] = useState('');
+  const [alasan, setAlasan] = useState('');
+  const [modeReset, setModeReset] = useState(false);
+  const [hapusId, setHapusId] = useState<number | null>(null);
+  const [tahun, setTahun] = useState(String(new Date().getFullYear()));
+  const [nama, setNama] = useState('');
+  const permintaan = useRef(0);
+
+  const muat = useCallback(async () => {
+    const id = ++permintaan.current;
+    try { const d = await getDaftarLaporan(prodi, dokumen); if (id === permintaan.current) { setData(d); setGalat(''); } }
+    catch (e) { if (id === permintaan.current) setGalat(pesan(e, 'Daftar laporan gagal dimuat.')); }
+  }, [prodi, dokumen]);
+  useEffect(() => { setData(null); setPin(''); setPin2(''); setModeReset(false); setHapusId(null); setPesanInfo(''); muat(); }, [muat]);
+  useEffect(() => {
+    if (!data?.terbuka || tahunTarget == null) return;
+    const cocok = data.laporan.find(l => l.tahun === tahunTarget);
+    if (cocok) onPilih(cocok.id);
+  }, [data, tahunTarget]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function jalankan(aksi: () => Promise<unknown>, sukses?: string) {
+    setSibuk(true); setGalat(''); setPesanInfo('');
+    try { await aksi(); if (sukses) setPesanInfo(sukses); setPin(''); setPin2(''); await muat(); }
+    catch (e) { setGalat(pesan(e, 'Permintaan gagal.')); }
+    finally { setSibuk(false); }
+  }
+  const syarat = syaratPin(pin, pin2);
+
+  if (!data) return galat ? <Notice type="error">{galat}</Notice> : <div className="loading" role="status">Memuat riwayat laporan…</div>;
+  return <section className="section requirement-section pilih-laporan" aria-labelledby="pilih-laporan-judul">
+    <div className="section-title-row">
+      <div><p className="section-kicker">Riwayat laporan · {data.prodi.nama}</p><h2 id="pilih-laporan-judul">Laporan {dokumen}</h2></div>
+      <span className={`status-pill ${data.terbuka ? '' : 'is-locked'}`}>{!data.terkunci ? 'Belum ada PIN prodi' : data.terbuka ? 'Terbuka untuk sesi ini' : 'Terkunci'}</span>
+    </div>
+    <p className="section-note">Semua staf prodi mengerjakan laporan yang sama. Pilih laporan untuk melanjutkan draft, atau buat laporan tahun baru. Isi laporan hanya bisa dibuka dengan PIN prodi, dan PIN diminta lagi setiap kali login.</p>
+
+    {data.laporan.length === 0
+      ? <p className="chart-empty">Belum ada laporan {dokumen} untuk prodi ini.</p>
+      : <ul className="laporan-list">{data.laporan.map(l => <li key={l.id} className="laporan-list__item">
+        <div className="laporan-list__info">
+          <strong>{l.nama}</strong>
+          <span>{l.terakhir_diubah ? `Terakhir diubah ${waktu(l.terakhir_diubah)} oleh ${l.terakhir_oleh ?? '-'}` : 'Belum ada isian'}{l.dibuat_oleh ? ` · dibuat oleh ${l.dibuat_oleh}` : ''}</span>
+          <ProgressLine value={l.lengkap} total={l.total} percent={l.persen} />
+        </div>
+        <div className="laporan-list__aksi">
+          <button className="button" disabled={!data.terbuka} onClick={() => onPilih(l.id)} title={data.terbuka ? undefined : 'Masukkan PIN prodi dulu'}>{data.terbuka ? 'Lanjutkan' : data.terkunci ? 'Terkunci' : 'Buat PIN dulu'}</button>
+          {data.terbuka && <button className="button button--danger" onClick={() => setHapusId(l.id)} aria-expanded={hapusId === l.id}>Hapus</button>}
+        </div>
+        {hapusId === l.id && <div className="admin-confirm laporan-list__konfirmasi" role="alertdialog" aria-label={`Hapus ${l.nama}`}>
+          <p>Hapus <b>{l.nama}</b> secara permanen? Semua isian ({l.lengkap} item terisi), file upload, riwayat ekstraksi, dan riwayat Word laporan ini ikut terhapus untuk semua staf prodi, dan tidak bisa dibatalkan.</p>
+          <button className="button button--danger" disabled={sibuk} onClick={() => jalankan(async () => { const r = await hapusLaporan(l.id); setHapusId(null); setPesanInfo(r.message); })}>{sibuk ? 'Menghapus…' : 'Ya, hapus laporan'}</button>
+          <button className="button secondary" onClick={() => setHapusId(null)}>Batal</button>
+        </div>}
+      </li>)}</ul>}
+
+    {galat && <Notice type="error">{galat}</Notice>}
+    {pesanInfo && <Notice type="info">{pesanInfo}</Notice>}
+
+    {!data.terkunci && <form className="laporan-form" onSubmit={e => { e.preventDefault(); if (!syarat) jalankan(() => buatPinProdi(prodi, pin), 'PIN prodi dibuat. Bagikan ke staf prodi yang ikut menyusun laporan.'); }}>
+      <h3>Buat PIN prodi</h3>
+      <p className="section-note">Prodi ini belum punya PIN. PIN ({PIN_MIN}–{PIN_MAX} angka) mengunci semua laporan prodi (LED dan LKPS, tahun berapa pun). Bagikan hanya ke staf prodi yang ikut menyusun.</p>
+      <div className="laporan-form__fields">
+        <KolomPin id="pin-baru" label={`PIN prodi (${PIN_MIN}–${PIN_MAX} angka)`} value={pin} onChange={setPin} baru />
+        <KolomPin id="pin-baru-2" label="Ulangi PIN" value={pin2} onChange={setPin2} baru />
+      </div>
+      {syarat && <p className="field-hint" aria-live="polite">{syarat}</p>}
+      <button className="button" type="submit" disabled={sibuk || Boolean(syarat)}>{sibuk ? 'Menyimpan…' : 'Buat PIN'}</button>
+    </form>}
+
+    {data.terkunci && !data.terbuka && !modeReset && <form className="laporan-form" onSubmit={e => { e.preventDefault(); if (pinValid(pin)) jalankan(() => bukaProdi(prodi, pin)); }}>
+      <h3>Buka laporan prodi</h3>
+      <div className="laporan-form__fields"><KolomPin id="pin-buka" label="PIN prodi" value={pin} onChange={setPin} /></div>
+      {pin && !pinValid(pin) && <p className="field-hint" aria-live="polite">PIN terdiri dari {PIN_MIN}–{PIN_MAX} angka.</p>}
+      <div className="action-row">
+        <button className="button" type="submit" disabled={sibuk || !pinValid(pin)}>{sibuk ? 'Memeriksa…' : 'Buka'}</button>
+        <button className="link-button" type="button" onClick={() => { setModeReset(true); setGalat(''); setPin(''); }}>Lupa PIN?</button>
+      </div>
+      {data.reset_menunggu && <p className="field-hint">Pengajuan reset PIN Anda sedang menunggu persetujuan admin.</p>}
+    </form>}
+
+    {data.terkunci && !data.terbuka && modeReset && <form className="laporan-form" onSubmit={e => { e.preventDefault(); if (!syarat) jalankan(async () => { await ajukanResetPin(prodi, pin, alasan); setModeReset(false); setAlasan(''); }, 'Pengajuan terkirim. PIN baru berlaku setelah disetujui admin.'); }}>
+      <h3>Ajukan reset PIN prodi</h3>
+      <p className="section-note">Tentukan PIN baru. PIN lama tetap berlaku sampai admin menyetujui pengajuan ini; setelah disetujui, semua staf memakai PIN baru.</p>
+      <div className="laporan-form__fields">
+        <KolomPin id="pin-reset" label={`PIN baru (${PIN_MIN}–${PIN_MAX} angka)`} value={pin} onChange={setPin} baru />
+        <KolomPin id="pin-reset-2" label="Ulangi PIN baru" value={pin2} onChange={setPin2} baru />
+        <div className="field laporan-form__wide"><label htmlFor="pin-alasan">Alasan (opsional)</label><input id="pin-alasan" maxLength={500} value={alasan} onChange={e => setAlasan(e.target.value)} placeholder="mis. staf yang memegang PIN sudah pindah tugas" /></div>
+      </div>
+      {syarat && <p className="field-hint" aria-live="polite">{syarat}</p>}
+      <div className="action-row">
+        <button className="button" type="submit" disabled={sibuk || Boolean(syarat)}>{sibuk ? 'Mengirim…' : 'Kirim pengajuan'}</button>
+        <button className="link-button" type="button" onClick={() => { setModeReset(false); setPin(''); setPin2(''); }}>Batal</button>
+      </div>
+    </form>}
+
+    {data.terbuka && <form className="laporan-form" onSubmit={e => { e.preventDefault(); jalankan(async () => { const baru = await buatLaporan(prodi, dokumen, Number(tahun), nama); setNama(''); onPilih(baru.id); }); }}>
+      <h3>Buat laporan baru</h3>
+      <div className="laporan-form__fields">
+        <div className="field"><label htmlFor="lap-tahun">Tahun laporan</label><input id="lap-tahun" type="number" inputMode="numeric" min={2000} max={2100} value={tahun} onChange={e => setTahun(e.target.value)} /></div>
+        <div className="field laporan-form__wide"><label htmlFor="lap-nama">Nama laporan (opsional)</label><input id="lap-nama" maxLength={150} value={nama} onChange={e => setNama(e.target.value)} placeholder={`${dokumen} ${tahun}`} /></div>
+      </div>
+      <button className="button" type="submit" disabled={sibuk || !/^\d{4}$/.test(tahun)}>{sibuk ? 'Membuat…' : 'Buat laporan'}</button>
+    </form>}
   </section>;
 }

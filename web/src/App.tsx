@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
-import { AUTH_EVENT, DAMPAK_AUTH_EVENT, accreditationLogin, accreditationLogout, accreditationMe, accreditationRegister, dampakLogin, dampakLogout, dampakMe, dampakRegister, getAccreditation, getHomeSummary, getMetadata, getNews, getStory, searchAnalytics, type AccreditationResult, type AuthUser, type Metadata, type PillarDetail, type Story, type TopicOption } from './lib/api';
-import { assetUrl, SiteShell, useInView } from './shell';
+import { AUTH_EVENT, DAMPAK_AUTH_EVENT, accreditationLogin, accreditationMe, accreditationRegister, dampakLogin, dampakMe, dampakRegister, getAccreditation, getHomeSummary, getMetadata, getNews, getStory, searchAnalytics, type AccreditationResult, type AuthUser, type Metadata, type PillarDetail, type Story, type TopicOption } from './lib/api';
+import { assetUrl, keluarKe, SiteShell, useInView } from './shell';
 import { MultiSelect } from './multiselect';
 import { ChartGrid, Insight, StoryTableView } from './story';
 import { LaporanDampak, MataKuliahPanel } from './laporan';
@@ -352,8 +352,9 @@ function AccreditationPage() {
   if (error) return <AppShell><div className="content"><Notice type="error">{error}</Notice></div></AppShell>;
   if (!data || user === undefined) return <AppShell><div className="content loading">Memuat portal akreditasi...</div></AppShell>;
   if (!user) return <AppShell><div className="content"><AccreditationLogin onUser={setUser} next={params.get('next')} /></div></AppShell>;
-  return <AppShell><AccreditationWorkspace catalog={data} user={user} onLogout={async () => { await accreditationLogout(); setUser(null); }} onCatalogChange={muatKatalog}
-    initialProdi={params.get('prodi') ?? ''} initialDokumen={params.get('dokumen') === 'LKPS' ? 'LKPS' : 'LED'} /></AppShell>;
+  return <AppShell><AccreditationWorkspace catalog={data} user={user} onLogout={() => { void keluarKe('akreditasi'); }} onCatalogChange={muatKatalog}
+    initialProdi={params.get('prodi') ?? ''} initialDokumen={params.get('dokumen') === 'LKPS' ? 'LKPS' : 'LED'}
+    initialLaporan={Number(params.get('laporan')) || null} /></AppShell>;
 }
 
 export default function App() {

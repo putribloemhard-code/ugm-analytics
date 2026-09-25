@@ -845,7 +845,11 @@ td { line-height: 1.45; }
   .site-header__inner { gap: 10px; }
   .site-header__brand span { display: none; }
   .theme-toggle { padding: 0 10px; }
-  .auth-link, .auth-chip { display: none; }
+  .auth-link { display: none; }
+  /* Di ponsel chip akun cukup tombol Keluar (nama & tautan Admin disembunyikan supaya header muat). */
+  .auth-chip { padding: 0; border: 0; }
+  .auth-chip > a, .auth-chip__name { display: none; }
+  .auth-chip button { min-height: 44px; padding: 0 12px; }
   .cold-open { min-height: auto; }
   .hero-search { flex-direction: column; }
   .hero-search input, .hero-search button { width: 100%; }
@@ -1034,3 +1038,34 @@ td { line-height: 1.45; }
   .tema-tag__pilar { margin-top: 0; }
   .tema-tag__opsi button { min-height: 44px; }
 }
+
+/* Akreditasi: riwayat laporan per prodi + tahun, password prodi, riwayat Word laporan. */
+.laporan-bar { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 20px; margin: 20px 0 8px; padding: 16px 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
+.laporan-bar h2 { margin: 2px 0 4px; }
+.laporan-bar .section-note { margin: 0; }
+.laporan-bar .button, .laporan-galat .button { min-height: 44px; }
+.laporan-galat { display: grid; gap: 12px; justify-items: start; margin-top: 16px; }
+.status-pill.is-locked { color: var(--text); background: color-mix(in srgb, var(--status-attention) 30%, var(--surface-card)); }
+.laporan-list { display: grid; gap: 10px; margin: 16px 0; padding: 0; list-style: none; }
+.laporan-list__item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 20px; align-items: center; padding: 14px 16px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-card); }
+.laporan-list__info { display: grid; gap: 4px; min-width: 0; }
+.laporan-list__info strong { color: var(--text-heading); font-size: 1.05rem; }
+.laporan-list__info > span { color: var(--text-muted); font-size: .85rem; }
+.laporan-list__item .button { min-height: 44px; min-width: 120px; }
+.laporan-form { display: grid; gap: 10px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border-subtle); }
+.laporan-form h3 { margin: 0; }
+.laporan-form .section-note { margin: 0; }
+.laporan-form__fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; }
+.laporan-form__wide { grid-column: 1 / -1; }
+.laporan-form > .button { justify-self: start; min-height: 44px; }
+.riwayat-word { margin-top: 16px; }
+.riwayat-word h3 { margin: 0 0 8px; font-size: 1rem; }
+.riwayat-word ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.riwayat-word li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; padding: 8px 0; border-bottom: 1px solid var(--border-subtle); font-size: .9rem; }
+@media (max-width: 600px) {
+  .laporan-list__item { grid-template-columns: 1fr; }
+  .laporan-list__item .button, .laporan-form > .button, .laporan-bar .button { width: 100%; }
+}
+.laporan-list__aksi { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.laporan-list__konfirmasi { grid-column: 1 / -1; }
+@media (max-width: 600px) { .laporan-list__aksi { justify-content: stretch; } .laporan-list__aksi .button { flex: 1; } }

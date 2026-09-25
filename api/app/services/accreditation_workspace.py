@@ -1,22 +1,18 @@
-"""Ruang kerja akreditasi: isi data LED/LKPS per item, review ekstraksi AI, generate Word.
+"""Ruang kerja akreditasi: isi data satu LAPORAN (prodi + LED/LKPS + tahun), ekstraksi AI, Word.
 
-Padanan dashboard Streamlit lama (akreditasi/scripts/dashboard_render.py,
-upload_akreditasi.py, ekstraksi_akreditasi.py bagian DB, page_akreditasi.py) -- sekarang
-jalur satu-satunya. Aturan yang dipertahankan persis:
+Setiap method menerima laporan yang SUDAH lolos cek akses (password prodi dibuka di sesi ini,
+lihat services/accreditation_laporan.py); semua baca/tulis dibatasi `laporan_id` sehingga
+staf satu prodi mengerjakan data yang sama dan laporan tahun berbeda tidak saling menimpa.
 
 - Data resmi = akreditasi_data_manual (skema long/EAV: satu baris = satu sel). Simpan satu
-  item = hapus semua sel item itu untuk prodi tsb lalu tulis ulang (seperti tombol Simpan lama).
+  item = hapus semua sel item itu di laporan tsb lalu tulis ulang.
 - Item berstatus "belum_tersedia" tidak bisa diisi.
-- Hasil ekstraksi AI (akreditasi_upload_ekstraksi) hanya PREVIEW: mengisi sel yang MASIH
-  KOSONG di draft, tidak menimpa data manual, dan sel yang punya >1 nilai berbeda antar file
-  (konflik) dibiarkan kosong -- user memilih sendiri. Baru tercatat sebagai data resmi saat
-  user menyimpan item itu; saat itu juga baris ekstraksinya ditandai dikonfirmasi.
-- Status tiap item = akreditasi/data_source_map.json (lihat services/accreditation_sumber.py),
-  bukan `status_ketersediaan` registry. Item "tersedia" membawa data live pipeline Fase 2;
-  isian tim tetap bisa menggantikannya.
-- Generate Word memakai builder di akreditasi/scripts/generate_template.py (isian tim + data
-  live + status peta) dan dicatat di akreditasi_riwayat_generate (file disimpan supaya bisa
-  diunduh ulang dari Profil).
+- Hasil ekstraksi AI langsung diterapkan ke data laporan tanpa menimpa isian yang ada
+  (accreditation_laporan.terapkan_ekstraksi); status tiap nilai tercatat sebagai riwayat.
+- Status tiap item = akreditasi/data_source_map.json (services/accreditation_sumber.py).
+  Item "tersedia" membawa data live pipeline Fase 2; isian tim tetap bisa menggantikannya.
+- Generate Word memakai builder akreditasi/scripts/generate_template.py (isian tim + data live +
+  status peta), dicatat di akreditasi_riwayat_generate dan bisa diunduh semua staf laporan itu.
 
 Semua SQL standar (tanpa backtick/dialek) supaya jalan di MySQL (pratinjau lokal) maupun
 PostgreSQL (produksi).
@@ -38,6 +34,7 @@ from sqlalchemy.engine import Engine
 
 from app.domain.source import load_accreditation_module
 from app.services import accreditation_sumber as sumber
+from app.services.accreditation_laporan import terapkan_ekstraksi
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +42,7 @@ DOKUMEN = ("LED", "LKPS")
 JENJANG = ("Sarjana", "Magister", "Doktor", "Profesi", "Spesialis")
 MAX_ROWS_PER_ITEM = 500
 MAX_VALUE_CHARS = 20_000
+MAX_RIWAYAT = 20
 
 # Status ekstraksi per file upload yang sedang berjalan DI PROSES INI. Satu proses API
 # (uvicorn tanpa --workers) -- cukup untuk pratinjau lokal & deploy saat ini.
@@ -89,15 +87,8 @@ def slugify(nama: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", ascii_only.lower()).strip("-")[:56] or "prodi"
 
 
-def _validate_dokumen(dokumen: str) -> str:
-    if dokumen not in DOKUMEN:
-        raise WorkspaceError("Dokumen harus LED atau LKPS.")
-    return dokumen
-
-
-def _in_clause(prefix: str, values: list[Any]) -> tuple[str, dict[str, Any]]:
-    params = {f"{prefix}{i}": value for i, value in enumerate(values)}
-    return ", ".join(f":{name}" for name in params), params
+def _nama_laporan(laporan: dict[str, Any]) -> str:
+    return laporan.get("nama") or f"{laporan['dokumen']} {laporan['tahun']}"
 
 
 class AccreditationWorkspaceService:
@@ -119,34 +110,41 @@ class AccreditationWorkspaceService:
             raise NotFound("Program studi tidak ditemukan.")
         return dict(row)
 
-    def workspace(self, prodi_id: str, dokumen: str) -> dict[str, Any]:
-        _validate_dokumen(dokumen)
+    def workspace(self, laporan: dict[str, Any]) -> dict[str, Any]:
         registry = _registry()
+        lap_id, prodi_id, dokumen = int(laporan["id"]), laporan["prodi_id"], laporan["dokumen"]
         with self.engine.connect() as conn:
             program = self._program(conn, prodi_id)
             manual = conn.execute(text("""
                 SELECT item_id, baris_ke, kolom, nilai, diisi_oleh, updated_at
-                FROM akreditasi_data_manual WHERE prodi_id = :p
-            """), {"p": prodi_id}).mappings().all()
-            pending = conn.execute(text("""
-                SELECT e.id, e.item_id, e.baris_ke, e.nama_kolom, e.nilai, e.kutipan, f.nama_file
+                FROM akreditasi_data_manual WHERE laporan_id = :l
+            """), {"l": lap_id}).mappings().all()
+            ekstraksi = conn.execute(text("""
+                SELECT e.id, e.item_id, e.baris_ke, e.nama_kolom, e.nilai, e.kutipan, e.status_terap, f.nama_file
                 FROM akreditasi_upload_ekstraksi e
                 JOIN akreditasi_upload_file f ON f.id = e.upload_file_id
-                WHERE e.prodi_id = :p AND e.dikonfirmasi_at IS NULL
-                ORDER BY e.item_id, e.baris_ke, e.nama_kolom, e.id
-            """), {"p": prodi_id}).mappings().all()
+                WHERE e.laporan_id = :l
+                ORDER BY f.uploaded_at DESC, e.item_id, e.baris_ke, e.nama_kolom, e.id
+            """), {"l": lap_id}).mappings().all()
             uploads = conn.execute(text("""
                 SELECT id, nama_file, tipe_file, ukuran_bytes, status, diupload_oleh, uploaded_at, diekstrak_at
-                FROM akreditasi_upload_file WHERE prodi_id = :p ORDER BY uploaded_at DESC, id DESC
-            """), {"p": prodi_id}).mappings().all()
+                FROM akreditasi_upload_file WHERE laporan_id = :l ORDER BY uploaded_at DESC, id DESC
+            """), {"l": lap_id}).mappings().all()
+            riwayat = conn.execute(text("""
+                SELECT id, user_email, generated_at FROM akreditasi_riwayat_generate
+                WHERE laporan_id = :l ORDER BY generated_at DESC, id DESC
+            """), {"l": lap_id}).mappings().all()
+            # Cuplikan tabel LKPS di tab LED: terisi menurut laporan LKPS prodi yang sama di tahun yang sama.
+            lkps_terisi = {r[0] for r in conn.execute(text("""
+                SELECT DISTINCT d.item_id FROM akreditasi_data_manual d
+                JOIN akreditasi_laporan l ON l.id = d.laporan_id
+                WHERE l.prodi_id = :p AND l.dokumen = 'LKPS' AND l.tahun = :t
+            """), {"p": prodi_id, "t": laporan["tahun"]})} if dokumen == "LED" else set()
             live = sumber.data_live(conn, prodi_id)
 
         manual_by_item: dict[str, list[dict]] = {}
         for row in manual:
             manual_by_item.setdefault(row["item_id"], []).append(dict(row))
-        pending_by_item: dict[str, list[dict]] = {}
-        for row in pending:
-            pending_by_item.setdefault(row["item_id"], []).append(dict(row))
         filled_ids = set(manual_by_item)
 
         grouped = registry.led_items_by_kriteria() if dokumen == "LED" else registry.lkps_items_by_bagian()
@@ -156,37 +154,40 @@ class AccreditationWorkspaceService:
             group = {
                 "key": key,
                 "label": labels.get(key, key),
-                "items": [self._item_payload(registry, item, manual_by_item.get(item["id"], []),
-                                             pending_by_item.get(item["id"], []), live)
-                          for item in items],
+                "items": [self._item_payload(registry, item, manual_by_item.get(item["id"], []), live) for item in items],
                 "cuplikan": [],
             }
             if dokumen == "LED" and key not in ("Umum", "D"):
                 group["cuplikan"] = [
                     {"id": c["id"], "tabel_lkps": c["tabel_lkps"], "nama": c["nama"],
                      "status": c["status_ketersediaan"],
-                     "terisi": c["id"] in filled_ids or c["id"] in live["items"]}
+                     "terisi": c["id"] in lkps_terisi or c["id"] in live["items"]}
                     for c in registry.lkps_cuplikan_untuk_kriteria(key)
                 ]
             groups.append(group)
 
         item_ids = [item["id"] for items in grouped.values() for item in items]
-        ringkasan = sumber.ringkasan(item_ids, filled_ids, set(live["items"]))
-        item_set = set(item_ids)
         grup_item = {item["id"]: key for key, items in grouped.items() for item in items}
         nama_item = {item["id"]: item["nama"] for items in grouped.values() for item in items}
         return {
+            "laporan": {"id": lap_id, "tahun": int(laporan["tahun"]), "nama": _nama_laporan(laporan)},
             "prodi": program,
             "dokumen": dokumen,
-            "ringkasan": ringkasan,
+            "ringkasan": sumber.ringkasan(item_ids, filled_ids, set(live["items"])),
             "groups": groups,
             "uploads": [self._upload_payload(dict(row)) for row in uploads],
             "ekstraksi": {
                 "tersedia": extraction_available(),
-                "item_menunggu_review": len({r["item_id"] for r in pending if r["item_id"] in item_set}),
-                "pratinjau": _pratinjau(pending, manual_by_item, registry, grup_item, nama_item),
-                "dokumen_lain": len([r for r in pending if r["item_id"] not in item_set]),
+                "riwayat": [
+                    {"id": int(r["id"]), "item_id": r["item_id"], "item_nama": nama_item[r["item_id"]],
+                     "grup": grup_item[r["item_id"]], "baris_ke": int(r["baris_ke"]), "kolom": r["nama_kolom"],
+                     "nilai": r["nilai"], "kutipan": r["kutipan"], "nama_file": r["nama_file"],
+                     "status": r["status_terap"] or "sudah_ada"}
+                    for r in ekstraksi if r["item_id"] in grup_item
+                ],
             },
+            "riwayat_word": [{"id": int(r["id"]), "oleh": r["user_email"], "waktu": _iso(r["generated_at"])}
+                             for r in riwayat[:MAX_RIWAYAT]],
         }
 
     @staticmethod
@@ -206,8 +207,7 @@ class AccreditationWorkspaceService:
         }
 
     @staticmethod
-    def _item_payload(registry, item: dict, manual: list[dict], pending: list[dict],
-                      live: dict[str, Any]) -> dict[str, Any]:
+    def _item_payload(registry, item: dict, manual: list[dict], live: dict[str, Any]) -> dict[str, Any]:
         kolom = list(item["kolom_dibutuhkan"])
         status = item["status_ketersediaan"]
         terisi = bool(manual)
@@ -241,7 +241,6 @@ class AccreditationWorkspaceService:
             "rows": rows,
             "diisi_oleh": terakhir["diisi_oleh"] if terakhir else None,
             "updated_at": _iso(terakhir["updated_at"]) if terakhir else None,
-            "draft": _draft(kolom, rows, pending) if pending else None,
             **sumber.info_item(item["id"]),
             "live": ({"kolom": kolom + list(dict.fromkeys(k for r in data_live["rows"] for k in r if k not in kolom)),
                       "rows": data_live["rows"], "sumber": data_live["sumber"],
@@ -250,11 +249,13 @@ class AccreditationWorkspaceService:
         }
 
     # ------------------------------------------------------------------ tulis
-    def save_item(self, prodi_id: str, item_id: str, rows: Any, ekstraksi_ids: Any, user_email: str) -> dict[str, Any]:
+    def save_item(self, laporan: dict[str, Any], item_id: str, rows: Any, user_email: str) -> dict[str, Any]:
         registry = _registry()
         item = registry.KEBUTUHAN_DATA.get(item_id)
         if not item:
             raise NotFound("Item kebutuhan data tidak dikenal.")
+        if registry.dokumen_dari_item(item) != laporan["dokumen"]:
+            raise WorkspaceError(f"Item ini bukan bagian dokumen {laporan['dokumen']}.")
         if item["status_ketersediaan"] == "belum_tersedia":
             raise WorkspaceError("Item ini belum bisa diisi (status belum tersedia).")
         if not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows):
@@ -263,10 +264,6 @@ class AccreditationWorkspaceService:
             raise WorkspaceError(f"Maksimal {MAX_ROWS_PER_ITEM} baris per item.")
         if item["tipe"] == "narasi":
             rows = rows[:1]
-        try:
-            ids = [int(x) for x in (ekstraksi_ids or [])]
-        except (TypeError, ValueError) as exc:
-            raise WorkspaceError("Daftar ekstraksi tidak valid.") from exc
 
         kolom = list(item["kolom_dibutuhkan"])
         now = datetime.now()
@@ -282,25 +279,18 @@ class AccreditationWorkspaceService:
                     continue
                 if len(v) > MAX_VALUE_CHARS:
                     raise WorkspaceError(f"Isian kolom \"{k}\" terlalu panjang (maks. {MAX_VALUE_CHARS} karakter).")
-                cells.append({"prodi_id": prodi_id, "item_id": item_id, "baris_ke": baris_ke, "kolom": k,
-                              "nilai": v, "diisi_oleh": user_email, "updated_at": now})
+                cells.append({"prodi_id": laporan["prodi_id"], "laporan_id": int(laporan["id"]), "item_id": item_id,
+                              "baris_ke": baris_ke, "kolom": k, "nilai": v, "diisi_oleh": user_email, "updated_at": now})
 
         with self.engine.begin() as conn:
-            self._program(conn, prodi_id)
-            conn.execute(text("DELETE FROM akreditasi_data_manual WHERE prodi_id = :p AND item_id = :i"),
-                         {"p": prodi_id, "i": item_id})
+            conn.execute(text("DELETE FROM akreditasi_data_manual WHERE laporan_id = :l AND item_id = :i"),
+                         {"l": int(laporan["id"]), "i": item_id})
             if cells:
                 conn.execute(text("""
                     INSERT INTO akreditasi_data_manual
-                      (prodi_id, item_id, baris_ke, kolom, tahun, nilai, link_bukti, diisi_oleh, updated_at)
-                    VALUES (:prodi_id, :item_id, :baris_ke, :kolom, NULL, :nilai, NULL, :diisi_oleh, :updated_at)
+                      (prodi_id, laporan_id, item_id, baris_ke, kolom, tahun, nilai, link_bukti, diisi_oleh, updated_at)
+                    VALUES (:prodi_id, :laporan_id, :item_id, :baris_ke, :kolom, NULL, :nilai, NULL, :diisi_oleh, :updated_at)
                 """), cells)
-            if ids:
-                placeholders, params = _in_clause("e", ids)
-                conn.execute(text(f"""
-                    UPDATE akreditasi_upload_ekstraksi SET dikonfirmasi_at = :now
-                    WHERE id IN ({placeholders}) AND prodi_id = :p AND item_id = :i AND dikonfirmasi_at IS NULL
-                """), {**params, "now": now, "p": prodi_id, "i": item_id})
         return {"message": "Tersimpan.", "baris": baris_ke, "sel": len(cells)}
 
     def add_program(self, fakultas_id: Any, nama: str, jenjang: str) -> dict[str, Any]:
@@ -331,20 +321,20 @@ class AccreditationWorkspaceService:
         return {"slug": slug, "nama": nama, "jenjang": jenjang, "fakultas_id": fakultas_id}
 
     # ------------------------------------------------------------------ Word
-    def generate(self, prodi_id: str, dokumen: str, user_email: str) -> tuple[bytes, str]:
-        _validate_dokumen(dokumen)
+    def generate(self, laporan: dict[str, Any], user_email: str) -> tuple[bytes, str]:
         if self.generated_root is None:
             raise RuntimeError("Folder dokumen hasil generate belum dikonfigurasi.")
+        lap_id, prodi_id, dokumen = int(laporan["id"]), laporan["prodi_id"], laporan["dokumen"]
         with self.engine.connect() as conn:
             program = self._program(conn, prodi_id)
             df = pd.read_sql(text("""
                 SELECT item_id, baris_ke, kolom, tahun, nilai, link_bukti
-                FROM akreditasi_data_manual WHERE prodi_id = :p
-            """), conn, params={"p": prodi_id})
+                FROM akreditasi_data_manual WHERE laporan_id = :l
+            """), conn, params={"l": lap_id})
             live = sumber.data_live(conn, prodi_id)
         generator = load_accreditation_module("generate_template.py")
         konteks = {
-            "prodi": f"{program.get('jenjang') or ''} {program['nama']}".strip(),
+            "prodi": f"{program.get('jenjang') or ''} {program['nama']}".strip() + f" — {_nama_laporan(laporan)}",
             "fakultas": program.get("fakultas"),
             "peta": sumber.peta(),
             "live": live,
@@ -355,46 +345,86 @@ class AccreditationWorkspaceService:
         now = datetime.now()
         folder = (self.generated_root / re.sub(r"[^A-Za-z0-9_-]", "_", prodi_id)).resolve()
         folder.mkdir(parents=True, exist_ok=True)
-        path = folder / f"{now:%Y%m%d_%H%M%S_%f}_{dokumen}.docx"
+        path = folder / f"{now:%Y%m%d_%H%M%S_%f}_{dokumen}_{laporan['tahun']}.docx"
         path.write_bytes(content)
         try:
             with self.engine.begin() as conn:
                 conn.execute(text("""
-                    INSERT INTO akreditasi_riwayat_generate (user_email, prodi_id, jenis_dokumen, file_path, generated_at)
-                    VALUES (:e, :p, :j, :f, :t)
-                """), {"e": user_email, "p": prodi_id, "j": dokumen, "f": str(path), "t": now})
+                    INSERT INTO akreditasi_riwayat_generate
+                      (user_email, prodi_id, laporan_id, jenis_dokumen, file_path, generated_at)
+                    VALUES (:e, :p, :l, :j, :f, :t)
+                """), {"e": user_email, "p": prodi_id, "l": lap_id, "j": dokumen, "f": str(path), "t": now})
         except Exception:
             path.unlink(missing_ok=True)  # jangan tinggalkan file yatim
             raise
-        return content, f"Laporan_Akreditasi_{dokumen}_{prodi_id}_{now:%Y%m%d}.docx"
+        return content, f"Laporan_Akreditasi_{dokumen}_{laporan['tahun']}_{prodi_id}_{now:%Y%m%d}.docx"
 
-    def history_file(self, riwayat_id: int, user_email: str) -> tuple[bytes, str]:
-        """File riwayat milik user sendiri. Path berasal dari DB, tetap dicek berada di folder generate."""
-        with self.engine.connect() as conn:
-            row = conn.execute(text("""
-                SELECT prodi_id, jenis_dokumen, file_path, generated_at FROM akreditasi_riwayat_generate
-                WHERE id = :id AND user_email = :e
-            """), {"id": riwayat_id, "e": user_email}).mappings().first()
+    def _berkas(self, row: dict[str, Any] | None) -> tuple[bytes, str]:
         if not row or self.generated_root is None:
             raise NotFound("Riwayat tidak ditemukan.")
         path = Path(row["file_path"]).resolve()
         if not path.is_relative_to(self.generated_root.resolve()) or not path.is_file():
             raise NotFound("Berkas laporan ini sudah tidak tersedia di server.")
         stamp = str(row["generated_at"] or "")[:10].replace("-", "")
-        return path.read_bytes(), f"Laporan_Akreditasi_{row['jenis_dokumen']}_{row['prodi_id']}_{stamp}.docx"
+        tahun = f"_{row['tahun']}" if row.get("tahun") else ""
+        return path.read_bytes(), f"Laporan_Akreditasi_{row['jenis_dokumen']}{tahun}_{row['prodi_id']}_{stamp}.docx"
+
+    def history_file(self, riwayat_id: int, user_email: str) -> tuple[bytes, str]:
+        """File riwayat milik user sendiri (halaman Profil). Path dari DB tetap dicek berada di folder generate."""
+        with self.engine.connect() as conn:
+            row = conn.execute(text("""
+                SELECT r.prodi_id, r.jenis_dokumen, r.file_path, r.generated_at, l.tahun
+                FROM akreditasi_riwayat_generate r LEFT JOIN akreditasi_laporan l ON l.id = r.laporan_id
+                WHERE r.id = :id AND r.user_email = :e
+            """), {"id": riwayat_id, "e": user_email}).mappings().first()
+        return self._berkas(dict(row) if row else None)
+
+    def laporan_file(self, laporan: dict[str, Any], riwayat_id: int) -> tuple[bytes, str]:
+        """File riwayat Word suatu laporan, untuk semua staf yang sudah membuka laporan itu."""
+        with self.engine.connect() as conn:
+            row = conn.execute(text("""
+                SELECT r.prodi_id, r.jenis_dokumen, r.file_path, r.generated_at, l.tahun
+                FROM akreditasi_riwayat_generate r JOIN akreditasi_laporan l ON l.id = r.laporan_id
+                WHERE r.id = :id AND r.laporan_id = :l
+            """), {"id": riwayat_id, "l": int(laporan["id"])}).mappings().first()
+        return self._berkas(dict(row) if row else None)
+
+    # ------------------------------------------------------------------ hapus laporan
+    def hapus_laporan(self, laporan: dict[str, Any]) -> dict[str, Any]:
+        """Hapus satu laporan beserta isian, file upload, riwayat ekstraksi, dan riwayat Word-nya.
+
+        Berkas di disk dihapus SETELAH transaksi DB berhasil, dan hanya yang berada di folder
+        upload/generate (path berasal dari DB, tetap dicek).
+        """
+        lap_id = int(laporan["id"])
+        with self.engine.begin() as conn:
+            berkas = [r[0] for r in conn.execute(text(
+                "SELECT path_lokal FROM akreditasi_upload_file WHERE laporan_id = :l"), {"l": lap_id})]
+            berkas += [r[0] for r in conn.execute(text(
+                "SELECT file_path FROM akreditasi_riwayat_generate WHERE laporan_id = :l"), {"l": lap_id})]
+            n_isian = conn.execute(text("SELECT COUNT(*) FROM akreditasi_data_manual WHERE laporan_id = :l"),
+                                   {"l": lap_id}).scalar() or 0
+            for tabel in ("akreditasi_upload_ekstraksi", "akreditasi_upload_file", "akreditasi_data_manual",
+                          "akreditasi_riwayat_generate"):
+                conn.execute(text(f"DELETE FROM {tabel} WHERE laporan_id = :l"), {"l": lap_id})
+            conn.execute(text("DELETE FROM akreditasi_laporan WHERE id = :l"), {"l": lap_id})
+        akar = [r.resolve() for r in (self.upload_root, self.generated_root) if r is not None]
+        for nama in berkas:
+            path = Path(nama).resolve()
+            if any(path.is_relative_to(a) for a in akar):
+                path.unlink(missing_ok=True)
+        return {"message": f"{_nama_laporan(laporan)} dihapus ({n_isian} sel isian, {len(berkas)} berkas)."}
 
     # ------------------------------------------------------------------ ekstraksi AI
-    def start_extraction(self, prodi_id: str, dokumen: str, background: bool = True) -> dict[str, Any]:
-        _validate_dokumen(dokumen)
+    def start_extraction(self, laporan: dict[str, Any], background: bool = True) -> dict[str, Any]:
         if not extraction_available():
             raise WorkspaceError("Ekstraksi AI belum dikonfigurasi (OPENAI_API_KEY kosong di .env).")
         with self.engine.connect() as conn:
-            self._program(conn, prodi_id)
             candidates = conn.execute(text("""
                 SELECT id, status FROM akreditasi_upload_file
-                WHERE prodi_id = :p AND status IN ('belum_diekstrak', 'gagal_ekstrak', 'sedang_diekstrak')
+                WHERE laporan_id = :l AND status IN ('belum_diekstrak', 'gagal_ekstrak', 'sedang_diekstrak')
                 ORDER BY uploaded_at, id
-            """), {"p": prodi_id}).mappings().all()
+            """), {"l": int(laporan["id"])}).mappings().all()
         claimed: list[int] = []
         for row in candidates:
             upload_id = int(row["id"])
@@ -402,7 +432,7 @@ class AccreditationWorkspaceService:
                 if _JOBS.get(upload_id, {}).get("berjalan"):
                     continue
                 # Klaim atomik (UPDATE ... WHERE status = status lama) supaya klik ganda / dua tab
-                # tidak mengekstrak file yang sama dua kali (duplikat baris -> konflik palsu).
+                # tidak mengekstrak file yang sama dua kali.
                 with self.engine.begin() as conn:
                     result = conn.execute(text("""
                         UPDATE akreditasi_upload_file SET status = 'sedang_diekstrak'
@@ -414,37 +444,44 @@ class AccreditationWorkspaceService:
             claimed.append(upload_id)
         if claimed:
             if background:
-                threading.Thread(target=self._run_extraction, args=(claimed, prodi_id, dokumen), daemon=True).start()
+                threading.Thread(target=self._run_extraction, args=(claimed, dict(laporan)), daemon=True).start()
             else:
-                self._run_extraction(claimed, prodi_id, dokumen)
+                self._run_extraction(claimed, dict(laporan))
         return {"dimulai": len(claimed)}
 
-    def _run_extraction(self, upload_ids: list[int], prodi_id: str, dokumen: str) -> None:
+    def _run_extraction(self, upload_ids: list[int], laporan: dict[str, Any]) -> None:
+        lap_id = int(laporan["id"])
         for upload_id in upload_ids:
             ringkasan: dict[str, Any]
             try:
                 with self.engine.connect() as conn:
                     row = conn.execute(text("""
-                        SELECT path_lokal, tipe_file FROM akreditasi_upload_file WHERE id = :id
+                        SELECT path_lokal, tipe_file, nama_file FROM akreditasi_upload_file WHERE id = :id
                     """), {"id": upload_id}).mappings().one()
 
                 def progress(batch: int, total: int, _id: int = upload_id) -> None:
                     with _JOBS_LOCK:
                         _JOBS[_id].update(batch=batch, total=total)
 
-                rows, ringkasan = self.extractor(row["path_lokal"], row["tipe_file"], dokumen, progress)
+                rows, ringkasan = self.extractor(row["path_lokal"], row["tipe_file"], laporan["dokumen"], progress)
                 now = datetime.now()
                 with self.engine.begin() as conn:
-                    # Ulang ekstraksi file yang sama: buang preview lama yang belum direview.
-                    conn.execute(text("""
-                        DELETE FROM akreditasi_upload_ekstraksi WHERE upload_file_id = :id AND dikonfirmasi_at IS NULL
-                    """), {"id": upload_id})
+                    # Ulang ekstraksi file yang sama: riwayat nilai lama file ini diganti; data laporan
+                    # yang sudah terisi tetap (nilai yang sama akan tercatat "sudah_ada").
+                    conn.execute(text("DELETE FROM akreditasi_upload_ekstraksi WHERE upload_file_id = :id"),
+                                 {"id": upload_id})
                     if rows:
                         conn.execute(text("""
                             INSERT INTO akreditasi_upload_ekstraksi
-                              (upload_file_id, prodi_id, item_id, baris_ke, nama_kolom, nilai, kutipan, created_at)
-                            VALUES (:upload_file_id, :prodi_id, :item_id, :baris_ke, :nama_kolom, :nilai, :kutipan, :created_at)
-                        """), [{**r, "upload_file_id": upload_id, "prodi_id": prodi_id, "created_at": now} for r in rows])
+                              (upload_file_id, prodi_id, laporan_id, item_id, baris_ke, nama_kolom, nilai, kutipan, created_at)
+                            VALUES (:upload_file_id, :prodi_id, :laporan_id, :item_id, :baris_ke, :nama_kolom, :nilai, :kutipan, :created_at)
+                        """), [{**r, "upload_file_id": upload_id, "prodi_id": laporan["prodi_id"], "laporan_id": lap_id,
+                                "created_at": now} for r in rows])
+                        baru = [dict(r) for r in conn.execute(text("""
+                            SELECT id, item_id, baris_ke, nama_kolom, nilai FROM akreditasi_upload_ekstraksi
+                            WHERE upload_file_id = :id ORDER BY id
+                        """), {"id": upload_id}).mappings().all()]
+                        ringkasan = {**ringkasan, "diterapkan": terapkan_ekstraksi(conn, laporan, baru, row["nama_file"], now)}
                     # "gagal" hanya bila SEMUA batch gagal / teks tak terbaca; parsial tetap "diekstrak".
                     gagal = not rows and (ringkasan.get("n_batch", 0) == 0 or
                                           ringkasan.get("n_batch_gagal", 0) >= ringkasan.get("n_batch", 0))
@@ -463,72 +500,3 @@ class AccreditationWorkspaceService:
                     logger.exception("status upload %s tidak bisa diperbarui", upload_id)
             with _JOBS_LOCK:
                 _JOBS[upload_id] = {"berjalan": False, "batch": 0, "total": 0, "ringkasan": ringkasan}
-
-
-def _pratinjau(pending: list, manual_by_item: dict[str, list[dict]], registry, grup_item: dict[str, str],
-               nama_item: dict[str, str]) -> list[dict[str, Any]]:
-    """Satu baris per nilai hasil ekstraksi yang belum direview (dokumen aktif saja). Statusnya
-    mengikuti aturan draft: dipakai / bentrok (>1 nilai beda antar file) / tidak menimpa isian
-    tim / kolom di luar kebutuhan item (diabaikan saat disimpan)."""
-    per_sel: dict[tuple[str, int, str], set[str]] = {}
-    for r in pending:
-        per_sel.setdefault((r["item_id"], int(r["baris_ke"]), r["nama_kolom"]), set()).add(r["nilai"])
-    hasil = []
-    for r in pending:
-        item_id = r["item_id"]
-        if item_id not in grup_item:
-            continue
-        kolom = registry.KEBUTUHAN_DATA[item_id]["kolom_dibutuhkan"]
-        terisi = {(int(m["baris_ke"]), m["kolom"]) for m in manual_by_item.get(item_id, [])
-                  if str(m["nilai"] or "").strip()}
-        baris, nama_kolom = int(r["baris_ke"]), r["nama_kolom"]
-        if nama_kolom not in kolom:
-            status = "kolom_lain"
-        elif len(per_sel[(item_id, baris, nama_kolom)]) > 1:
-            status = "bentrok"
-        elif (baris, nama_kolom) in terisi:
-            status = "tidak_menimpa"
-        else:
-            status = "dipakai"
-        hasil.append({"id": int(r["id"]), "item_id": item_id, "item_nama": nama_item[item_id],
-                      "grup": grup_item[item_id], "baris_ke": baris, "kolom": nama_kolom, "nilai": r["nilai"],
-                      "kutipan": r["kutipan"], "nama_file": r["nama_file"], "status": status})
-    return hasil
-
-
-def _draft(kolom: list[str], rows: list[dict[str, str]], pending: list[dict]) -> dict[str, Any]:
-    """Gabungkan hasil ekstraksi AI yang belum direview ke salinan baris manual.
-
-    - sel kosong + satu nilai AI  -> diisi, dicatat di `ai_cells` (ditandai di UI + kutipan)
-    - sel sudah berisi data manual -> TIDAK ditimpa, dicatat di `skipped`
-    - >1 nilai berbeda antar file   -> dibiarkan kosong, semua opsi di `conflicts`
-    `ekstraksi_ids` = semua baris ekstraksi item ini; dikirim balik saat Simpan supaya ditandai
-    selesai direview (dipakai atau tidak).
-    """
-    draft_rows = [dict(r) for r in rows]
-    manual_filled = {(i + 1, k) for i, r in enumerate(rows) for k, v in r.items() if str(v).strip()}
-    grouped: dict[tuple[int, str], list[dict]] = {}
-    for r in pending:
-        grouped.setdefault((int(r["baris_ke"]), r["nama_kolom"]), []).append(r)
-    ai_cells, conflicts, skipped = [], [], []
-    for (baris_ke, nama_kolom), grp in sorted(grouped.items()):
-        if nama_kolom not in kolom:
-            continue
-        # Baris disiapkan juga untuk konflik (sel tetap kosong) supaya user punya tempat memilih opsinya.
-        while len(draft_rows) < baris_ke:
-            draft_rows.append({k: "" for k in kolom})
-        if len({g["nilai"] for g in grp}) > 1:
-            conflicts.append({"baris_ke": baris_ke, "kolom": nama_kolom,
-                              "opsi": [{"nilai": g["nilai"], "nama_file": g["nama_file"], "kutipan": g["kutipan"]}
-                                       for g in grp]})
-            continue
-        first = grp[0]
-        sumber = {"baris_ke": baris_ke, "kolom": nama_kolom, "nilai": first["nilai"],
-                  "kutipan": first["kutipan"], "nama_file": first["nama_file"]}
-        if (baris_ke, nama_kolom) in manual_filled:
-            skipped.append(sumber)
-            continue
-        draft_rows[baris_ke - 1][nama_kolom] = first["nilai"]
-        ai_cells.append(sumber)
-    return {"rows": draft_rows, "ai_cells": ai_cells, "conflicts": conflicts, "skipped": skipped,
-            "ekstraksi_ids": [int(r["id"]) for r in pending]}

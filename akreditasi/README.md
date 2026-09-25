@@ -26,7 +26,7 @@ lain bisa ditambah tanpa mengubah struktur.
 | `scripts/pipeline_sinta.py` | **Fase 2**: tarik daftar publikasi Scopus (10 terbaru/dosen) dari sinta.kemdiktisaintek.go.id → `akreditasi_publikasi_dosen` (akumulatif, upsert) |
 | `scripts/pipeline_dcse_berita.py` | **Fase 2**: crawl arsip RSS dcse.fmipa.ugm.ac.id → `akreditasi_berita_dcse` (evidence pendukung lkps_2_d & lkps_4_c_2) |
 | `scripts/ekstraksi_pattern.py` | **Fase 3**: tier ekstraksi TANPA AI (pattern-matching struktur dokumen) — dicoba lebih dulu untuk item berstruktur daftar berulang |
-| `scripts/ekstraksi_akreditasi.py` | **Fase 3**: ekstraksi LLM per batch item registry — modul murni (baca teks + panggil LLM); penyimpanan preview & review dikerjakan API. Hasil = PREVIEW, user review dulu |
+| `scripts/ekstraksi_akreditasi.py` | **Fase 3**: ekstraksi LLM per batch item registry — modul murni (baca teks + panggil LLM); penerapan hasil ke data laporan dikerjakan API (tanpa menimpa isian yang ada) |
 | `scripts/validasi_ekstraksi_pattern.py` | Validasi manual tier pattern untuk 2 bentuk tabel berbeda (vertikal LED vs horizontal LKPS) |
 | `scripts/generate_template.py` | Generator dokumen `.docx` dari `akreditasi_data_manual` (section kosong tetap dibuat + placeholder). `build_led_docx(df)`/`build_lkps_docx(df)` dipakai API; `generate_*_docx()` untuk CLI |
 | `scripts/generate_laporan_live.py` | Generator dokumen `.docx` **Fase 3** — sumber murni live (hasil pipeline Fase 2), tidak menyentuh tabel data manual |
@@ -34,8 +34,24 @@ lain bisa ditambah tanpa mengubah struktur.
 | `data/` | MySQL-only, tidak ada CSV/DuckDB. `data/uploads/<prodi_id>/` = file pendukung, `data/generated/` = riwayat laporan Word (keduanya di-gitignore) |
 | `PIPELINE.md` | Dokumentasi alur: registry → migrasi tabel → input manual → generate dokumen |
 
-Tampilan, login (domain UGM, bcrypt, rate limit 5×/15 menit, akun pertama admin), input data, upload,
-review ekstraksi, dan generate Word: UI ada di web (`/akreditasi`, `web/src/akreditasi.tsx`) + API (`api/app/services/accreditation_workspace.py`). Dashboard Streamlit dihapus 2026-09-23.
+Tampilan, login (domain UGM, bcrypt, rate limit 5×/15 menit, akun pertama admin), laporan per prodi + tahun
+dengan password prodi, input data, upload, ekstraksi, dan generate Word: UI ada di web (`/akreditasi`,
+`web/src/akreditasi.tsx`) + API (`api/app/services/accreditation_laporan.py`,
+`api/app/services/accreditation_workspace.py`). Dashboard Streamlit dihapus 2026-09-23.
+
+## Laporan per prodi + tahun, dikunci password prodi (2026-09-25)
+
+- Satu **laporan** = prodi + dokumen (LED/LKPS) + tahun (`akreditasi_laporan`). Isian, file upload,
+  hasil ekstraksi, dan riwayat Word milik satu laporan (`laporan_id`), jadi staf satu prodi
+  mengerjakan laporan yang sama dan laporan tahun berbeda tidak saling menimpa.
+- **Password dibuat sekali per prodi** oleh staf pertama (`akreditasi_prodi_kunci`, bcrypt) dan berlaku
+  untuk semua laporan prodi itu. Daftar laporan (tahun, kelengkapan, terakhir diubah) terlihat semua
+  akun; isi laporan baru terbuka setelah password dimasukkan, berlaku per sesi login
+  (`akreditasi_prodi_akses`). Salah 5× dalam 15 menit -> dikunci sementara untuk akun + prodi itu.
+- **Lupa password**: staf mengajukan password baru (`akreditasi_reset_kunci`); admin menyetujui/menolak
+  di halaman Admin. Disetujui -> password diganti dan semua sesi yang terbuka dengan password lama ditutup.
+- Data sebelum fitur ini dipindah otomatis ke laporan prodi + dokumen dengan tahun data terakhir
+  diubah (MEI -> "LED 2026"), saat API start (`ensure_schema`, idempoten).
 
 ## Fase pengembangan
 
@@ -88,8 +104,11 @@ Upload file pendukung lewat dashboard → tersimpan fisik di `data/uploads/<prod
 2. `scripts/ekstraksi_akreditasi.py` — fallback LLM per batch item registry (butuh
    `OPENAI_API_KEY` / `OPENAI_BASE_URL`).
 
-Hasil keduanya masuk `akreditasi_upload_ekstraksi` sebagai **PREVIEW** — user wajib
-review dan klik Simpan dulu; baru setelah itu masuk `akreditasi_data_manual`.
+Hasil keduanya dicatat di `akreditasi_upload_ekstraksi` lalu **langsung diterapkan** ke
+`akreditasi_data_manual` laporan itu tanpa menimpa isian yang ada: kolom kosong item narasi diisi,
+baris tabel baru ditambahkan, baris yang semua nilainya sudah ada dilewati. Status tiap nilai
+(`status_terap`: ditambahkan / sudah_ada / tidak_menimpa / kolom_lain) tampil sebagai riwayat
+ekstraksi di web; sel dari AI tercatat `diisi_oleh = "AI: <nama file>"` sampai disimpan ulang staf.
 
 Catatan: model gateway `cx/gpt-5.6-luna` TIDAK menegakkan `response_format` JSON
 Schema strict (dicoba 2026-09-16) → parsing respons harus defensif.

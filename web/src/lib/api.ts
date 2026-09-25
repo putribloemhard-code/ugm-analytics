@@ -172,7 +172,7 @@ export async function accreditationMe() { const response = await fetch(`${API_BA
 export async function accreditationLogin(email: string, password: string) { const response = await fetch(`${API_BASE}/analytics/accreditation/auth/login`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }); const body = await kirimJson<{ user: AuthUser }>(response, 'Login gagal'); notifyAuthChanged(); return body.user; }
 export async function accreditationRegister(email: string, name: string, password: string) { const response = await fetch(`${API_BASE}/analytics/accreditation/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name, password }) }); return kirimJson<{ message: string }>(response, 'Registrasi gagal'); }
 export async function accreditationLogout() { await fetch(`${API_BASE}/analytics/accreditation/auth/logout`, { method: 'POST', credentials: 'include' }); notifyAuthChanged(); }
-export async function accreditationUpload(prodiId: string, file: File) { const form = new FormData(); form.append('prodi_id', prodiId); form.append('file', file); const response = await fetch(`${API_BASE}/analytics/accreditation/uploads`, { method: 'POST', credentials: 'include', body: form }); return kirimJson<{ message?: string }>(response, 'Upload gagal'); }
+export async function accreditationUpload(laporanId: number, file: File) { const form = new FormData(); form.append('laporan_id', String(laporanId)); form.append('file', file); const response = await fetch(`${API_BASE}/analytics/accreditation/uploads`, { method: 'POST', credentials: 'include', body: form }); return kirimJson<{ message?: string }>(response, 'Upload gagal'); }
 
 /* ---- Login Analisis Dampak: akun terpisah total dari akun Akreditasi (tabel, cookie, dan
    event beda) supaya masuk ke satu portal tidak otomatis membuka portal yang lain. ---- */
@@ -185,7 +185,7 @@ export async function dampakLogout() { await fetch(`${API_BASE}/analytics/dampak
 
 /* ---- Profil Saya & Admin (padanan page_profil.py + page_admin.py dashboard lama) ---- */
 export type ProfileUser = { id: number; email: string; nama: string; is_admin: boolean; created_at: string | null; last_login_at: string | null; terdaftar: string | null; login_terakhir: string | null };
-export type OngoingWork = { prodi_id: string; nama_prodi: string; nama_fakultas: string | null; dokumen: string; item_milik_user: number; lengkap: number; total: number; persen: number };
+export type OngoingWork = { laporan_id: number; prodi_id: string; nama_prodi: string; nama_fakultas: string | null; dokumen: string; tahun: number; nama_laporan: string; item_milik_user: number; lengkap: number; total: number; persen: number };
 export type RiwayatRow = { id: number; prodi_id: string; nama_prodi: string; jenis_dokumen: string; generated_at: string | null; digenerate: string | null };
 export type ProfileResult = { user: ProfileUser; stats: { dokumen_digenerate: number; dokumen_diupload: number }; ongoing: OngoingWork[]; riwayat: { total: number; batas: number; rows: RiwayatRow[] } };
 export type AdminUserRow = { id: number; nama: string; email: string; is_admin: boolean; is_blocked: boolean; terdaftar: string | null; login_terakhir: string | null; n_generate: number; diri_sendiri: boolean };
@@ -206,28 +206,21 @@ export function accreditationAdminAction(targetId: number, action: 'blokir' | 'a
 /* ---- Ruang kerja akreditasi (padanan page_akreditasi.py + dashboard_render.py lama) ---- */
 export type Dokumen = 'LED' | 'LKPS';
 export type ItemRow = Record<string, string>;
-export type AiCell = { baris_ke: number; kolom: string; nilai: string; kutipan: string | null; nama_file: string };
-export type ItemDraft = {
-  rows: ItemRow[];
-  ai_cells: AiCell[];
-  conflicts: { baris_ke: number; kolom: string; opsi: { nilai: string; nama_file: string; kutipan: string | null }[] }[];
-  skipped: AiCell[];
-  ekstraksi_ids: number[];
-};
 export type WorkspaceItem = {
   id: string; nama: string; deskripsi: string; sumber_data: string; status: string; status_label: string;
   tipe: 'tabel' | 'narasi'; kolom: string[]; tabel_lkps: string | null; narasi: boolean; terisi: boolean;
   state: 'otomatis' | 'live' | 'terisi' | 'kosong' | 'belum_tersedia'; editable: boolean; rows: ItemRow[];
-  diisi_oleh: string | null; updated_at: string | null; draft: ItemDraft | null;
+  diisi_oleh: string | null; updated_at: string | null;
   /** Status resmi dari data_source_map.json (bukan status_ketersediaan registry). */
   kategori: KategoriSumber; kategori_label: string; sumber_asli: string | null; catatan: string | null; sumber_tambahan: string | null;
   live: { kolom: string[]; rows: ItemRow[]; sumber: string[]; fetched_at: string | null } | null;
   pendukung: { judul: string; total: number; kolom: string[]; rows: string[][]; tautan: string[] | null } | null;
 };
 export type KategoriSumber = 'tersedia' | 'akses_data' | 'penyusunan';
-export type PratinjauEkstraksi = {
+/** Satu nilai hasil ekstraksi AI dan apa yang terjadi saat diterapkan ke data laporan. */
+export type RiwayatEkstraksi = {
   id: number; item_id: string; item_nama: string; grup: string; baris_ke: number; kolom: string; nilai: string;
-  kutipan: string | null; nama_file: string; status: 'dipakai' | 'bentrok' | 'tidak_menimpa' | 'kolom_lain';
+  kutipan: string | null; nama_file: string; status: 'ditambahkan' | 'sudah_ada' | 'tidak_menimpa' | 'kolom_lain';
 };
 export type WorkspaceGroup = { key: string; label: string; items: WorkspaceItem[]; cuplikan: { id: string; tabel_lkps: string; nama: string; status: string; terisi: boolean }[] };
 export type WorkspaceUpload = {
@@ -235,9 +228,11 @@ export type WorkspaceUpload = {
   status: 'belum_diekstrak' | 'sedang_diekstrak' | 'diekstrak' | 'gagal_ekstrak' | 'terhenti';
   diupload_oleh: string | null; uploaded_at: string | null; diekstrak_at: string | null;
   progres: { batch: number; total: number } | null;
-  ringkasan: { n_item_ditemukan?: number; n_kolom_terisi?: number; n_batch?: number; waktu_llm_total?: number; error?: string | null } | null;
+  ringkasan: { n_item_ditemukan?: number; n_kolom_terisi?: number; n_batch?: number; waktu_llm_total?: number; error?: string | null;
+    diterapkan?: { ditambahkan: number; sudah_ada: number; tidak_menimpa: number; kolom_lain: number } } | null;
 };
 export type Workspace = {
+  laporan: { id: number; tahun: number; nama: string };
   prodi: { slug: string; nama: string; jenjang: string | null; fakultas: string | null };
   dokumen: Dokumen;
   ringkasan: {
@@ -246,20 +241,57 @@ export type Workspace = {
   };
   groups: WorkspaceGroup[];
   uploads: WorkspaceUpload[];
-  ekstraksi: { tersedia: boolean; item_menunggu_review: number; pratinjau: PratinjauEkstraksi[]; dokumen_lain: number };
+  ekstraksi: { tersedia: boolean; riwayat: RiwayatEkstraksi[] };
+  riwayat_word: { id: number; oleh: string; waktu: string | null }[];
 };
 
-export function getAccreditationWorkspace(prodiId: string, dokumen: Dokumen) {
-  return kirim<Workspace>(`/analytics/accreditation/workspace?${toQuery({ prodi_id: prodiId, dokumen })}`, 'GET');
+/* ---- Laporan per prodi + tahun, dikunci satu password per prodi (services/accreditation_laporan.py) ---- */
+export type LaporanRingkas = {
+  id: number; tahun: number; nama: string; dibuat_oleh: string | null; dibuat: string | null;
+  lengkap: number; total: number; persen: number; terakhir_diubah: string | null; terakhir_oleh: string | null;
+};
+export type DaftarLaporan = {
+  prodi: { slug: string; nama: string; jenjang: string | null; fakultas: string | null };
+  dokumen: Dokumen; terkunci: boolean; terbuka: boolean; reset_menunggu: boolean; laporan: LaporanRingkas[];
+};
+export type PengajuanReset = {
+  id: number; prodi_id: string; nama_prodi: string | null; jenjang: string | null; fakultas: string | null;
+  diajukan_oleh: string; nama_pengaju: string | null; alasan: string | null;
+  status: 'menunggu' | 'disetujui' | 'ditolak' | 'gugur'; created_at: string | null; diputus_oleh: string | null; diputus_at: string | null;
+};
+export function getDaftarLaporan(prodiId: string, dokumen: Dokumen) {
+  return kirim<DaftarLaporan>(`/analytics/accreditation/laporan?${toQuery({ prodi_id: prodiId, dokumen })}`, 'GET');
 }
-export function saveAccreditationItem(prodiId: string, itemId: string, rows: ItemRow[], ekstraksiIds: number[]) {
-  return kirim<{ message: string; baris: number; sel: number }>(`/analytics/accreditation/workspace/items/${encodeURIComponent(itemId)}`, 'POST', { prodi_id: prodiId, rows, ekstraksi_ids: ekstraksiIds });
+export function buatLaporan(prodiId: string, dokumen: Dokumen, tahun: number, nama: string) {
+  return kirim<{ id: number; tahun: number; nama: string }>('/analytics/accreditation/laporan', 'POST', { prodi_id: prodiId, dokumen, tahun, nama });
+}
+/* PIN prodi = angka 6-12 digit; dikirim di field `password` karena endpoint & hash sama. */
+export function buatPinProdi(prodiId: string, pin: string) {
+  return kirim<{ message: string }>(`/analytics/accreditation/prodi/${encodeURIComponent(prodiId)}/kunci`, 'POST', { password: pin });
+}
+export function bukaProdi(prodiId: string, pin: string) {
+  return kirim<{ message: string }>(`/analytics/accreditation/prodi/${encodeURIComponent(prodiId)}/buka`, 'POST', { password: pin });
+}
+export function ajukanResetPin(prodiId: string, pinBaru: string, alasan: string) {
+  return kirim<{ message: string }>(`/analytics/accreditation/prodi/${encodeURIComponent(prodiId)}/reset`, 'POST', { password_baru: pinBaru, alasan });
+}
+export function hapusLaporan(laporanId: number) {
+  return kirim<{ message: string }>(`/analytics/accreditation/laporan/${laporanId}/hapus`, 'POST');
+}
+export function daftarPengajuanReset() { return kirim<{ pengajuan: PengajuanReset[] }>('/analytics/accreditation/admin/reset', 'GET'); }
+export function putuskanReset(id: number, setujui: boolean) { return kirim<{ message: string }>(`/analytics/accreditation/admin/reset/${id}`, 'POST', { setujui }); }
+
+export function getAccreditationWorkspace(laporanId: number) {
+  return kirim<Workspace>(`/analytics/accreditation/workspace?${toQuery({ laporan_id: laporanId })}`, 'GET');
+}
+export function saveAccreditationItem(laporanId: number, itemId: string, rows: ItemRow[]) {
+  return kirim<{ message: string; baris: number; sel: number }>(`/analytics/accreditation/workspace/items/${encodeURIComponent(itemId)}`, 'POST', { laporan_id: laporanId, rows });
 }
 export function addAccreditationProgram(fakultasId: string, nama: string, jenjang: string) {
   return kirim<{ slug: string; nama: string }>('/analytics/accreditation/programs', 'POST', { fakultas_id: fakultasId, nama, jenjang });
 }
-export function startAccreditationExtraction(prodiId: string, dokumen: Dokumen) {
-  return kirim<{ dimulai: number }>('/analytics/accreditation/extractions', 'POST', { prodi_id: prodiId, dokumen });
+export function startAccreditationExtraction(laporanId: number) {
+  return kirim<{ dimulai: number }>('/analytics/accreditation/extractions', 'POST', { laporan_id: laporanId });
 }
 
 /** Unduh berkas dari endpoint ber-login; nama berkas diambil dari Content-Disposition. */
@@ -269,8 +301,11 @@ async function unduhBerkas(path: string, init: RequestInit, cadangan: string): P
   const nama = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')?.[1];
   return { blob: await response.blob(), filename: nama ?? cadangan };
 }
-export function generateAccreditationDocument(prodiId: string, dokumen: Dokumen) {
-  return unduhBerkas('/analytics/accreditation/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prodi_id: prodiId, dokumen }) }, `Laporan_Akreditasi_${dokumen}.docx`);
+export function generateAccreditationDocument(laporanId: number, dokumen: Dokumen) {
+  return unduhBerkas('/analytics/accreditation/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ laporan_id: laporanId }) }, `Laporan_Akreditasi_${dokumen}.docx`);
+}
+export function downloadLaporanWord(laporanId: number, riwayatId: number) {
+  return unduhBerkas(`/analytics/accreditation/laporan/${laporanId}/riwayat/${riwayatId}/file`, {}, 'Laporan_Akreditasi.docx');
 }
 export function downloadAccreditationHistory(riwayatId: number) {
   return unduhBerkas(`/analytics/accreditation/history/${riwayatId}/file`, {}, 'Laporan_Akreditasi.docx');

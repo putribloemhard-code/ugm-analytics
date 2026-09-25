@@ -207,14 +207,15 @@ def accreditation_admin_action(target_id: int, payload: dict[str, Any], request:
 
 
 @router.post("/accreditation/uploads")
-async def accreditation_upload(request: Request, prodi_id: str = Form(...), file: UploadFile = File(...), api: AnalyticsService = Depends(service)):
+async def accreditation_upload(request: Request, laporan_id: int = Form(...), file: UploadFile = File(...), api: AnalyticsService = Depends(service)):
     user = _auth_user(request, api)
+    laporan = _laporan_terbuka(request, api, laporan_id)
     from app.services.accreditation_upload import MAX_UPLOAD_BYTES, UploadError, save_upload
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Ukuran file maksimal 25 MB")
     try:
-        return save_upload(api.engine, Path(settings.accreditation_upload_dir), prodi_id, file.filename or "file", file.content_type, data, user["email"])
+        return save_upload(api.engine, Path(settings.accreditation_upload_dir), laporan, file.filename or "file", file.content_type, data, user["email"])
     except UploadError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -249,22 +250,115 @@ def _docx(content: bytes, filename: str) -> Response:
     )
 
 
-@router.get("/accreditation/workspace")
-def accreditation_workspace(request: Request, prodi_id: str = Query(..., max_length=64),
-                            dokumen: str = Query(default="LED", pattern="^(LED|LKPS)$"),
-                            api: AnalyticsService = Depends(service)):
-    """Semua item LED/LKPS satu prodi + isian, draft ekstraksi AI, dan daftar file (padanan page_akreditasi.py)."""
+def _laporan_svc(api: AnalyticsService):
+    from app.services.accreditation_laporan import LaporanService
+    return LaporanService(api.engine)
+
+
+def _laporan_call(fn, *args, **kwargs):
+    """Terjemahkan galat laporan/kunci prodi ke status HTTP."""
+    from app.services.accreditation_laporan import AksesDitolak, LaporanError, TidakDitemukan
+    try:
+        return fn(*args, **kwargs)
+    except TidakDitemukan as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AksesDitolak as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except LaporanError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _token(request: Request) -> str | None:
+    from app.services.accreditation_auth import COOKIE_NAME
+    return request.cookies.get(COOKIE_NAME)
+
+
+def _laporan_terbuka(request: Request, api: AnalyticsService, laporan_id: Any) -> dict[str, Any]:
+    """Laporan yang password prodinya sudah dimasukkan di sesi login ini; 403 bila belum."""
+    return _laporan_call(_laporan_svc(api).laporan, laporan_id, _token(request))
+
+
+@router.get("/accreditation/laporan")
+def accreditation_laporan_list(request: Request, prodi_id: str = Query(..., max_length=64),
+                               dokumen: str = Query(default="LED", pattern="^(LED|LKPS)$"),
+                               api: AnalyticsService = Depends(service)):
+    """Riwayat laporan satu prodi + dokumen (terlihat semua akun) dan status kunci prodi di sesi ini."""
+    user = _auth_user(request, api)
+    return _laporan_call(_laporan_svc(api).daftar, prodi_id, dokumen, _token(request), user["email"])
+
+
+@router.post("/accreditation/laporan")
+def accreditation_laporan_create(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
+    """Buat laporan baru (prodi + dokumen + tahun); password prodi harus sudah dibuka di sesi ini."""
+    user = _auth_user(request, api)
+    return _laporan_call(_laporan_svc(api).buat_laporan, str(payload.get("prodi_id", "")), str(payload.get("dokumen", "")),
+                         payload.get("tahun"), str(payload.get("nama") or ""), _token(request), user["email"])
+
+
+@router.post("/accreditation/laporan/{laporan_id}/hapus")
+def accreditation_laporan_delete(laporan_id: int, request: Request, api: AnalyticsService = Depends(service)):
+    """Hapus laporan beserta isian, file, dan riwayat Word-nya; PIN prodi harus sudah dibuka di sesi ini."""
     _auth_user(request, api)
-    return _workspace_call(_workspace(api).workspace, prodi_id, dokumen)
+    laporan = _laporan_terbuka(request, api, laporan_id)
+    return _workspace_call(_workspace(api).hapus_laporan, laporan)
+
+
+@router.post("/accreditation/prodi/{prodi_id}/kunci")
+def accreditation_kunci_buat(prodi_id: str, payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
+    """Buat password pertama prodi (hanya bila belum ada)."""
+    user = _auth_user(request, api)
+    return _laporan_call(_laporan_svc(api).buat_kunci, prodi_id, str(payload.get("password", "")), _token(request), user["email"])
+
+
+@router.post("/accreditation/prodi/{prodi_id}/buka")
+def accreditation_kunci_buka(prodi_id: str, payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
+    """Masukkan password prodi; berlaku sampai logout / sesi login berakhir."""
+    user = _auth_user(request, api)
+    return _laporan_call(_laporan_svc(api).buka, prodi_id, str(payload.get("password", "")), _token(request), user["email"])
+
+
+@router.post("/accreditation/prodi/{prodi_id}/reset")
+def accreditation_kunci_reset(prodi_id: str, payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
+    """Ajukan password prodi baru; berlaku setelah disetujui admin."""
+    user = _auth_user(request, api)
+    return _laporan_call(_laporan_svc(api).ajukan_reset, prodi_id, str(payload.get("password_baru", "")),
+                         str(payload.get("alasan") or ""), user)
+
+
+@router.get("/accreditation/admin/reset")
+def accreditation_admin_reset_list(request: Request, api: AnalyticsService = Depends(service)):
+    """Pengajuan reset password prodi (admin)."""
+    user = _auth_user(request, api)
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Hanya admin.")
+    return {"pengajuan": _laporan_svc(api).daftar_reset()}
+
+
+@router.post("/accreditation/admin/reset/{reset_id}")
+def accreditation_admin_reset_decide(reset_id: int, payload: dict[str, Any], request: Request,
+                                     api: AnalyticsService = Depends(service)):
+    """Setujui / tolak pengajuan reset password prodi (admin)."""
+    user = _auth_user(request, api)
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Hanya admin.")
+    return _laporan_call(_laporan_svc(api).putuskan_reset, reset_id, bool(payload.get("setujui")), user)
+
+
+@router.get("/accreditation/workspace")
+def accreditation_workspace(request: Request, laporan_id: int = Query(...), api: AnalyticsService = Depends(service)):
+    """Semua item LED/LKPS satu laporan + isian, riwayat ekstraksi, file, dan riwayat Word."""
+    _auth_user(request, api)
+    laporan = _laporan_terbuka(request, api, laporan_id)
+    return _workspace_call(_workspace(api).workspace, laporan)
 
 
 @router.post("/accreditation/workspace/items/{item_id}")
 def accreditation_save_item(item_id: str, payload: dict[str, Any], request: Request,
                             api: AnalyticsService = Depends(service)):
-    """Simpan isian satu item (ganti seluruh sel item itu) + tandai ekstraksi AI yang sudah direview."""
+    """Simpan isian satu item (ganti seluruh sel item itu) di laporan."""
     user = _auth_user(request, api)
-    return _workspace_call(_workspace(api).save_item, str(payload.get("prodi_id", "")), item_id,
-                           payload.get("rows"), payload.get("ekstraksi_ids"), user["email"])
+    laporan = _laporan_terbuka(request, api, payload.get("laporan_id"))
+    return _workspace_call(_workspace(api).save_item, laporan, item_id, payload.get("rows"), user["email"])
 
 
 @router.post("/accreditation/programs")
@@ -277,18 +371,28 @@ def accreditation_add_program(payload: dict[str, Any], request: Request, api: An
 
 @router.post("/accreditation/extractions")
 def accreditation_extract(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
-    """Mulai ekstraksi AI di latar belakang untuk file prodi yang belum/gagal diekstrak; UI memantau lewat workspace."""
+    """Mulai ekstraksi AI di latar belakang untuk file laporan yang belum/gagal diekstrak; hasilnya langsung
+    diterapkan ke data laporan tanpa menimpa isian yang ada. UI memantau lewat workspace."""
     _auth_user(request, api)
-    return _workspace_call(_workspace(api).start_extraction, str(payload.get("prodi_id", "")),
-                           str(payload.get("dokumen", "")))
+    laporan = _laporan_terbuka(request, api, payload.get("laporan_id"))
+    return _workspace_call(_workspace(api).start_extraction, laporan)
 
 
 @router.post("/accreditation/generate")
 def accreditation_generate(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
-    """Generate laporan Word LED/LKPS satu prodi; tercatat di riwayat user."""
+    """Generate Word satu laporan; tercatat di riwayat laporan (dan riwayat akun pembuatnya)."""
     user = _auth_user(request, api)
-    content, filename = _workspace_call(_workspace(api).generate, str(payload.get("prodi_id", "")),
-                                        str(payload.get("dokumen", "")), user["email"])
+    laporan = _laporan_terbuka(request, api, payload.get("laporan_id"))
+    content, filename = _workspace_call(_workspace(api).generate, laporan, user["email"])
+    return _docx(content, filename)
+
+
+@router.get("/accreditation/laporan/{laporan_id}/riwayat/{riwayat_id}/file")
+def accreditation_laporan_file(laporan_id: int, riwayat_id: int, request: Request, api: AnalyticsService = Depends(service)):
+    """Unduh Word dari riwayat laporan (semua staf yang sudah membuka laporan ini)."""
+    _auth_user(request, api)
+    laporan = _laporan_terbuka(request, api, laporan_id)
+    content, filename = _workspace_call(_workspace(api).laporan_file, laporan, riwayat_id)
     return _docx(content, filename)
 
 

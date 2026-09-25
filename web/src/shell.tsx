@@ -5,6 +5,13 @@ import { AUTH_EVENT, DAMPAK_AUTH_EVENT, accreditationLogout, accreditationMe, da
 
 export const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\//, '')}`;
 
+/** Keluar lalu muat ulang ke gerbang login portal itu: state halaman (laporan & PIN yang sedang
+ *  terbuka, filter) ikut hilang, bukan hanya chip nama di header. */
+export async function keluarKe(portal: 'akreditasi' | 'dampak') {
+  try { await (portal === 'akreditasi' ? accreditationLogout() : dampakLogout()); }
+  finally { window.location.replace(assetUrl(portal)); }
+}
+
 /** Bagian-bagian laporan Analisis Dampak (satu halaman panjang); id dipakai sebagai anchor dan scrollspy. */
 export const reportSections = [
   { id: 'sumber', label: 'Sumber' },
@@ -135,12 +142,12 @@ function SiteHeader() {
       </nav>
       {onDampak && dampakUser && <span className="auth-chip">
         <span className="auth-chip__name">{dampakUser.nama}</span>
-        <button type="button" onClick={() => { void dampakLogout(); }}>Keluar</button>
+        <button type="button" onClick={() => { void keluarKe('dampak'); }}>Keluar</button>
       </span>}
       {onAccreditation && accUser && <span className="auth-chip">
         <Link to="/profil" title={accUser.email}>{accUser.nama}</Link>
         {accUser.is_admin && <Link className="auth-chip__admin" to="/admin" title="Kelola akun pengguna">Admin</Link>}
-        <button type="button" onClick={() => { void accreditationLogout(); }}>Keluar</button>
+        <button type="button" onClick={() => { void keluarKe('akreditasi'); }}>Keluar</button>
       </span>}
       <button className="theme-toggle" type="button" aria-pressed={theme === 'dark'} onClick={toggle}>{theme === 'dark' ? 'Mode terang' : 'Mode gelap'}</button>
     </div>
