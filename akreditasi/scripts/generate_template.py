@@ -12,6 +12,14 @@ build_led_docx()/build_lkps_docx() menerima DataFrame data_manual yang sudah
 dimuat pemanggil (API FastAPI memuatnya dengan SQL portabel MySQL/PostgreSQL),
 jadi modul ini tidak wajib menyentuh `db` (koneksi MySQL skrip). `db` hanya
 diimpor malas oleh generate_*_docx() untuk pemakaian CLI.
+
+`konteks` (opsional, dikirim API) menggabungkan tiga sumber seperti aturan
+generate_laporan_live.py: status tiap item dari data_source_map.json (BUKAN
+status_ketersediaan registry), isian tim (data_manual, prioritas utama), lalu
+data live pipeline Fase 2 untuk item "tersedia". Item tanpa keduanya diberi
+placeholder yang membedakan "[DATA TIDAK TERSEDIA]" (kendala akses data, plus
+catatan sumbernya) dari "[NARASI PERLU DISUSUN TIM PENYUSUN PRODI]". Tanpa
+`konteks`, perilaku lama (template dari data_manual saja) tidak berubah.
 """
 
 import sys
@@ -39,6 +47,8 @@ from registry_kebutuhan_data import (  # noqa: E402
 )
 
 WARNA_PLACEHOLDER = RGBColor(0x99, 0x33, 0x33)
+WARNA_PERLU_MANUSIA = RGBColor(0x1F, 0x4E, 0x79)
+WARNA_KETERANGAN = RGBColor(0x55, 0x55, 0x55)
 
 
 def _load_data_manual(engine, prodi_id: str = "mei") -> pd.DataFrame:
@@ -213,11 +223,14 @@ def generate_led_docx(engine=None, prodi_id: str = "mei") -> bytes:
     return build_led_docx(_load_data_manual(engine or db.get_engine(), prodi_id))
 
 
-def build_led_docx(df_manual: pd.DataFrame) -> bytes:
+def build_led_docx(df_manual: pd.DataFrame, konteks: dict | None = None) -> bytes:
     """Dokumen "Laporan Evaluasi Diri (LED)" -- isi per Kriteria (Umum/A/B/C1-C6/D),
     lihat led_items_by_kriteria(). Kriteria A/B/C1-C6 ditutup sub-tabel ringkas
     tabel LKPS terkait (cuplikan, bukan isi penuh). `df_manual` = baris
     akreditasi_data_manual SATU prodi (kolom item_id, baris_ke, kolom, nilai, link_bukti)."""
+    if konteks is not None:
+        return _build_gabungan("Laporan Evaluasi Diri (LED)", led_items_by_kriteria(), URUTAN_KRITERIA,
+                               LABEL_KRITERIA, df_manual, konteks, cuplikan=True)
     filled_ids = set(df_manual["item_id"].unique()) if len(df_manual) else set()
     grouped = led_items_by_kriteria()
     item_ids = [item["id"] for items in grouped.values() for item in items]
@@ -249,10 +262,13 @@ def generate_lkps_docx(engine=None, prodi_id: str = "mei") -> bytes:
     return build_lkps_docx(_load_data_manual(engine or db.get_engine(), prodi_id))
 
 
-def build_lkps_docx(df_manual: pd.DataFrame) -> bytes:
+def build_lkps_docx(df_manual: pd.DataFrame, konteks: dict | None = None) -> bytes:
     """Dokumen "Laporan Kinerja Program Studi (LKPS)" -- isi per Bagian 1-6,
     lihat lkps_items_by_bagian(). Rendering tabel sama persis seperti
     sebelumnya, cuma dikelompok ulang per Bagian bukan per Kriteria."""
+    if konteks is not None:
+        return _build_gabungan("Laporan Kinerja Program Studi (LKPS)", lkps_items_by_bagian(), URUTAN_BAGIAN_LKPS,
+                               LABEL_BAGIAN_LKPS, df_manual, konteks, cuplikan=False)
     filled_ids = set(df_manual["item_id"].unique()) if len(df_manual) else set()
     grouped = lkps_items_by_bagian()
     item_ids = [item["id"] for items in grouped.values() for item in items]
@@ -270,6 +286,212 @@ def build_lkps_docx(df_manual: pd.DataFrame) -> bytes:
         for item in items:
             _add_item_section(doc, item, df_manual)
 
+    buf = BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+# ---------------------------------------------------------------- mode gabungan (konteks)
+def _kategori(peta: dict, item_id: str) -> str:
+    entri = peta.get(item_id) or {}
+    if entri.get("status") == "tersedia":
+        return "tersedia"
+    return "penyusunan" if entri.get("jenis_kendala") == "perlu_penyusunan_manusia" else "akses_data"
+
+
+def _keterangan(doc: Document, teks: str) -> None:
+    p = doc.add_paragraph()
+    run = p.add_run(teks)
+    run.italic = True
+    run.font.size = Pt(9)
+    run.font.color.rgb = WARNA_KETERANGAN
+
+
+def _placeholder_peta(doc: Document, peta: dict, item_id: str) -> None:
+    if _kategori(peta, item_id) == "penyusunan":
+        run = doc.add_paragraph().add_run("[NARASI PERLU DISUSUN TIM PENYUSUN PRODI]")
+        run.bold = True
+        run.font.color.rgb = WARNA_PERLU_MANUSIA
+        return
+    run = doc.add_paragraph().add_run("[DATA TIDAK TERSEDIA]")
+    run.bold = True
+    run.font.color.rgb = WARNA_PLACEHOLDER
+    catatan = (peta.get(item_id) or {}).get("catatan_jika_tidak_tersedia")
+    if catatan:
+        p = doc.add_paragraph()
+        p.add_run("Catatan: ").bold = True
+        p.add_run(catatan)
+
+
+def _add_live(doc: Document, item: dict, live_item: dict) -> None:
+    """Data live item "tersedia": semua kolom resmi tetap tampil; sel yang tidak berhasil ditarik
+    ditandai [DATA TIDAK TERSEDIA] (bukan dihilangkan), kolom tambahan dari pipeline ikut di akhir."""
+    rows = live_item["rows"]
+    kolom = list(item["kolom_dibutuhkan"])
+    for row in rows:
+        kolom += [k for k in row if k not in kolom]
+    if len(rows) == 1 and len(kolom) <= 8:
+        for k in kolom:
+            p = doc.add_paragraph()
+            p.add_run(f"{k}: ").bold = True
+            nilai = rows[0].get(k, "")
+            run = p.add_run(str(nilai) if nilai else "[DATA TIDAK TERSEDIA]")
+            if not nilai:
+                run.font.color.rgb = WARNA_PLACEHOLDER
+    else:
+        table = doc.add_table(rows=1, cols=len(kolom))
+        table.style = "Light Grid Accent 1"
+        for i, k in enumerate(kolom):
+            table.rows[0].cells[i].text = k
+            for r in table.rows[0].cells[i].paragraphs[0].runs:
+                r.font.bold = True
+        for row in rows:
+            cells = table.add_row().cells
+            for i, k in enumerate(kolom):
+                cells[i].text = str(row.get(k, "")) or "[DATA TIDAK TERSEDIA]"
+    sumber = "; ".join(live_item.get("sumber") or [])
+    tanggal = str(live_item.get("fetched_at") or "")[:10]
+    _keterangan(doc, f"Sumber live: {sumber or '-'}" + (f" (diambil {tanggal})" if tanggal else "")
+                + ". Periksa ulang sebelum dipakai sebagai data resmi.")
+
+
+def _add_pendukung(doc: Document, peta: dict, item_id: str, live: dict) -> None:
+    teks = (peta.get(item_id) or {}).get("sumber_tambahan")
+    publikasi, berita = live.get("publikasi") or [], live.get("berita") or []
+    if not teks:
+        return
+    tabel: tuple[list[str], list[list[str]], int] | None = None
+    if item_id in ("lkps_3_c_2", "lkps_3_a_2") and publikasi:
+        tabel = (["Dosen", "Judul", "Tahun", "Sumber"],
+                 [[str(r["dosen"]), str(r["judul"]), str(r["tahun"] or ""), str(r["sumber"] or "")]
+                  for r in publikasi[:30]], len(publikasi))
+    elif item_id == "led_b5_dosen_tendik" and publikasi:
+        dosen = sorted({r["dosen"] for r in publikasi})
+        tabel = (["Dosen dengan publikasi terlacak (SINTA)"], [[d] for d in dosen], len(dosen))
+    elif item_id in ("lkps_2_d", "lkps_4_c_2") and berita:
+        tabel = (["Judul", "Tanggal", "URL"],
+                 [[str(r["judul"]), str(r["tanggal"] or "")[:10], str(r["url"])] for r in berita[:15]], len(berita))
+    if tabel is None:
+        return
+    doc.add_heading("Data pendukung (live, bukan pengganti isian resmi di atas)", level=3)
+    _keterangan(doc, teks)
+    kolom, rows, total = tabel
+    table = doc.add_table(rows=1, cols=len(kolom))
+    table.style = "Light List Accent 1"
+    for i, k in enumerate(kolom):
+        table.rows[0].cells[i].text = k
+    for row in rows:
+        cells = table.add_row().cells
+        for i, v in enumerate(row):
+            cells[i].text = v
+    if total > len(rows):
+        _keterangan(doc, f"Ditampilkan {len(rows)} dari {total} baris.")
+
+
+def _add_item_gabungan(doc: Document, item: dict, df_manual: pd.DataFrame, konteks: dict) -> None:
+    heading_text = f"Tabel {item['tabel_lkps']} — {item['nama']}" if item["tabel_lkps"] else item["nama"]
+    doc.add_heading(heading_text, level=2)
+    if item["deskripsi_singkat"]:
+        doc.add_paragraph().add_run(item["deskripsi_singkat"]).italic = True
+    peta, live = konteks["peta"], konteks["live"]
+    rows = _rows_for_item(item["id"], df_manual)
+    live_item = live["items"].get(item["id"])
+    if rows:
+        (_add_tabel_item if item["tipe"] == "tabel" else _add_narasi_item)(doc, item, rows)
+        _keterangan(doc, "Sumber: isian tim penyusun.")
+    elif live_item:
+        _add_live(doc, item, live_item)
+    else:
+        _placeholder_peta(doc, peta, item["id"])
+    _add_pendukung(doc, peta, item["id"], live)
+    doc.add_paragraph()
+
+
+def _ringkasan_gabungan(item_ids: list[str], df_manual: pd.DataFrame, konteks: dict) -> dict:
+    peta, live_ids = konteks["peta"], set(konteks["live"]["items"])
+    terisi = (set(df_manual["item_id"].unique()) if len(df_manual) else set()) & set(item_ids)
+    lengkap = {i for i in item_ids if i in terisi or i in live_ids}
+    per = {k: [i for i in item_ids if _kategori(peta, i) == k] for k in ("tersedia", "akses_data", "penyusunan")}
+    return {"total": len(item_ids), "lengkap": lengkap, "terisi": terisi, "live": live_ids & set(item_ids),
+            "per": {k: (sum(1 for i in v if i in lengkap), len(v)) for k, v in per.items()}}
+
+
+def _add_cover_gabungan(doc: Document, judul: str, r: dict, konteks: dict) -> None:
+    title = doc.add_heading(judul, level=0)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    for teks in (konteks.get("prodi"), konteks.get("fakultas")):
+        if teks:
+            p = doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.add_run(str(teks)).bold = True
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.add_run(f"Digenerate: {datetime.now().strftime('%Y-%m-%d %H:%M')} — UGM Analytics").italic = True
+    doc.add_paragraph()
+    n = len(r["lengkap"])
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    t, a, m = r["per"]["tersedia"], r["per"]["akses_data"], r["per"]["penyusunan"]
+    p.add_run(
+        f"Kelengkapan data: {n}/{r['total']} item ({100 * n / r['total']:.0f}%) — "
+        f"{len(r['terisi'])} diisi tim, {len(r['live'] - r['terisi'])} dari data live. "
+        f"Per status sumber: tersedia live {t[0]}/{t[1]}, perlu akses data {a[0]}/{a[1]}, "
+        f"perlu disusun tim {m[0]}/{m[1]}."
+    )
+    legenda = doc.add_paragraph()
+    legenda.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r1 = legenda.add_run("[DATA TIDAK TERSEDIA]")
+    r1.bold, r1.font.color.rgb = True, WARNA_PLACEHOLDER
+    legenda.add_run(" = sumber ada tetapi belum bisa diakses sistem   |   ")
+    r2 = legenda.add_run("[NARASI PERLU DISUSUN TIM PENYUSUN PRODI]")
+    r2.bold, r2.font.color.rgb = True, WARNA_PERLU_MANUSIA
+    legenda.add_run(" = memang harus ditulis tim penyusun")
+    doc.add_page_break()
+
+
+def _add_todo_gabungan(doc: Document, item_ids: list[str], r: dict, konteks: dict) -> None:
+    doc.add_heading("Ringkasan & To-Do — Item Data Belum Lengkap", level=1)
+    doc.add_paragraph("Checklist tim penyusun: item yang belum punya isian tim maupun data live.")
+    label = {"tersedia": "Tersedia live (pipeline belum berhasil)", "akses_data": "Perlu akses data",
+             "penyusunan": "Perlu disusun tim"}
+    kolom = ["Nama", "Tabel LKPS", "Kriteria", "Status sumber", "Catatan"]
+    table = doc.add_table(rows=1, cols=len(kolom))
+    table.style = "Light Grid Accent 1"
+    for i, k in enumerate(kolom):
+        table.rows[0].cells[i].text = k
+        for run in table.rows[0].cells[i].paragraphs[0].runs:
+            run.font.bold = True
+    peta = konteks["peta"]
+    for item_id in item_ids:
+        if item_id in r["lengkap"]:
+            continue
+        item = KEBUTUHAN_DATA[item_id]
+        cells = table.add_row().cells
+        cells[0].text = item["nama"]
+        cells[1].text = item["tabel_lkps"] or "—"
+        cells[2].text = LABEL_KRITERIA.get(item["kriteria_led"], item["kriteria_led"])
+        cells[3].text = label[_kategori(peta, item_id)]
+        cells[4].text = (peta.get(item_id) or {}).get("catatan_jika_tidak_tersedia") or item["sumber_data"]
+    doc.add_page_break()
+
+
+def _build_gabungan(judul: str, grouped: dict, urutan: list[str], label: dict, df_manual: pd.DataFrame,
+                    konteks: dict, cuplikan: bool) -> bytes:
+    item_ids = [item["id"] for items in grouped.values() for item in items]
+    r = _ringkasan_gabungan(item_ids, df_manual, konteks)
+    doc = Document()
+    _add_cover_gabungan(doc, judul, r, konteks)
+    _add_todo_gabungan(doc, item_ids, r, konteks)
+    lengkap_semua = (set(df_manual["item_id"].unique()) if len(df_manual) else set()) | set(konteks["live"]["items"])
+    for key in urutan:
+        items = grouped.get(key, [])
+        if not items:
+            continue
+        doc.add_heading(label[key], level=1)
+        for item in items:
+            _add_item_gabungan(doc, item, df_manual, konteks)
+        if cuplikan and key not in ("Umum", "D"):
+            _add_cuplikan_lkps(doc, key, lengkap_semua)
     buf = BytesIO()
     doc.save(buf)
     return buf.getvalue()

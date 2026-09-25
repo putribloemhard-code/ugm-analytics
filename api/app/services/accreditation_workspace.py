@@ -11,8 +11,12 @@ jalur satu-satunya. Aturan yang dipertahankan persis:
   KOSONG di draft, tidak menimpa data manual, dan sel yang punya >1 nilai berbeda antar file
   (konflik) dibiarkan kosong -- user memilih sendiri. Baru tercatat sebagai data resmi saat
   user menyimpan item itu; saat itu juga baris ekstraksinya ditandai dikonfirmasi.
-- Generate Word memakai builder di akreditasi/scripts/generate_template.py dan dicatat di
-  akreditasi_riwayat_generate (file disimpan supaya bisa diunduh ulang dari Profil).
+- Status tiap item = akreditasi/data_source_map.json (lihat services/accreditation_sumber.py),
+  bukan `status_ketersediaan` registry. Item "tersedia" membawa data live pipeline Fase 2;
+  isian tim tetap bisa menggantikannya.
+- Generate Word memakai builder di akreditasi/scripts/generate_template.py (isian tim + data
+  live + status peta) dan dicatat di akreditasi_riwayat_generate (file disimpan supaya bisa
+  diunduh ulang dari Profil).
 
 Semua SQL standar (tanpa backtick/dialek) supaya jalan di MySQL (pratinjau lokal) maupun
 PostgreSQL (produksi).
@@ -33,6 +37,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from app.domain.source import load_accreditation_module
+from app.services import accreditation_sumber as sumber
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +139,7 @@ class AccreditationWorkspaceService:
                 SELECT id, nama_file, tipe_file, ukuran_bytes, status, diupload_oleh, uploaded_at, diekstrak_at
                 FROM akreditasi_upload_file WHERE prodi_id = :p ORDER BY uploaded_at DESC, id DESC
             """), {"p": prodi_id}).mappings().all()
+            live = sumber.data_live(conn, prodi_id)
 
         manual_by_item: dict[str, list[dict]] = {}
         for row in manual:
@@ -151,22 +157,24 @@ class AccreditationWorkspaceService:
                 "key": key,
                 "label": labels.get(key, key),
                 "items": [self._item_payload(registry, item, manual_by_item.get(item["id"], []),
-                                             pending_by_item.get(item["id"], []))
+                                             pending_by_item.get(item["id"], []), live)
                           for item in items],
                 "cuplikan": [],
             }
             if dokumen == "LED" and key not in ("Umum", "D"):
                 group["cuplikan"] = [
                     {"id": c["id"], "tabel_lkps": c["tabel_lkps"], "nama": c["nama"],
-                     "status": c["status_ketersediaan"], "terisi": c["id"] in filled_ids}
+                     "status": c["status_ketersediaan"],
+                     "terisi": c["id"] in filled_ids or c["id"] in live["items"]}
                     for c in registry.lkps_cuplikan_untuk_kriteria(key)
                 ]
             groups.append(group)
 
         item_ids = [item["id"] for items in grouped.values() for item in items]
-        ringkasan = registry.ringkasan_status(item_ids=item_ids, terisi_ids=filled_ids)
-        ringkasan["persen"] = round(100 * ringkasan["lengkap"] / ringkasan["total"]) if ringkasan["total"] else 0
+        ringkasan = sumber.ringkasan(item_ids, filled_ids, set(live["items"]))
         item_set = set(item_ids)
+        grup_item = {item["id"]: key for key, items in grouped.items() for item in items}
+        nama_item = {item["id"]: item["nama"] for items in grouped.values() for item in items}
         return {
             "prodi": program,
             "dokumen": dokumen,
@@ -176,6 +184,8 @@ class AccreditationWorkspaceService:
             "ekstraksi": {
                 "tersedia": extraction_available(),
                 "item_menunggu_review": len({r["item_id"] for r in pending if r["item_id"] in item_set}),
+                "pratinjau": _pratinjau(pending, manual_by_item, registry, grup_item, nama_item),
+                "dokumen_lain": len([r for r in pending if r["item_id"] not in item_set]),
             },
         }
 
@@ -196,16 +206,20 @@ class AccreditationWorkspaceService:
         }
 
     @staticmethod
-    def _item_payload(registry, item: dict, manual: list[dict], pending: list[dict]) -> dict[str, Any]:
+    def _item_payload(registry, item: dict, manual: list[dict], pending: list[dict],
+                      live: dict[str, Any]) -> dict[str, Any]:
         kolom = list(item["kolom_dibutuhkan"])
         status = item["status_ketersediaan"]
         terisi = bool(manual)
-        if status == "tersedia_otomatis":
-            state = "otomatis"
-        elif status == "perlu_input_manual":
-            state = "terisi" if terisi else "kosong"
-        else:
+        data_live = live["items"].get(item["id"])
+        if status == "belum_tersedia":
             state = "belum_tersedia"
+        elif terisi:
+            state = "terisi"
+        elif data_live:
+            state = "live"
+        else:
+            state = "kosong"
 
         if item["tipe"] == "narasi":
             existing = {r["kolom"]: r["nilai"] or "" for r in manual if int(r["baris_ke"]) == 1}
@@ -228,6 +242,11 @@ class AccreditationWorkspaceService:
             "diisi_oleh": terakhir["diisi_oleh"] if terakhir else None,
             "updated_at": _iso(terakhir["updated_at"]) if terakhir else None,
             "draft": _draft(kolom, rows, pending) if pending else None,
+            **sumber.info_item(item["id"]),
+            "live": ({"kolom": kolom + list(dict.fromkeys(k for r in data_live["rows"] for k in r if k not in kolom)),
+                      "rows": data_live["rows"], "sumber": data_live["sumber"],
+                      "fetched_at": _iso(data_live["fetched_at"])} if data_live else None),
+            "pendukung": sumber.pendukung(item["id"], live),
         }
 
     # ------------------------------------------------------------------ tulis
@@ -317,13 +336,21 @@ class AccreditationWorkspaceService:
         if self.generated_root is None:
             raise RuntimeError("Folder dokumen hasil generate belum dikonfigurasi.")
         with self.engine.connect() as conn:
-            self._program(conn, prodi_id)
+            program = self._program(conn, prodi_id)
             df = pd.read_sql(text("""
                 SELECT item_id, baris_ke, kolom, tahun, nilai, link_bukti
                 FROM akreditasi_data_manual WHERE prodi_id = :p
             """), conn, params={"p": prodi_id})
+            live = sumber.data_live(conn, prodi_id)
         generator = load_accreditation_module("generate_template.py")
-        content = generator.build_led_docx(df) if dokumen == "LED" else generator.build_lkps_docx(df)
+        konteks = {
+            "prodi": f"{program.get('jenjang') or ''} {program['nama']}".strip(),
+            "fakultas": program.get("fakultas"),
+            "peta": sumber.peta(),
+            "live": live,
+        }
+        build = generator.build_led_docx if dokumen == "LED" else generator.build_lkps_docx
+        content = build(df, konteks=konteks)
 
         now = datetime.now()
         folder = (self.generated_root / re.sub(r"[^A-Za-z0-9_-]", "_", prodi_id)).resolve()
@@ -436,6 +463,37 @@ class AccreditationWorkspaceService:
                     logger.exception("status upload %s tidak bisa diperbarui", upload_id)
             with _JOBS_LOCK:
                 _JOBS[upload_id] = {"berjalan": False, "batch": 0, "total": 0, "ringkasan": ringkasan}
+
+
+def _pratinjau(pending: list, manual_by_item: dict[str, list[dict]], registry, grup_item: dict[str, str],
+               nama_item: dict[str, str]) -> list[dict[str, Any]]:
+    """Satu baris per nilai hasil ekstraksi yang belum direview (dokumen aktif saja). Statusnya
+    mengikuti aturan draft: dipakai / bentrok (>1 nilai beda antar file) / tidak menimpa isian
+    tim / kolom di luar kebutuhan item (diabaikan saat disimpan)."""
+    per_sel: dict[tuple[str, int, str], set[str]] = {}
+    for r in pending:
+        per_sel.setdefault((r["item_id"], int(r["baris_ke"]), r["nama_kolom"]), set()).add(r["nilai"])
+    hasil = []
+    for r in pending:
+        item_id = r["item_id"]
+        if item_id not in grup_item:
+            continue
+        kolom = registry.KEBUTUHAN_DATA[item_id]["kolom_dibutuhkan"]
+        terisi = {(int(m["baris_ke"]), m["kolom"]) for m in manual_by_item.get(item_id, [])
+                  if str(m["nilai"] or "").strip()}
+        baris, nama_kolom = int(r["baris_ke"]), r["nama_kolom"]
+        if nama_kolom not in kolom:
+            status = "kolom_lain"
+        elif len(per_sel[(item_id, baris, nama_kolom)]) > 1:
+            status = "bentrok"
+        elif (baris, nama_kolom) in terisi:
+            status = "tidak_menimpa"
+        else:
+            status = "dipakai"
+        hasil.append({"id": int(r["id"]), "item_id": item_id, "item_nama": nama_item[item_id],
+                      "grup": grup_item[item_id], "baris_ke": baris, "kolom": nama_kolom, "nilai": r["nilai"],
+                      "kutipan": r["kutipan"], "nama_file": r["nama_file"], "status": status})
+    return hasil
 
 
 def _draft(kolom: list[str], rows: list[dict[str, str]], pending: list[dict]) -> dict[str, Any]:

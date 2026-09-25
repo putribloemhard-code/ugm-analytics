@@ -11,6 +11,7 @@ import { AdminPage, ProfilePage } from './account';
 import { AccreditationWorkspace } from './akreditasi';
 import { SumberSection } from './sumber';
 import { LaporanUnduh } from './laporan-unduh';
+import { PembagianDampakChart } from './pembagian';
 import { SdgPetaView, TagSdgManual } from './sdg';
 
 type FilterState = { yearFrom: string; yearTo: string; pillars: string[]; topics: string[]; sdgs: number[]; units: string[] };
@@ -67,6 +68,7 @@ function Executive({ story }: { story: Story }) {
   return <section className="story-block" aria-label="Ringkasan eksekutif">
     <h3>Ringkasan eksekutif</h3>
     <div className="analysis-summary-grid">{story.executive.metrics.map(metric => <div className="metric" key={metric.label} title={metric.help ?? undefined}><div className="metric-label">{metric.label}</div><div className="metric-value">{fmtValue(metric.value)}</div>{metric.note && <div className="metric-note">{metric.note}</div>}</div>)}</div>
+    {story.executive.pembagian && <PembagianDampakChart data={story.executive.pembagian} />}
     <Insight label={story.executive.narrative_source === 'llm' ? 'Ringkasan analisis · dirangkai AI dari angka dashboard' : 'Ringkasan analisis'}>{story.executive.narrative}</Insight>
   </section>;
 }
@@ -281,12 +283,20 @@ function DampakLogin({ onUser, next }: { onUser: (user: AuthUser) => void; next?
   async function submit() {
     setMessage('');
     try {
-      if (mode === 'register') { await dampakRegister(email, name, password); setMode('login'); setMessage('Registrasi berhasil. Silakan masuk.'); return; }
+      if (mode === 'register') {
+        try { await dampakRegister(email, name, password); }
+        catch (e) {
+          // Akun Analisis Dampak terpisah dari portal lain: email yang sama bisa sudah terdaftar di sini.
+          if (e instanceof Error && e.message.includes('sudah terdaftar')) { setMode('login'); setMessage('Email ini sudah punya akun Analisis Dampak. Silakan masuk dengan password akun tersebut; kalau lupa, minta admin menghapus akunnya lalu daftar ulang.'); return; }
+          throw e;
+        }
+        setMode('login'); setMessage('Registrasi berhasil. Silakan masuk.'); return;
+      }
       onUser(await dampakLogin(email, password));
       if (next && next.startsWith('/')) navigate(next, { replace: true });
     } catch (e) { setMessage(e instanceof Error ? e.message : 'Autentikasi gagal'); }
   }
-  return <div className="accreditation-gate"><section className="accreditation-hero dampak"><div className="brand-chip"><img src={assetUrl('logo/LogoUGM.png')} alt="" /> Universitas Gadjah Mada</div><h1>Analisis <span>Dampak UGM</span></h1><p>Telaah jejak dampak sosial, ekonomi, dan lingkungan UGM melalui pemberitaan publik dan kerangka SDGs resmi Kepmen 361/M/KEP/2025.</p></section><section className="auth-panel"><p className="section-kicker">Selamat datang</p><h2>Masuk untuk melanjutkan</h2><p className="section-note">Akun Analisis Dampak terpisah dari akun Akreditasi.</p><div className="auth-tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Masuk</button><button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Daftar akun baru</button></div>{mode === 'register' && <div className="field"><label htmlFor="dp-name">Nama lengkap</label><input id="dp-name" value={name} onChange={e => setName(e.target.value)} /></div>}<div className="field"><label htmlFor="dp-email">Email UGM</label><input id="dp-email" type="email" placeholder="nama@ugm.ac.id" value={email} onChange={e => setEmail(e.target.value)} /></div><div className="field"><label htmlFor="dp-password">Password</label><input id="dp-password" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div><button className="button auth-submit" onClick={submit}>{mode === 'login' ? 'Masuk' : 'Buat akun'}</button>{message && <Notice type={message.startsWith('Registrasi') ? 'info' : 'error'}>{message}</Notice>}</section></div>;
+  return <div className="accreditation-gate"><section className="accreditation-hero dampak"><div className="brand-chip"><img src={assetUrl('logo/LogoUGM.png')} alt="" /> Universitas Gadjah Mada</div><h1>Analisis <span>Dampak UGM</span></h1><p>Telaah jejak dampak sosial, ekonomi, dan lingkungan UGM melalui pemberitaan publik dan kerangka SDGs resmi Kepmen 361/M/KEP/2025.</p></section><section className="auth-panel"><p className="section-kicker">Selamat datang</p><h2>Masuk untuk melanjutkan</h2><p className="section-note">Akun Analisis Dampak terpisah dari akun Akreditasi.</p><div className="auth-tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Masuk</button><button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Daftar akun baru</button></div>{mode === 'register' && <div className="field"><label htmlFor="dp-name">Nama lengkap</label><input id="dp-name" value={name} onChange={e => setName(e.target.value)} /></div>}<div className="field"><label htmlFor="dp-email">Email UGM</label><input id="dp-email" type="email" placeholder="nama@ugm.ac.id" aria-describedby="dp-email-hint" value={email} onChange={e => setEmail(e.target.value)} /><small id="dp-email-hint" className="field-hint">Hanya email @ugm.ac.id atau @mail.ugm.ac.id.</small></div><div className="field"><label htmlFor="dp-password">Password</label><input id="dp-password" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div><button className="button auth-submit" onClick={submit}>{mode === 'login' ? 'Masuk' : 'Buat akun'}</button>{message && <Notice type={/^(Registrasi|Email ini sudah)/.test(message) ? 'info' : 'error'}>{message}</Notice>}</section></div>;
 }
 
 function DampakPage() {
@@ -310,13 +320,21 @@ function AccreditationLogin({ onUser, next }: { onUser: (user: { id: number; ema
   async function submit() {
     setMessage('');
     try {
-      if (mode === 'register') { await accreditationRegister(email, name, password); setMode('login'); setMessage('Registrasi berhasil. Silakan masuk.'); return; }
+      if (mode === 'register') {
+        try { await accreditationRegister(email, name, password); }
+        catch (e) {
+          // Akun Akreditasi terpisah dari portal lain: email yang sama bisa sudah terdaftar di sini.
+          if (e instanceof Error && e.message.includes('sudah terdaftar')) { setMode('login'); setMessage('Email ini sudah punya akun Akreditasi. Silakan masuk dengan password akun tersebut; kalau lupa, minta admin menghapus akunnya lalu daftar ulang.'); return; }
+          throw e;
+        }
+        setMode('login'); setMessage('Registrasi berhasil. Silakan masuk.'); return;
+      }
       onUser(await accreditationLogin(email, password));
       // Kembali ke halaman yang tadi diminta (mis. /admin) setelah login berhasil.
       if (next && next.startsWith('/')) navigate(next, { replace: true });
     } catch (e) { setMessage(e instanceof Error ? e.message : 'Autentikasi gagal'); }
   }
-  return <div className="accreditation-gate"><section className="accreditation-hero akreditasi"><div className="brand-chip"><img src={assetUrl('logo/LogoUGM.png')} alt="" /> Universitas Gadjah Mada</div><h1>Portal <span>Akreditasi</span></h1><p>Kelola kelengkapan data LED & LKPS, ekstrak dokumen pendukung, dan susun laporan akreditasi program studi dalam satu tempat.</p></section><section className="auth-panel"><p className="section-kicker">Selamat datang</p><h2>Masuk untuk melanjutkan</h2><p className="section-note">Gunakan akun UGM Anda untuk mengelola dokumen akreditasi.</p><div className="auth-tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Masuk</button><button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Daftar akun baru</button></div>{mode === 'register' && <div className="field"><label htmlFor="acc-name">Nama lengkap</label><input id="acc-name" value={name} onChange={e => setName(e.target.value)} /></div>}<div className="field"><label htmlFor="acc-email">Email UGM</label><input id="acc-email" type="email" placeholder="nama@ugm.ac.id" value={email} onChange={e => setEmail(e.target.value)} /></div><div className="field"><label htmlFor="acc-password">Password</label><input id="acc-password" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div><button className="button auth-submit" onClick={submit}>{mode === 'login' ? 'Masuk' : 'Buat akun'}</button>{message && <Notice type={message.startsWith('Registrasi') ? 'info' : 'error'}>{message}</Notice>}</section></div>;
+  return <div className="accreditation-gate"><section className="accreditation-hero akreditasi"><div className="brand-chip"><img src={assetUrl('logo/LogoUGM.png')} alt="" /> Universitas Gadjah Mada</div><h1>Portal <span>Akreditasi</span></h1><p>Kelola kelengkapan data LED & LKPS, ekstrak dokumen pendukung, dan susun laporan akreditasi program studi dalam satu tempat.</p></section><section className="auth-panel"><p className="section-kicker">Selamat datang</p><h2>Masuk untuk melanjutkan</h2><p className="section-note">Gunakan akun UGM Anda untuk mengelola dokumen akreditasi.</p><div className="auth-tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Masuk</button><button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Daftar akun baru</button></div>{mode === 'register' && <div className="field"><label htmlFor="acc-name">Nama lengkap</label><input id="acc-name" value={name} onChange={e => setName(e.target.value)} /></div>}<div className="field"><label htmlFor="acc-email">Email UGM</label><input id="acc-email" type="email" placeholder="nama@ugm.ac.id" aria-describedby="acc-email-hint" value={email} onChange={e => setEmail(e.target.value)} /><small id="acc-email-hint" className="field-hint">Hanya email @ugm.ac.id atau @mail.ugm.ac.id.</small></div><div className="field"><label htmlFor="acc-password">Password</label><input id="acc-password" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div><button className="button auth-submit" onClick={submit}>{mode === 'login' ? 'Masuk' : 'Buat akun'}</button>{message && <Notice type={/^(Registrasi|Email ini sudah)/.test(message) ? 'info' : 'error'}>{message}</Notice>}</section></div>;
 }
 
 function AccreditationPage() {

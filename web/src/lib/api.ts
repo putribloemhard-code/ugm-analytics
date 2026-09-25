@@ -142,7 +142,7 @@ export type Story = {
   filters: Record<string, unknown>;
   data_as_of: string | null;
   caveats: string[];
-  executive: { metrics: StoryMetric[]; narrative: string; narrative_source?: 'llm' | 'template' };
+  executive: { metrics: StoryMetric[]; narrative: string; narrative_source?: 'llm' | 'template'; pembagian?: PembagianDampak };
   overview: { pillar: string; total: number; top_topic: string | null; top_topic_count: number }[];
   cross: { title: string; charts: Chart[]; tables: StoryTable[]; topic_options?: TopicOption[]; selected_topic?: string };
   pillar_detail: PillarDetail | null;
@@ -217,8 +217,17 @@ export type ItemDraft = {
 export type WorkspaceItem = {
   id: string; nama: string; deskripsi: string; sumber_data: string; status: string; status_label: string;
   tipe: 'tabel' | 'narasi'; kolom: string[]; tabel_lkps: string | null; narasi: boolean; terisi: boolean;
-  state: 'otomatis' | 'terisi' | 'kosong' | 'belum_tersedia'; editable: boolean; rows: ItemRow[];
+  state: 'otomatis' | 'live' | 'terisi' | 'kosong' | 'belum_tersedia'; editable: boolean; rows: ItemRow[];
   diisi_oleh: string | null; updated_at: string | null; draft: ItemDraft | null;
+  /** Status resmi dari data_source_map.json (bukan status_ketersediaan registry). */
+  kategori: KategoriSumber; kategori_label: string; sumber_asli: string | null; catatan: string | null; sumber_tambahan: string | null;
+  live: { kolom: string[]; rows: ItemRow[]; sumber: string[]; fetched_at: string | null } | null;
+  pendukung: { judul: string; total: number; kolom: string[]; rows: string[][]; tautan: string[] | null } | null;
+};
+export type KategoriSumber = 'tersedia' | 'akses_data' | 'penyusunan';
+export type PratinjauEkstraksi = {
+  id: number; item_id: string; item_nama: string; grup: string; baris_ke: number; kolom: string; nilai: string;
+  kutipan: string | null; nama_file: string; status: 'dipakai' | 'bentrok' | 'tidak_menimpa' | 'kolom_lain';
 };
 export type WorkspaceGroup = { key: string; label: string; items: WorkspaceItem[]; cuplikan: { id: string; tabel_lkps: string; nama: string; status: string; terisi: boolean }[] };
 export type WorkspaceUpload = {
@@ -231,10 +240,13 @@ export type WorkspaceUpload = {
 export type Workspace = {
   prodi: { slug: string; nama: string; jenjang: string | null; fakultas: string | null };
   dokumen: Dokumen;
-  ringkasan: { total: number; lengkap: number; persen: number; tersedia_otomatis: number; perlu_manual_total: number; perlu_manual_terisi: number; belum_tersedia: number; narasi_total: number; narasi_terisi: number };
+  ringkasan: {
+    total: number; lengkap: number; persen: number; terisi_manual: number;
+    tersedia: { total: number; lengkap: number }; akses_data: { total: number; lengkap: number }; penyusunan: { total: number; lengkap: number };
+  };
   groups: WorkspaceGroup[];
   uploads: WorkspaceUpload[];
-  ekstraksi: { tersedia: boolean; item_menunggu_review: number };
+  ekstraksi: { tersedia: boolean; item_menunggu_review: number; pratinjau: PratinjauEkstraksi[]; dokumen_lain: number };
 };
 
 export function getAccreditationWorkspace(prodiId: string, dokumen: Dokumen) {
@@ -318,6 +330,12 @@ export function getSdgs(params: Record<string, QueryValue>) { return get<Analyti
 export function getNews(params: Record<string, QueryValue>, page: number, pageSize: number) { return get<{ rows: unknown[]; total: number; page: number; page_size: number }>(`/analytics/news?${toQuery({ ...params, page, page_size: pageSize })}`); }
 
 /* ---- Laporan dampak berkerangka LAPORAN DAMPAK UGM 2025 (api/app/services/laporan_dampak.py) ---- */
+/** Pembagian berita dampak: irisan tanpa tumpang tindih (jumlahnya = total) + jumlah per pilar (bisa > total). */
+export type PembagianDampak = {
+  total: number;
+  irisan: { kunci: string; label: string; pilar: string[]; jumlah: number; persen: number }[];
+  per_pilar: { pilar: string; jumlah: number; persen: number }[];
+};
 export type LaporanBlok =
   | { type: 'heading'; level: 1 | 2 | 3; text: string; break_before?: boolean }
   | { type: 'paragraph'; text: string }

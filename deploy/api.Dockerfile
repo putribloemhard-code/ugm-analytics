@@ -16,6 +16,8 @@ COPY akreditasi/scripts/registry_kebutuhan_data.py /app/akreditasi/scripts/regis
 # Dimuat API untuk ruang kerja akreditasi: generate Word dan ekstraksi AI (api/app/domain/source.py).
 COPY akreditasi/scripts/generate_template.py /app/akreditasi/scripts/generate_template.py
 COPY akreditasi/scripts/ekstraksi_akreditasi.py /app/akreditasi/scripts/ekstraksi_akreditasi.py
+# Status resmi tiap item LED/LKPS (tersedia / perlu akses data / perlu disusun tim), dibaca ruang kerja & generator.
+COPY akreditasi/data_source_map.json /app/akreditasi/data_source_map.json
 COPY deploy/migrate_mysql_to_postgres.py /app/migrate_mysql_to_postgres.py
 # Data kurasi mata kuliah dibaca service story dari disk (bukan dari Postgres/MySQL).
 # Tanpa baris ini, blok `mata_kuliah` di endpoint story akan tersedia:false di container

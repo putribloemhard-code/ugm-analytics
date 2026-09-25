@@ -97,7 +97,8 @@ def test_simpan_item_tabel_menulis_ulang_dan_membuang_baris_kosong(svc, engine):
     with engine.connect() as conn:
         assert conn.execute(text("SELECT COUNT(*) FROM akreditasi_data_manual")).scalar() == 1
     ringkasan = svc.workspace("mei", "LKPS")["ringkasan"]
-    assert ringkasan["perlu_manual_terisi"] == 1
+    # lkps_3_c_1 berstatus "tidak_tersedia / akses_data" di data_source_map.json.
+    assert ringkasan["terisi_manual"] == 1 and ringkasan["akses_data"]["lengkap"] == 1
 
 
 def test_simpan_narasi_hanya_satu_baris_dan_kolom_asing_diabaikan(svc, engine):

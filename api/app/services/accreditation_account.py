@@ -16,6 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from app.domain.source import load_accreditation_module
+from app.services import accreditation_sumber as sumber
 
 
 class AksiDitolak(Exception):
@@ -112,6 +113,8 @@ class AccreditationAccountService:
                 f"SELECT DISTINCT prodi_id, item_id FROM akreditasi_data_manual "
                 f"WHERE prodi_id IN ({placeholders})"
             ), params).all()
+            # Data live (pipeline Fase 2) ikut dihitung lengkap, sama dengan ruang kerja.
+            live_ids = {prodi: set(sumber.data_live(conn, prodi)["items"]) for prodi in prodi_ids}
             info = {
                 row["slug"]: row for row in conn.execute(text(
                     f"SELECT p.slug, p.nama AS nama_prodi, f.nama AS nama_fakultas "
@@ -125,7 +128,7 @@ class AccreditationAccountService:
             item_ids = [k for k, v in registry.KEBUTUHAN_DATA.items()
                         if registry.dokumen_dari_item(v) == dokumen]
             terisi_ids = {item_id for prodi, item_id in terisi if prodi == prodi_id}
-            ringkasan = registry.ringkasan_status(item_ids=item_ids, terisi_ids=terisi_ids)
+            ringkasan = sumber.ringkasan(item_ids, terisi_ids, live_ids.get(prodi_id, set()))
             baris = info.get(prodi_id)
             hasil.append({
                 "prodi_id": prodi_id,

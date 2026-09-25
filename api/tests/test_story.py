@@ -609,3 +609,25 @@ def test_narasi_llm_sdg_menyempit_hanya_di_mode_sdgs():
 def test_tanpa_cache_narasi_tetap_template():
     result = build_story(make_frames(), FilterParams(), "impact")
     assert result["executive"]["narrative_source"] == "template" and result["executive"]["narrative"]
+
+
+def test_pembagian_dampak_irisan_tanpa_tumpang_tindih():
+    from app.services.story import pembagian_dampak
+    t = pd.DataFrame([
+        {"url": "a", "dampak": "Sosial"}, {"url": "a", "dampak": "Ekonomi"},
+        {"url": "b", "dampak": "Sosial"}, {"url": "c", "dampak": "Lingkungan"},
+        {"url": "d", "dampak": "Sosial"}, {"url": "d", "dampak": "Ekonomi"}, {"url": "d", "dampak": "Lingkungan"},
+    ])
+    p = pembagian_dampak(t, ("Lingkungan", "Ekonomi", "Sosial"))
+    irisan = {s["kunci"]: s["jumlah"] for s in p["irisan"]}
+    assert p["total"] == 4 and sum(irisan.values()) == 4
+    assert irisan == {"Sosial": 1, "Ekonomi": 0, "Lingkungan": 1, "multi2": 1, "multi3": 1}
+    assert [x["pilar"] for x in p["per_pilar"]] == ["Sosial", "Ekonomi", "Lingkungan"]
+    assert {x["pilar"]: x["jumlah"] for x in p["per_pilar"]} == {"Sosial": 3, "Ekonomi": 2, "Lingkungan": 2}
+    assert p["irisan"][0]["persen"] == 25.0
+
+
+def test_ringkasan_eksekutif_membawa_pembagian_dampak():
+    story = build_story(make_frames(), FilterParams(), "impact")
+    p = story["executive"]["pembagian"]
+    assert p["total"] == story["executive"]["metrics"][0]["value"]

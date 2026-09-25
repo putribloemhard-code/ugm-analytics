@@ -490,6 +490,7 @@ def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str,
         "narrative": ringkasan["narasi"],
         "narrative_source": "template",
     }
+    response["executive"]["pembagian"] = pembagian_dampak(t, pillar_set)
     # Cache LLM digenerate untuk ringkasan eksekutif kedua mode (lihat generate_narasi_llm.py).
     exec_key = "exec_berdampak_sdgs" if mode == "impact-sdgs" else "exec_berdampak"
     if ctx.narasi_llm.get(exec_key):
@@ -508,6 +509,30 @@ def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str,
     if pillar:
         response["pillar_detail"] = _pillar_detail(ctx, pillar, topic)
     return response
+
+
+def pembagian_dampak(t: pd.DataFrame, pillar_set: tuple[str, ...]) -> dict[str, Any]:
+    """Pembagian berita dampak antar pilar untuk grafik ringkasan eksekutif.
+
+    Satu berita bisa masuk beberapa dampak, jadi jumlah per pilar dijumlahkan > total. Untuk
+    grafik bagian-dari-keseluruhan dipakai irisan yang TIDAK tumpang tindih: "hanya Sosial",
+    "hanya Ekonomi", "hanya Lingkungan", lalu berita yang masuk 2 atau 3 dampak sekaligus;
+    irisan itu dijumlahkan persis = total berita dampak.
+    """
+    # Urutan laporan resmi (Sosial, Ekonomi, Lingkungan), sama dengan urutan bab.
+    pillar_set = tuple([p for p in CHAPTER_ORDER if p in pillar_set] + [p for p in pillar_set if p not in CHAPTER_ORDER])
+    per_url = t[t["dampak"].isin(pillar_set)].groupby("url")["dampak"].agg(lambda s: frozenset(s))
+    total = int(len(per_url))
+    irisan = [{"kunci": p, "label": f"Hanya {p}", "pilar": [p], "jumlah": int((per_url == frozenset([p])).sum())}
+              for p in pillar_set]
+    banyak = per_url.map(len)
+    for n, label in ((2, "Dua dampak sekaligus"), (3, "Tiga dampak sekaligus")):
+        if n <= len(pillar_set):
+            irisan.append({"kunci": f"multi{n}", "label": label, "pilar": [], "jumlah": int((banyak == n).sum())})
+    per_pilar = [{"pilar": p, "jumlah": int(per_url.map(lambda s, p=p: p in s).sum())} for p in pillar_set]
+    for row in irisan + per_pilar:
+        row["persen"] = round(100 * row["jumlah"] / total, 1) if total else 0.0
+    return {"total": total, "irisan": irisan, "per_pilar": per_pilar}
 
 
 def overview_rows(b: pd.DataFrame, t: pd.DataFrame, pillar_set: tuple[str, ...]) -> list[dict[str, Any]]:
