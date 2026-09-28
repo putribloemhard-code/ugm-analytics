@@ -49,6 +49,7 @@ web/dist/
 /deploy/openai.env
 /deploy/smtp.env
 /deploy/google.env
+/backups/
 /deploy/data/
 /deploy/stage-manifest.sha256
 /deploy/remote-manifest.sha256

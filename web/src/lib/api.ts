@@ -437,3 +437,16 @@ export async function downloadReport(payload: Record<string, unknown>) {
 export async function googleLoginAktif() { try { return (await kirim<{ aktif: boolean }>('/analytics/auth/google/status', 'GET')).aktif; } catch { return false; } }
 /** Alamat navigasi penuh (bukan fetch): server mengarahkan browser ke Google lalu kembali ke `next`. */
 export function googleLoginUrl(portal: Portal, next: string) { return `${API_BASE}/analytics/auth/google/start?${toQuery({ portal, next })}`; }
+
+/* ---- Log aktivitas, email uji admin, draf suntingan Laporan Dampak (services/aktivitas.py, notifikasi.py, laporan_draf.py) ---- */
+export type Aktivitas = { id: number; laporan_id: number | null; pelaku_email: string; pelaku_nama: string | null; aksi: string; keterangan: string; created_at: string };
+export function aktivitasLaporan(laporanId: number) { return kirim<{ aktivitas: Aktivitas[] }>(`/analytics/accreditation/laporan/${laporanId}/aktivitas`, 'GET'); }
+export function aktivitasAdmin(portal: Portal) {
+  return kirim<{ aktivitas: Aktivitas[] }>(portal === 'akreditasi' ? '/analytics/accreditation/admin/aktivitas' : '/analytics/dampak/admin/aktivitas', 'GET');
+}
+export function kirimEmailUji(portal: Portal) {
+  return kirim<{ terkirim: boolean; message: string }>(portal === 'akreditasi' ? '/analytics/accreditation/admin/email-uji' : '/analytics/dampak/admin/email-uji', 'POST');
+}
+export type DrafSuntingan = Record<string, { asli: string; baru: string }>;
+export function ambilDrafLaporan(filter: Record<string, unknown>) { return kirim<{ suntingan: DrafSuntingan; updated_at: string | null }>('/analytics/reports/draf/ambil', 'POST', { filter }); }
+export function simpanDrafLaporan(filter: Record<string, unknown>, suntingan: DrafSuntingan) { return kirim<{ jumlah: number; updated_at: string }>('/analytics/reports/draf', 'POST', { filter, suntingan }); }

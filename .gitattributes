@@ -1,0 +1,2 @@
+# Skrip shell dijalankan di server Linux: selalu LF, walau di-checkout di Windows.
+*.sh text eol=lf

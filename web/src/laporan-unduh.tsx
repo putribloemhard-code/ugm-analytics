@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { downloadReport, getLaporanPreview, type Laporan, type LaporanBlok, type Story } from './lib/api';
+import { ambilDrafLaporan, downloadReport, getLaporanPreview, simpanDrafLaporan, type DrafSuntingan, type Laporan, type LaporanBlok, type Story } from './lib/api';
 import { Notice } from './ui';
 
 const NAMA_MODE: Record<string, string> = { impact: 'Dampak', 'impact-sdgs': 'Dampak_SDGs', sdgs: 'SDGs' };
@@ -10,6 +10,23 @@ function pesan(e: unknown, cadangan: string) {
 }
 
 type Suntingan = Record<number, string>;
+type StatusDraf = { tahap: 'kosong' | 'menyimpan' | 'tersimpan' | 'gagal'; waktu?: string };
+
+function jam(iso?: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+}
+
+/** Paragraf yang benar-benar berubah, beserta teks aslinya (untuk draf dan untuk unduh). */
+function berubahDari(laporan: Laporan | null, suntingan: Suntingan): DrafSuntingan {
+  const hasil: DrafSuntingan = {};
+  for (const [i, baru] of Object.entries(suntingan)) {
+    const b = laporan?.blocks[Number(i)];
+    if (b?.type === 'paragraph' && b.text !== baru) hasil[i] = { asli: b.text, baru };
+  }
+  return hasil;
+}
 
 /** Satu blok dokumen. Blok yang sama dirender server ke Word, jadi pratinjau = isi file.
  *  Paragraf narasi bisa disunting langsung; judul, angka, gambar, dan tabel tetap dari data. */
@@ -58,8 +75,8 @@ function Blok({ blok, indeks, suntingan, onSunting }: { blok: LaporanBlok; indek
   }
 }
 
-function Pratinjau({ laporan, sibuk, galat, suntingan, onSunting, onReset, onUnduh, onTutup }: {
-  laporan: Laporan; sibuk: boolean; galat: string; suntingan: Suntingan;
+function Pratinjau({ laporan, sibuk, galat, suntingan, draf, catatanDraf, onSunting, onReset, onUnduh, onTutup }: {
+  laporan: Laporan; sibuk: boolean; galat: string; suntingan: Suntingan; draf: StatusDraf; catatanDraf: string;
   onSunting: (i: number, teks: string) => void; onReset: () => void; onUnduh: () => void; onTutup: () => void;
 }) {
   const dialog = useRef<HTMLDivElement>(null);
@@ -94,7 +111,7 @@ function Pratinjau({ laporan, sibuk, galat, suntingan, onSunting, onReset, onUnd
     <div className="pratinjau__bar">
       <div className="pratinjau__info">
         <strong id="pratinjau-judul">Pratinjau laporan {laporan.mode_label}</strong>
-        <span><b className="pratinjau__tahap">1. Review</b> Klik paragraf mana pun untuk menyuntingnya · <b className="pratinjau__tahap">2. Unduh</b> Word memakai suntingan Anda</span>
+        <span><b className="pratinjau__tahap">1. Review</b> Klik paragraf mana pun untuk menyuntingnya; suntingan tersimpan otomatis · <b className="pratinjau__tahap">2. Unduh</b> Word memakai suntingan Anda</span>
       </div>
       <div className="pratinjau__aksi">
         <button type="button" className="button" disabled={sibuk} onClick={onUnduh}>{sibuk ? 'Menyiapkan file…' : nDiedit ? `Unduh Word (${nDiedit} suntingan)` : 'Unduh Word (.docx)'}</button>
@@ -107,10 +124,16 @@ function Pratinjau({ laporan, sibuk, galat, suntingan, onSunting, onReset, onUnd
           {bab.map(({ b, i }, pos) => <option key={i} value={pos}>{b.type === 'heading' && b.level === 2 ? `   ${b.text}` : (b as { text: string }).text}</option>)}
         </select>
         <button type="button" className="button secondary" disabled={babAktif >= bab.length - 1} onClick={() => lompat(babAktif + 1)}>Next ›</button>
-        {nDiedit > 0 && <span className="pratinjau__diedit">{nDiedit} paragraf disunting · <button type="button" className="link-button" onClick={onReset}>Kembalikan semua</button></span>}
+        <span className="pratinjau__diedit" role="status">
+          {draf.tahap === 'menyimpan' && 'Menyimpan…'}
+          {draf.tahap === 'tersimpan' && `${nDiedit} paragraf disunting · tersimpan otomatis ${jam(draf.waktu)}`}
+          {draf.tahap === 'gagal' && 'Suntingan belum tersimpan di server (tetap ada selama halaman terbuka).'}
+          {nDiedit > 0 && <> · <button type="button" className="link-button" onClick={onReset}>Kembalikan semua</button></>}
+        </span>
       </div>
     </div>
     {galat && <div className="pratinjau__galat"><Notice type="error">{galat}</Notice></div>}
+    {catatanDraf && <div className="pratinjau__galat"><Notice type="info">{catatanDraf}</Notice></div>}
     <div className="pratinjau__scroll">
       <article className="kertas" aria-label="Isi laporan">
         <section className="kertas__halaman kertas__sampul">
@@ -142,20 +165,53 @@ export function LaporanUnduh({ story }: { story: Story }) {
   const [galat, setGalat] = useState('');
   const [galatUnduh, setGalatUnduh] = useState('');
   const [suntingan, setSuntingan] = useState<Suntingan>({});
+  const [draf, setDraf] = useState<StatusDraf>({ tahap: 'kosong' });
+  const [catatanDraf, setCatatanDraf] = useState('');
+  // Simpan otomatis hanya setelah pengguna benar-benar menyunting (bukan saat draf lama dipulihkan).
+  const disunting = useRef(false);
   const payload = { mode: story.mode, ...story.filters };
   const filterKey = JSON.stringify(payload);
-  useEffect(() => { setLaporan(null); setGalat(''); setSuntingan({}); }, [filterKey]);
+  useEffect(() => { setLaporan(null); setGalat(''); setSuntingan({}); setDraf({ tahap: 'kosong' }); setCatatanDraf(''); disunting.current = false; }, [filterKey]);
+
+  useEffect(() => {
+    if (!laporan || !disunting.current) return;
+    setDraf(d => ({ ...d, tahap: 'menyimpan' }));
+    const t = window.setTimeout(() => {
+      simpanDrafLaporan(payload, berubahDari(laporan, suntingan))
+        .then(r => setDraf({ tahap: r.jumlah ? 'tersimpan' : 'kosong', waktu: r.updated_at }))
+        .catch(() => setDraf({ tahap: 'gagal' }));
+    }, 1000);
+    return () => window.clearTimeout(t);
+    // payload berasal dari filterKey; cukup pantau suntingan dan laporan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suntingan, laporan]);
 
   async function pratinjau() {
-    setMemuat(true); setGalat('');
-    try { setLaporan(await getLaporanPreview(payload)); } catch (e) { setGalat(pesan(e, 'Pratinjau laporan gagal dibuat.')); } finally { setMemuat(false); }
+    setMemuat(true); setGalat(''); setCatatanDraf('');
+    try {
+      const hasil = await getLaporanPreview(payload);
+      // Draf lama dipakai hanya bila paragrafnya masih sama persis dengan saat disunting.
+      const lama = await ambilDrafLaporan(payload).catch(() => null);
+      const pulih: Suntingan = {};
+      let usang = 0;
+      for (const [i, { asli, baru }] of Object.entries(lama?.suntingan ?? {})) {
+        const b = hasil.blocks[Number(i)];
+        if (b?.type === 'paragraph' && b.text === asli) pulih[Number(i)] = baru; else usang += 1;
+      }
+      disunting.current = false;
+      setSuntingan(pulih);
+      const n = Object.keys(pulih).length;
+      setDraf(n ? { tahap: 'tersimpan', waktu: lama?.updated_at ?? undefined } : { tahap: 'kosong' });
+      if (n || usang) setCatatanDraf([n ? `${n} suntingan tersimpan sebelumnya dipulihkan.` : '',
+        usang ? `${usang} suntingan lama tidak dipakai karena paragrafnya sudah berubah mengikuti data terbaru.` : ''].join(' ').trim());
+      setLaporan(hasil);
+    } catch (e) { setGalat(pesan(e, 'Pratinjau laporan gagal dibuat.')); } finally { setMemuat(false); }
   }
   async function unduh() {
     setMengunduh(true); setGalatUnduh('');
     try {
       // Hanya paragraf yang benar-benar berubah yang dikirim.
-      const berubah = Object.fromEntries(Object.entries(suntingan).filter(([i, t]) => laporan?.blocks[Number(i)]?.type === 'paragraph'
-        && (laporan.blocks[Number(i)] as { text: string }).text !== t));
+      const berubah = Object.fromEntries(Object.entries(berubahDari(laporan, suntingan)).map(([i, s]) => [i, s.baru]));
       const { blob, nama } = await downloadReport({ ...payload, suntingan: berubah });
       const href = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -170,15 +226,16 @@ export function LaporanUnduh({ story }: { story: Story }) {
       Dokumen Word berkerangka <em>Laporan Dampak Sosial, Ekonomi, dan Lingkungan UGM 2025</em>: ringkasan eksekutif,
       lembar identifikasi, daftar isi, {story.mode === 'sdgs' ? 'sebaran dan profil per SDG' : 'BAB I sampai BAB V per tema Kepmen'},
       gambar dan tabel bernomor, referensi, serta lampiran metodologi. Isinya mengikuti filter yang sedang aktif;
-      paragraf narasi bisa disunting langsung di pratinjau sebelum diunduh.
+      paragraf narasi bisa disunting langsung di pratinjau dan tersimpan otomatis untuk akun Anda.
     </p>
     <div className="laporan-unduh__aksi">
       <button type="button" className="button" disabled={memuat} onClick={pratinjau}>{memuat ? 'Menyusun laporan…' : 'Pratinjau laporan'}</button>
       {memuat && <span className="section-note" role="status">Menyusun bab dan menggambar grafik, bisa memakan waktu hingga 30 detik.</span>}
     </div>
     {galat && <Notice type="error">{galat}</Notice>}
-    {laporan && <Pratinjau laporan={laporan} sibuk={mengunduh} galat={galatUnduh} suntingan={suntingan}
-      onSunting={(i, teks) => setSuntingan(s => ({ ...s, [i]: teks }))} onReset={() => setSuntingan({})}
+    {laporan && <Pratinjau laporan={laporan} sibuk={mengunduh} galat={galatUnduh} suntingan={suntingan} draf={draf} catatanDraf={catatanDraf}
+      onSunting={(i, teks) => { disunting.current = true; setSuntingan(s => ({ ...s, [i]: teks })); }}
+      onReset={() => { disunting.current = true; setSuntingan({}); setCatatanDraf(''); }}
       onUnduh={unduh} onTutup={() => { setLaporan(null); setGalatUnduh(''); }} />}
   </section>;
 }

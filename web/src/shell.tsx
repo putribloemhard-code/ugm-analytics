@@ -150,7 +150,7 @@ function SiteHeader() {
         {accUser.is_admin && <Link className="auth-chip__admin" to="/admin" title="Kelola akun pengguna">Admin</Link>}
         <button type="button" onClick={() => { void keluarKe('akreditasi'); }}>Keluar</button>
       </span>}
-      <button className="theme-toggle" type="button" aria-pressed={theme === 'dark'} onClick={toggle}>{theme === 'dark' ? 'Mode terang' : 'Mode gelap'}</button>
+      <button className="theme-toggle" type="button" aria-pressed={theme === 'dark'} onClick={toggle}><span className="theme-toggle__panjang">Mode </span>{theme === 'dark' ? 'terang' : 'gelap'}</button>
     </div>
   </header>;
 }

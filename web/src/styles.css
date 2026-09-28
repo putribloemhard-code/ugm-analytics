@@ -136,15 +136,6 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .ongoing-card__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .ongoing-card .completion-line { margin: 14px 0 16px; }
 .ongoing-card .button { display: inline-flex; align-items: center; min-height: 36px; text-decoration: none; }
-.admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-top: 16px; }
-.admin-card { padding: 20px; border: 1px solid var(--border-subtle); border-left: 4px solid var(--status-positive); border-radius: 12px; background: var(--surface-card); }
-.admin-card.is-blocked { border-left-color: var(--status-critical); }
-.admin-card__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.admin-card__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.admin-card__actions .button { min-height: 34px; font-size: .84rem; }
-/* Tombol untuk akun sendiri dinonaktifkan; beri alasan yang terbaca (bukan hanya warna). */
-.admin-card__actions .button:disabled { cursor: not-allowed; opacity: .5; }
-.button--danger { border-color: var(--status-critical); color: var(--status-critical); }
 .admin-confirm { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--status-critical); border-radius: 10px; background: color-mix(in srgb, var(--status-critical) 10%, var(--surface-card)); }
 .admin-confirm p { margin: 0 0 12px; }
 .admin-confirm .button { margin-right: 8px; }
@@ -638,18 +629,12 @@ td { line-height: 1.45; }
 .auth-tabs button.active { border-bottom-color: var(--gold); color: var(--text-heading); font-weight: 800; }
 .auth-submit { width: 100%; margin-top: 18px; }
 .workspace-head, .section-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
-.user-chip { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 14px; border: 1px solid var(--border-subtle); border-radius: 999px; background: var(--surface-card); font-size: .85rem; font-weight: 700; }
-.user-chip button { min-height: 30px; padding: 0 10px; border: 0; border-radius: 999px; color: var(--text-heading); background: var(--surface-tint); cursor: pointer; }
 .accreditation-selectors { display: grid; grid-template-columns: 2.1fr 1.6fr 1fr; gap: 14px; padding: 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
 /* Nama fakultas UGM panjang ("Fakultas Kedokteran, Kesehatan Masyarakat, dan Keperawatan"),
    jadi beri kolom lebih lebar + keterangan di bawah dropdown agar info tidak hilang di elipsis. */
 .field-hint { color: var(--text-muted); font-size: .75rem; line-height: 1.4; }
 /* Prodi terkunci sampai fakultas dipilih (alur dashboard lama) -- beri isyarat visual jelas. */
 .field select:disabled { color: var(--text-muted); background: var(--surface-sunken, var(--surface-card)); opacity: .7; cursor: not-allowed; }
-.progress-overview { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 18px; }
-.progress-card { padding: 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
-.progress-card span, .progress-card small { display: block; color: var(--text-muted); font-size: .8rem; }
-.progress-card strong { display: block; margin: 8px 0 4px; color: var(--text-heading); font-family: var(--font-display); font-size: 1.75rem; }
 .completion-line { margin-top: 14px; padding: 16px 18px; border-radius: 12px; background: var(--surface-tint); color: var(--text-heading); }
 .completion-line span { color: var(--text-muted); font-size: .85rem; }
 .progress-track { height: 9px; margin-top: 12px; overflow: hidden; border-radius: 99px; background: var(--chart-track); }
@@ -657,8 +642,6 @@ td { line-height: 1.45; }
 .upload-workflow { display: flex; align-items: center; justify-content: space-between; gap: 30px; margin-top: 22px; padding: 22px; border: 1px solid var(--status-attention); border-radius: 12px; background: var(--surface-warm); }
 .upload-workflow h2 { margin: 0 0 6px; font-size: 1.4rem; }
 .upload-workflow p:not(.section-kicker) { max-width: 680px; margin: 0; color: var(--text-muted); line-height: 1.5; }
-.upload-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 260px; }
-.upload-controls input { max-width: 250px; }
 .requirement-section { padding: 22px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
 .requirement-section h2 { margin: 0; font-size: 1.4rem; }
 .status-pill { padding: 7px 12px; border-radius: 999px; color: var(--status-positive); background: color-mix(in srgb, var(--status-positive) 16%, var(--surface-card)); font-size: .82rem; font-weight: 800; }
@@ -679,7 +662,6 @@ td { line-height: 1.45; }
 
 /* Ruang kerja akreditasi (web/src/akreditasi.tsx): item bisa dibuka, diisi, dan disimpan.
    Status selalu berupa teks di badge -- warna hanya penguat, bukan satu-satunya penanda. */
-.accreditation-selectors--4 { grid-template-columns: 1.1fr 2fr 1.6fr 1.2fr; }
 .accreditation-workspace > .notice, .accreditation-workspace > .section { margin-top: 18px; }
 .tab-count { margin-left: 4px; font-size: .75rem; font-variant-numeric: tabular-nums; opacity: .8; }
 .state-badge { display: inline-flex; align-items: center; flex: none; padding: 3px 9px; border-radius: 999px; color: var(--text); background: var(--surface-tint); font-size: .72rem; font-weight: 800; white-space: nowrap; }
@@ -839,14 +821,18 @@ td { line-height: 1.45; }
 }
 @media (max-width: 760px) {
   .ms__panel, .ms:last-child .ms__panel { left: 0; right: auto; width: 100%; max-width: 100%; }
-  .site-header__inner { gap: 10px; }
+  /* Header ponsel dua baris: logo + akun + tema di atas, menu selebar layar di bawah (tidak terpotong). */
+  .site-header__inner { flex-wrap: wrap; gap: 6px 10px; padding-top: 8px; }
   .site-header__brand span { display: none; }
-  .theme-toggle { padding: 0 10px; }
+  .site-header__nav { order: 3; flex: 1 0 100%; margin: 0 -4px; -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+  .site-header__nav a { min-height: 44px; padding: 0 12px; font-size: .88rem; white-space: nowrap; }
+  .theme-toggle { min-height: 44px; padding: 0 12px; text-transform: capitalize; }
+  .theme-toggle__panjang { display: none; }
   .auth-link { display: none; }
-  /* Di ponsel chip akun cukup tombol Keluar (nama & tautan Admin disembunyikan supaya header muat). */
-  .auth-chip { padding: 0; border: 0; }
-  .auth-chip > a, .auth-chip__name { display: none; }
-  .auth-chip button { min-height: 44px; padding: 0 12px; }
+  .auth-chip { margin-left: auto; padding: 0 2px 0 10px; }
+  .auth-chip__name { display: none; }
+  .auth-chip > a:not(.auth-chip__admin) { max-width: 88px; }
+  .auth-chip button { min-height: 40px; padding: 0 12px; }
   .cold-open { min-height: auto; }
   .hero-search { flex-direction: column; }
   .hero-search input, .hero-search button { width: 100%; }
@@ -855,14 +841,11 @@ td { line-height: 1.45; }
   .chart-row { grid-template-columns: 1fr auto; }
   .chart-track { grid-column: 1 / -1; grid-row: 2; }
   .chart-value { grid-column: 2; grid-row: 1; }
-  .accreditation-gate, .accreditation-selectors, .accreditation-selectors--4, .add-program__fields { grid-template-columns: 1fr; }
+  .accreditation-gate, .accreditation-selectors, .add-program__fields { grid-template-columns: 1fr; }
   .accreditation-hero { min-height: 320px; padding: 32px; }
   .brand-chip { margin-bottom: 30px; }
   .auth-panel { padding: 32px 24px; }
   .workspace-head, .upload-workflow { display: block; }
-  .user-chip { width: fit-content; margin: 0 0 16px auto; }
-  .progress-overview { grid-template-columns: repeat(2, 1fr); }
-  .upload-controls { margin-top: 18px; }
   .requirement-row { grid-template-columns: 28px 1fr; }
   .requirement-action { grid-column: 2; }
 }
@@ -1189,6 +1172,8 @@ td { line-height: 1.45; }
   .review__doc { padding: 10px; }
   .review__nav { width: 100%; }
   .review__nav .button, .review__aksi .button, .ruang-mode button { flex: 1; }
+  .ruang-mode { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ruang-mode button { padding: 0 6px; font-size: .84rem; white-space: nowrap; }
 }
 
 /* Pratinjau Laporan Dampak yang bisa disunting: paragraf tampil seperti teks dokumen, garis putus
@@ -1227,3 +1212,75 @@ td { line-height: 1.45; }
 .google-masuk__tombol:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .google-masuk__atau { display: flex; align-items: center; gap: 12px; margin: 0; color: var(--text-muted); font-size: .85rem; }
 .google-masuk__atau::before, .google-masuk__atau::after { content: ''; flex: 1; border-top: 1px solid var(--border-subtle); }
+
+/* ---- Admin ringkas (account.tsx): satu tabel akun, aksi dibuka per baris; tanpa kartu ganda ---- */
+.button--danger, :root[data-theme="dark"] .button--danger { border-color: var(--status-critical); color: #fff; background: var(--status-critical); }
+.button--danger-outline, :root[data-theme="dark"] .button--danger-outline { border-color: var(--status-critical); color: var(--status-critical); background: transparent; }
+:root[data-theme="dark"] .button--danger-outline { color: #ff9b9b; border-color: #ff9b9b; }
+.admin-ringkas { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 4px 0 8px; color: var(--text-muted); }
+.admin-ringkas b { margin-right: 4px; color: var(--text-heading); font-family: var(--font-display); font-size: 1.35rem; }
+.admin-ringkas .is-waspada b { color: var(--status-critical); }
+.admin-halaman .section { margin-top: 28px; }
+.admin-halaman .section-title-row { align-items: center; margin-bottom: 10px; }
+.admin-halaman .section-title-row h2 { margin: 0; }
+.admin-perlu { padding: 18px 20px; border: 1px solid var(--status-attention); border-radius: 12px; background: var(--surface-warm); }
+.akun-tabel .data-table td { vertical-align: middle; }
+.akun-tabel__email { display: block; color: var(--text-muted); font-size: .82rem; overflow-wrap: anywhere; }
+.akun-tabel tr.is-diblokir td:not(.akun-tabel__aksi) { color: var(--text-muted); }
+.akun-status { white-space: nowrap; font-size: .88rem; }
+.akun-tabel__aksi { width: 1%; text-align: right; }
+.akun-tabel__aksi .button { min-height: 44px; min-width: 96px; }
+.akun-tabel + .section-note { margin-top: 10px; }
+.akun-tabel__kelola > td { background: var(--surface-subtle); }
+.akun-kelola { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.akun-kelola .button { min-height: 44px; }
+.akun-kelola .tautan-reset { margin: 0; padding: 0; border: 0; }
+.akun-kelola .button--danger-outline { margin-left: auto; }
+.lipat { margin-top: 24px; border-top: 1px solid var(--border-subtle); padding-top: 12px; }
+.lipat > summary { min-height: 44px; display: flex; align-items: center; color: var(--text-heading); font-weight: 700; cursor: pointer; }
+.lipat[open] > summary { margin-bottom: 8px; }
+.admin-email { display: grid; gap: 10px; justify-items: start; }
+.admin-email .button { min-height: 44px; }
+/* Tabel akun di ponsel: tiap akun jadi satu blok bertumpuk, bukan tabel yang digulir menyamping. */
+@media (max-width: 640px) {
+  .akun-tabel { overflow: visible; border: 0; }
+  .akun-tabel .data-table, .akun-tabel tbody, .akun-tabel tr, .akun-tabel td { display: block; width: 100%; min-width: 0; }
+  .akun-tabel thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .akun-tabel tbody tr:not(.akun-tabel__kelola) { padding: 12px 14px; border: 1px solid var(--border-subtle); border-radius: 12px; margin-top: 10px; background: var(--surface-card); }
+  .akun-tabel td { padding: 3px 0; border: 0; }
+  .akun-tabel td[data-label]:not([data-label="Akun"])::before { content: attr(data-label) ": "; color: var(--text-muted); font-size: .82rem; }
+  .akun-tabel__aksi { text-align: left; padding-top: 8px !important; }
+  .akun-tabel__aksi .button { width: 100%; }
+  .akun-tabel__kelola > td { padding: 12px 14px; border: 1px solid var(--border-subtle); border-top: 0; border-radius: 0 0 12px 12px; }
+  .akun-tabel tbody tr:has(+ .akun-tabel__kelola) { border-radius: 12px 12px 0 0; }
+  .akun-kelola .tautan-reset, .akun-kelola .tautan-reset .button { width: 100%; }
+  .akun-tabel__aksi:empty { display: none; }
+  .akun-kelola .button, .akun-kelola .button--danger-outline { width: 100%; margin-left: 0; }
+}
+
+/* ---- Log aktivitas (aktivitas.tsx) ---- */
+.aktivitas { margin: 0 0 8px; padding: 0; list-style: none; }
+.aktivitas li { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border-subtle); font-size: .9rem; }
+.aktivitas time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.aktivitas__isi { overflow-wrap: anywhere; }
+@media (max-width: 480px) { .aktivitas li { grid-template-columns: 1fr; gap: 2px; } }
+
+/* ---- Portal Akreditasi ringkas (akreditasi.tsx) ---- */
+.ringkas-lengkap { margin-top: 12px; padding: 16px 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
+.ringkas-lengkap .completion-line, .ringkas-lengkap > * { margin-top: 0; }
+.ringkas-lengkap__rinci { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 12px 0 0; }
+.ringkas-lengkap__rinci div { display: flex; gap: 8px; align-items: baseline; }
+.ringkas-lengkap__rinci dt { color: var(--text-muted); font-size: .86rem; }
+.ringkas-lengkap__rinci dd { margin: 0; color: var(--text-heading); font-weight: 800; font-variant-numeric: tabular-nums; }
+.cara-kerja { margin: 14px 0 4px; padding: 4px 16px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-subtle); }
+.cara-kerja > summary { min-height: 44px; display: flex; align-items: center; color: var(--text-heading); font-weight: 700; cursor: pointer; }
+.cara-kerja ol { margin: 0 0 12px; padding-left: 1.3rem; display: grid; gap: 6px; }
+.cara-kerja li::marker { color: var(--text-heading); font-weight: 800; }
+.laporan-baru .laporan-form { margin-top: 4px; padding-top: 0; border-top: 0; }
+.riwayat-ubah { margin-top: 28px; }
+/* Zona unggah: satu target besar (klik atau tarik file), file langsung diunggah. */
+.unggah-zona { display: grid; gap: 4px; justify-items: center; margin: 4px 0 14px; padding: 22px 16px; border: 2px dashed var(--border); border-radius: 12px; background: var(--surface-card); color: var(--text-heading); text-align: center; cursor: pointer; }
+.unggah-zona span { color: var(--text-muted); font-size: .86rem; }
+.unggah-zona:hover, .unggah-zona.is-seret { border-color: var(--ugm-blue-sky); background: var(--surface-tint); }
+.unggah-zona:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
+.unggah-zona.is-sibuk { cursor: progress; opacity: .7; }

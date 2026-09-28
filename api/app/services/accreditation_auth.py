@@ -22,6 +22,8 @@ MAX_FAILED = 5
 FAILED_WINDOW = timedelta(minutes=15)
 ALLOWED_DOMAINS = {"ugm.ac.id", "mail.ugm.ac.id"}
 EMAIL_RE = re.compile(r"^[a-z0-9._%+\-]+@([a-z0-9.-]+)$")
+PESAN_AKUN_GOOGLE = ("Email ini terdaftar lewat Google dan belum punya password. Masuk dengan tombol "
+                     "\"Masuk dengan Google\", atau buat password dulu lewat \"Lupa password?\".")
 
 
 def normalize_email(email: str) -> str:
@@ -102,6 +104,9 @@ def login(engine: Engine, email: str, password: str) -> tuple[dict[str, Any] | N
     if not ok:
         with engine.begin() as conn:
             record_attempt(conn, email, False)
+        # Akun yang dibuat lewat "Masuk dengan Google" belum punya password: arahkan, jangan "salah".
+        if row and not row["password_hash"]:
+            return None, PESAN_AKUN_GOOGLE, None
         return None, "Email atau password salah.", None
     if row["is_blocked"]:
         return None, "Akun Anda diblokir, hubungi admin.", None
@@ -135,7 +140,11 @@ def register(engine: Engine, email: str, name: str, password: str) -> tuple[bool
             if conn.execute(text("SELECT MIN(id) FROM akreditasi_users")).scalar() == new_id:
                 conn.execute(text("UPDATE akreditasi_users SET is_admin = TRUE WHERE id = :id"), {"id": new_id})
     except Exception as exc:
-        if sqlcompat.is_duplicate_entry_error(exc): return False, "Email sudah terdaftar."
+        if sqlcompat.is_duplicate_entry_error(exc):
+            with engine.connect() as conn:
+                ada = conn.execute(text("SELECT password_hash FROM akreditasi_users WHERE email = :email"),
+                                   {"email": email}).first()
+            return False, PESAN_AKUN_GOOGLE if ada is not None and not ada[0] else "Email sudah terdaftar."
         raise
     return True, "Registrasi berhasil. Silakan login."
 

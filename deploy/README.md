@@ -163,6 +163,20 @@ ke akun lamanya (status admin tetap), email baru dibuatkan akun tanpa password. 
 
 Tanpa file ini tombol Google tidak tampil. `deploy/google.env` di-gitignore.
 
+## Backup harian
+
+`deploy/backup.sh` menyimpan dump PostgreSQL dan folder berkas akreditasi (unggahan + Word hasil
+generate) ke `../backups/<tanggal>/`, lalu menghapus backup yang lebih tua dari 14 hari
+(`SIMPAN_HARI`). Jalankan sekali untuk mencoba: `cd deploy && sh backup.sh`. Otomatis tiap malam:
+
+```
+30 1 * * * cd /path/ke/ugm-analytics/deploy && sh backup.sh >> ../runtime/backup.log 2>&1
+```
+
+Pulihkan database: `gunzip -c ../backups/<tanggal>/postgres.sql.gz | docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"`.
+Pulihkan berkas: `tar -xzf ../backups/<tanggal>/akreditasi-files.tar.gz -C ../runtime`. Simpan salinan
+`../backups` di luar server (mis. disk lain) supaya ikut selamat kalau server rusak.
+
 ## Pemulihan: `mysql-reader` mati saat import dump
 
 Gejala (BTD 2026-09-22): entrypoint membuat database + user dengan benar, lalu berhenti di

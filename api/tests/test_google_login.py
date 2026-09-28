@@ -6,6 +6,7 @@ import json
 import time
 from datetime import datetime
 
+import bcrypt
 import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import StaticPool
@@ -25,9 +26,12 @@ def engine():
             nama VARCHAR(100), password_hash VARCHAR(255), auth_provider VARCHAR(32), is_admin BOOLEAN, is_blocked BOOLEAN,
             created_at TIMESTAMP, last_login_at TIMESTAMP)"""))
         conn.execute(text("CREATE TABLE akreditasi_sessions (token_hash CHAR(64), user_id INTEGER, created_at TIMESTAMP, expires_at TIMESTAMP)"))
+        conn.execute(text("CREATE TABLE akreditasi_login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, email VARCHAR(254), "
+                          "berhasil BOOLEAN, attempted_at TIMESTAMP)"))
         conn.execute(text("INSERT INTO akreditasi_users (email, nama, password_hash, auth_provider, is_admin, is_blocked, created_at) "
-                          "VALUES ('lama@ugm.ac.id', 'Akun Lama', 'x', 'local', TRUE, FALSE, :t), "
-                          "('blokir@ugm.ac.id', 'Blokir', 'x', 'local', FALSE, TRUE, :t)"), {"t": datetime.now()})
+                          "VALUES ('lama@ugm.ac.id', 'Akun Lama', :h, 'local', TRUE, FALSE, :t), "
+                          "('blokir@ugm.ac.id', 'Blokir', :h, 'local', FALSE, TRUE, :t)"),
+                     {"t": datetime.now(), "h": bcrypt.hashpw(b"lama12345", bcrypt.gensalt(rounds=4)).decode()})
     return eng
 
 
@@ -122,3 +126,16 @@ def test_tujuan_kembali_hanya_di_portal_sendiri():
     assert gl.tujuan_aman("dampak", "/dampak/admin")
     for buruk in ("https://jahat.id", "//jahat.id", "/dampak", "/akreditasi-palsu", "/akreditasi/\\x", "/akreditasi\n", ""):
         assert not gl.tujuan_aman("akreditasi", buruk), buruk
+
+
+def test_akun_google_tanpa_password_diberi_petunjuk(engine):
+    _alur(engine, "dampak", email="gugel@ugm.ac.id")
+    _alur(engine, "akreditasi", email="gugel@ugm.ac.id")
+    for auth in (dampak_auth, accreditation_auth):
+        user, pesan, token = auth.login(engine, "gugel@ugm.ac.id", "tebakan123")
+        assert user is None and token is None and pesan == auth.PESAN_AKUN_GOOGLE
+        ok, pesan = auth.register(engine, "gugel@ugm.ac.id", "Gugel", "password123")
+        assert not ok and pesan == auth.PESAN_AKUN_GOOGLE
+    # Akun password biasa tetap mendapat pesan lama.
+    assert accreditation_auth.register(engine, "lama@ugm.ac.id", "Lama", "password123") == (False, "Email sudah terdaftar.")
+    assert accreditation_auth.login(engine, "lama@ugm.ac.id", "salah")[1] == "Email atau password salah."

@@ -139,6 +139,8 @@ def test_endpoint_isi_laporan_butuh_password_prodi(engine, monkeypatch, tmp_path
         pass
 
     Fake.engine = engine
+    from app.services.aktivitas import ensure_schema as ensure_aktivitas
+    ensure_aktivitas(engine)
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO akreditasi_sessions (token_hash, user_id, created_at, expires_at) VALUES (:h, 1, :c, :e)"),
                      {"h": token_hash(TOKEN_A), "c": datetime.now(), "e": datetime.now() + timedelta(hours=12)})
@@ -159,6 +161,11 @@ def test_endpoint_isi_laporan_butuh_password_prodi(engine, monkeypatch, tmp_path
         r = client.post("/api/v1/analytics/accreditation/laporan", json={"prodi_id": "mei", "dokumen": "LED", "tahun": 2027})
         assert r.status_code == 200 and r.json()["nama"] == "LED 2027"
         assert client.get("/api/v1/analytics/accreditation/admin/reset").status_code == 403  # bukan admin
+        # Riwayat perubahan per laporan: tercatat siapa membuat laporan; admin-only untuk log portal.
+        riwayat = client.get(f"/api/v1/analytics/accreditation/laporan/{r.json()['id']}/aktivitas").json()["aktivitas"]
+        assert riwayat[0]["keterangan"].startswith("Membuat laporan LED 2027") and riwayat[0]["pelaku_email"] == EMAIL
+        assert client.get("/api/v1/analytics/accreditation/admin/aktivitas").status_code == 403
+        assert client.post("/api/v1/analytics/accreditation/admin/email-uji").status_code == 403
     finally:
         app.dependency_overrides.clear()
         app.dependency_overrides.update(sebelumnya)

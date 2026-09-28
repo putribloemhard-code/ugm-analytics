@@ -279,7 +279,65 @@ def accreditation_admin_reset_link(target_id: int, request: Request, api: Analyt
     """Admin Akreditasi membuat tautan reset untuk sebuah akun (jalur cadangan tanpa server email)."""
     user = _auth_user(request, api)
     from app.services.reset_password import buat_tautan_admin
-    return _reset_call(buat_tautan_admin, api.engine, "akreditasi", user, target_id, _base_url(request))
+    hasil = _reset_call(buat_tautan_admin, api.engine, "akreditasi", user, target_id, _base_url(request))
+    _catat(api, "akreditasi", user, "tautan_reset", f"Membuat tautan reset password untuk {hasil['email']}")
+    return hasil
+
+
+def _catat(api: AnalyticsService, portal: str, user: dict[str, Any], aksi: str, keterangan: str,
+           laporan_id: int | None = None) -> None:
+    """Catat aktivitas yang sudah berhasil (lihat services/aktivitas.py); tidak pernah menggagalkan aksi."""
+    from app.services.aktivitas import catat
+    catat(api.engine, portal, user, aksi, keterangan, laporan_id)
+
+
+def _nama_item(item_id: str) -> str:
+    try:
+        from app.services.accreditation_workspace import _registry
+        return str(_registry().KEBUTUHAN_DATA.get(item_id, {}).get("nama") or item_id)
+    except Exception:  # noqa: BLE001 -- nama hanya untuk teks log
+        return item_id
+
+
+def _admin_saja(user: dict[str, Any]) -> None:
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Hanya admin.")
+
+
+@router.get("/accreditation/admin/aktivitas")
+def accreditation_admin_aktivitas(request: Request, api: AnalyticsService = Depends(service)):
+    """Aktivitas terbaru portal Akreditasi (admin)."""
+    user = _auth_user(request, api)
+    _admin_saja(user)
+    from app.services.aktivitas import daftar
+    return {"aktivitas": daftar(api.engine, "akreditasi", limit=100)}
+
+
+@router.get("/dampak/admin/aktivitas")
+def dampak_admin_aktivitas(request: Request, api: AnalyticsService = Depends(service)):
+    """Aktivitas terbaru portal Analisis Dampak (admin Dampak)."""
+    user = _dampak_auth_user(request, api)
+    _admin_saja(user)
+    from app.services.aktivitas import daftar
+    return {"aktivitas": daftar(api.engine, "dampak", limit=100)}
+
+
+@router.post("/accreditation/admin/email-uji")
+def accreditation_admin_email_uji(request: Request, api: AnalyticsService = Depends(service)):
+    """Kirim email uji ke alamat admin sendiri untuk memeriksa pengaturan SMTP."""
+    user = _auth_user(request, api)
+    _admin_saja(user)
+    from app.services.notifikasi import email_uji
+    return email_uji("akreditasi", user["email"])
+
+
+@router.post("/dampak/admin/email-uji")
+def dampak_admin_email_uji(request: Request, api: AnalyticsService = Depends(service)):
+    """Kirim email uji ke alamat admin Dampak sendiri."""
+    user = _dampak_auth_user(request, api)
+    _admin_saja(user)
+    from app.services.notifikasi import email_uji
+    return email_uji("dampak", user["email"])
 
 
 def _dampak_admin_call(fn, *args):
@@ -304,8 +362,10 @@ def dampak_admin_action(target_id: int, payload: dict[str, Any], request: Reques
     user = _dampak_auth_user(request, api)
     from app.services.dampak_account import DampakAccountService
     value = payload.get("value")
-    return _dampak_admin_call(DampakAccountService(api.engine).admin_action, user, str(payload.get("action", "")),
-                              target_id, None if value is None else bool(value))
+    hasil = _dampak_admin_call(DampakAccountService(api.engine).admin_action, user, str(payload.get("action", "")),
+                               target_id, None if value is None else bool(value))
+    _catat(api, "dampak", user, "admin_akun", str(hasil.get("message") or f"Aksi admin pada akun #{target_id}"))
+    return hasil
 
 
 @router.post("/dampak/admin/users/{target_id}/reset-link")
@@ -313,7 +373,9 @@ def dampak_admin_reset_link(target_id: int, request: Request, api: AnalyticsServ
     """Admin Dampak membuat tautan reset untuk sebuah akun Dampak."""
     user = _dampak_auth_user(request, api)
     from app.services.reset_password import buat_tautan_admin
-    return _reset_call(buat_tautan_admin, api.engine, "dampak", user, target_id, _base_url(request))
+    hasil = _reset_call(buat_tautan_admin, api.engine, "dampak", user, target_id, _base_url(request))
+    _catat(api, "dampak", user, "tautan_reset", f"Membuat tautan reset password untuk {hasil['email']}")
+    return hasil
 
 
 def _account_service(api: AnalyticsService):
@@ -348,10 +410,12 @@ def accreditation_admin_action(target_id: int, payload: dict[str, Any], request:
     action = str(payload.get("action", ""))
     value = payload.get("value")
     try:
-        return _account_service(api).admin_action(
+        hasil = _account_service(api).admin_action(
             user, action, target_id, None if value is None else bool(value))
     except AksiDitolak as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    _catat(api, "akreditasi", user, "admin_akun", str(hasil.get("message") or f"Aksi admin pada akun #{target_id}"))
+    return hasil
 
 
 @router.post("/accreditation/uploads")
@@ -363,11 +427,13 @@ async def accreditation_upload(request: Request, laporan_id: int = Form(...), fi
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Ukuran file maksimal 25 MB")
     try:
-        return save_upload(api.engine, Path(settings.accreditation_upload_dir), laporan, file.filename or "file", file.content_type, data, user["email"])
+        hasil = save_upload(api.engine, Path(settings.accreditation_upload_dir), laporan, file.filename or "file", file.content_type, data, user["email"])
     except UploadError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Upload gagal disimpan") from exc
+    _catat(api, "akreditasi", user, "unggah", f"Mengunggah {file.filename or 'file'}", int(laporan["id"]))
+    return hasil
 
 
 def _workspace(api: AnalyticsService):
@@ -439,23 +505,30 @@ def accreditation_laporan_list(request: Request, prodi_id: str = Query(..., max_
 def accreditation_laporan_create(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
     """Buat laporan baru (prodi + dokumen + tahun); password prodi harus sudah dibuka di sesi ini."""
     user = _auth_user(request, api)
-    return _laporan_call(_laporan_svc(api).buat_laporan, str(payload.get("prodi_id", "")), str(payload.get("dokumen", "")),
-                         payload.get("tahun"), str(payload.get("nama") or ""), _token(request), user["email"])
+    hasil = _laporan_call(_laporan_svc(api).buat_laporan, str(payload.get("prodi_id", "")), str(payload.get("dokumen", "")),
+                          payload.get("tahun"), str(payload.get("nama") or ""), _token(request), user["email"])
+    _catat(api, "akreditasi", user, "buat_laporan", f"Membuat laporan {hasil.get('nama')} ({payload.get('prodi_id')})",
+           int(hasil["id"]))
+    return hasil
 
 
 @router.post("/accreditation/laporan/{laporan_id}/hapus")
 def accreditation_laporan_delete(laporan_id: int, request: Request, api: AnalyticsService = Depends(service)):
     """Hapus laporan beserta isian, file, dan riwayat Word-nya; PIN prodi harus sudah dibuka di sesi ini."""
-    _auth_user(request, api)
+    user = _auth_user(request, api)
     laporan = _laporan_terbuka(request, api, laporan_id)
-    return _workspace_call(_workspace(api).hapus_laporan, laporan)
+    hasil = _workspace_call(_workspace(api).hapus_laporan, laporan)
+    _catat(api, "akreditasi", user, "hapus_laporan", str(hasil.get("message") or f"Menghapus laporan #{laporan_id}"))
+    return hasil
 
 
 @router.post("/accreditation/prodi/{prodi_id}/kunci")
 def accreditation_kunci_buat(prodi_id: str, payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
     """Buat password pertama prodi (hanya bila belum ada)."""
     user = _auth_user(request, api)
-    return _laporan_call(_laporan_svc(api).buat_kunci, prodi_id, str(payload.get("password", "")), _token(request), user["email"])
+    hasil = _laporan_call(_laporan_svc(api).buat_kunci, prodi_id, str(payload.get("password", "")), _token(request), user["email"])
+    _catat(api, "akreditasi", user, "buat_pin", f"Membuat PIN prodi {prodi_id}")
+    return hasil
 
 
 @router.post("/accreditation/prodi/{prodi_id}/buka")
@@ -469,8 +542,15 @@ def accreditation_kunci_buka(prodi_id: str, payload: dict[str, Any], request: Re
 def accreditation_kunci_reset(prodi_id: str, payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
     """Ajukan password prodi baru; berlaku setelah disetujui admin."""
     user = _auth_user(request, api)
-    return _laporan_call(_laporan_svc(api).ajukan_reset, prodi_id, str(payload.get("password_baru", "")),
-                         str(payload.get("alasan") or ""), user)
+    hasil = _laporan_call(_laporan_svc(api).ajukan_reset, prodi_id, str(payload.get("password_baru", "")),
+                          str(payload.get("alasan") or ""), user)
+    _catat(api, "akreditasi", user, "ajukan_reset_pin", f"Mengajukan reset PIN prodi {prodi_id}")
+    from app.services.notifikasi import kabari_admin
+    kabari_admin(api.engine, "akreditasi", f"Pengajuan reset PIN prodi {prodi_id}",
+                 f"{user.get('nama') or user['email']} ({user['email']}) mengajukan PIN baru untuk prodi {prodi_id}.\n"
+                 f"Alasan: {str(payload.get('alasan') or '-').strip()[:300]}\n\n"
+                 f"Setujui atau tolak di halaman Admin: {_base_url(request)}/admin\n")
+    return hasil
 
 
 @router.get("/accreditation/admin/reset")
@@ -489,7 +569,10 @@ def accreditation_admin_reset_decide(reset_id: int, payload: dict[str, Any], req
     user = _auth_user(request, api)
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Hanya admin.")
-    return _laporan_call(_laporan_svc(api).putuskan_reset, reset_id, bool(payload.get("setujui")), user)
+    hasil = _laporan_call(_laporan_svc(api).putuskan_reset, reset_id, bool(payload.get("setujui")), user)
+    _catat(api, "akreditasi", user, "putuskan_reset_pin",
+           f"{'Menyetujui' if payload.get('setujui') else 'Menolak'} pengajuan reset PIN #{reset_id}")
+    return hasil
 
 
 @router.get("/accreditation/workspace")
@@ -500,13 +583,24 @@ def accreditation_workspace(request: Request, laporan_id: int = Query(...), api:
     return _workspace_call(_workspace(api).workspace, laporan)
 
 
+@router.get("/accreditation/laporan/{laporan_id}/aktivitas")
+def accreditation_laporan_aktivitas(laporan_id: int, request: Request, api: AnalyticsService = Depends(service)):
+    """Riwayat perubahan satu laporan: siapa mengubah apa dan kapan (butuh PIN prodi di sesi ini)."""
+    _auth_user(request, api)
+    laporan = _laporan_terbuka(request, api, laporan_id)
+    from app.services.aktivitas import daftar
+    return {"aktivitas": daftar(api.engine, "akreditasi", laporan_id=int(laporan["id"]), limit=100)}
+
+
 @router.post("/accreditation/workspace/items/{item_id}")
 def accreditation_save_item(item_id: str, payload: dict[str, Any], request: Request,
                             api: AnalyticsService = Depends(service)):
     """Simpan isian satu item (ganti seluruh sel item itu) di laporan."""
     user = _auth_user(request, api)
     laporan = _laporan_terbuka(request, api, payload.get("laporan_id"))
-    return _workspace_call(_workspace(api).save_item, laporan, item_id, payload.get("rows"), user["email"])
+    hasil = _workspace_call(_workspace(api).save_item, laporan, item_id, payload.get("rows"), user["email"])
+    _catat(api, "akreditasi", user, "ubah_isian", f"Mengubah isian: {_nama_item(item_id)}", int(laporan["id"]))
+    return hasil
 
 
 @router.post("/accreditation/workspace/final")
@@ -514,8 +608,13 @@ def accreditation_item_final(payload: dict[str, Any], request: Request, api: Ana
     """Tandai / batalkan status final bagian laporan saat review dokumen (satu item atau daftar item)."""
     user = _auth_user(request, api)
     laporan = _laporan_terbuka(request, api, payload.get("laporan_id"))
-    return _workspace_call(_workspace(api).set_final, laporan, payload.get("item_ids"),
-                           bool(payload.get("final", True)), user["email"])
+    hasil = _workspace_call(_workspace(api).set_final, laporan, payload.get("item_ids"),
+                            bool(payload.get("final", True)), user["email"])
+    ids = payload.get("item_ids")
+    apa = _nama_item(ids) if isinstance(ids, str) else (_nama_item(ids[0]) if isinstance(ids, list) and len(ids) == 1 else None)
+    _catat(api, "akreditasi", user, "final", f"{'Menandai final' if payload.get('final', True) else 'Mengembalikan ke draft'}: {apa}"
+           if apa else str(hasil.get("message")), int(laporan["id"]))
+    return hasil
 
 
 @router.post("/accreditation/programs")
@@ -530,9 +629,12 @@ def accreditation_add_program(payload: dict[str, Any], request: Request, api: An
 def accreditation_extract(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
     """Mulai ekstraksi AI di latar belakang untuk file laporan yang belum/gagal diekstrak; hasilnya langsung
     diterapkan ke data laporan tanpa menimpa isian yang ada. UI memantau lewat workspace."""
-    _auth_user(request, api)
+    user = _auth_user(request, api)
     laporan = _laporan_terbuka(request, api, payload.get("laporan_id"))
-    return _workspace_call(_workspace(api).start_extraction, laporan)
+    hasil = _workspace_call(_workspace(api).start_extraction, laporan)
+    if hasil.get("dimulai"):
+        _catat(api, "akreditasi", user, "ekstraksi", f"Memulai ekstraksi AI untuk {hasil['dimulai']} file", int(laporan["id"]))
+    return hasil
 
 
 @router.post("/accreditation/generate")
@@ -541,6 +643,7 @@ def accreditation_generate(payload: dict[str, Any], request: Request, api: Analy
     user = _auth_user(request, api)
     laporan = _laporan_terbuka(request, api, payload.get("laporan_id"))
     content, filename = _workspace_call(_workspace(api).generate, laporan, user["email"])
+    _catat(api, "akreditasi", user, "unduh_word", f"Mengunduh Word {filename}", int(laporan["id"]))
     return _docx(content, filename)
 
 
@@ -717,9 +820,11 @@ def tema_tag(payload: dict[str, Any], request: Request, api: AnalyticsService = 
     user = _dampak_auth_user(request, api)
     from app.services.tema_manual import TagError, tandai
     try:
-        return tandai(api.engine, _frames(api), str(payload.get("url", "")), payload.get("topiks"), user["email"])
+        hasil = tandai(api.engine, _frames(api), str(payload.get("url", "")), payload.get("topiks"), user["email"])
     except TagError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _catat(api, "dampak", user, "tag_tema", f"Menandai tema berita {str(payload.get('url', ''))[:300]}")
+    return hasil
 
 
 @router.post("/tema-manual/delete")
@@ -818,6 +923,34 @@ def report_preview(payload: ReportRequest, api: AnalyticsService = Depends(servi
     except Exception as exc:
         logging.getLogger(__name__).exception("report preview failed")
         raise HTTPException(status_code=503, detail="Pratinjau laporan belum dapat dibuat") from exc
+
+
+def _filter_laporan(payload: dict[str, Any]) -> dict[str, Any]:
+    from app.api.v1.schemas import ReportRequest
+    try:
+        req = ReportRequest(**{k: v for k, v in (payload or {}).items() if k != "suntingan"})
+    except Exception as exc:  # noqa: BLE001 -- filter tidak valid = 422 seperti /reports
+        raise HTTPException(status_code=422, detail="Filter laporan tidak valid.") from exc
+    return req.model_dump(exclude={"suntingan"})
+
+
+@router.post("/reports/draf/ambil")
+def report_draf_ambil(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
+    """Draf suntingan pratinjau milik akun ini untuk filter laporan yang sama."""
+    user = _dampak_auth_user(request, api)
+    from app.services.laporan_draf import ambil
+    return ambil(api.engine, int(user["id"]), _filter_laporan(payload.get("filter") or {}))
+
+
+@router.post("/reports/draf")
+def report_draf_simpan(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
+    """Simpan draf suntingan (otomatis dari pratinjau); suntingan kosong = draf dihapus."""
+    user = _dampak_auth_user(request, api)
+    from app.services.laporan_draf import DrafError, simpan
+    try:
+        return simpan(api.engine, int(user["id"]), _filter_laporan(payload.get("filter") or {}), payload.get("suntingan") or {})
+    except DrafError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/reports")

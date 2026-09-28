@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
-  ApiError, accreditationUpload, addAccreditationProgram, ajukanResetPin, buatLaporan, buatPinProdi, bukaProdi, downloadLaporanWord, hapusLaporan,
+  ApiError, accreditationUpload, addAccreditationProgram, aktivitasLaporan, ajukanResetPin, buatLaporan, buatPinProdi, bukaProdi, downloadLaporanWord, hapusLaporan,
   generateAccreditationDocument, getAccreditationWorkspace, getDaftarLaporan, simpanBlob, startAccreditationExtraction,
   type AccreditationResult, type AuthUser, type DaftarLaporan, type Dokumen, type RiwayatEkstraksi, type Workspace, type WorkspaceItem, type WorkspaceUpload,
 } from './lib/api';
-import { Notice, PageHeader, ProgressLine, StatCard } from './ui';
+import { Notice, PageHeader, ProgressLine } from './ui';
 import { pesan, useItemEditor, waktu } from './akreditasi-edit';
 import { ReviewDokumen } from './akreditasi-dokumen';
+import { DaftarAktivitas } from './aktivitas';
 
 type Mode = 'isi' | 'review' | 'download';
-const MODE_LABEL: Record<Mode, string> = { isi: 'Isi data & upload', review: '1. Review dokumen', download: '2. Download Word' };
+const MODE_LABEL: Record<Mode, string> = { isi: '1. Isi data', review: '2. Review', download: '3. Unduh Word' };
 
 /* Ruang kerja akreditasi. Alur: Lingkup -> Fakultas & Prodi -> Dokumen (LED/LKPS) -> pilih laporan (tahun)
    dari riwayat atau buat baru, dibuka dengan PIN prodi -> Upload & ekstraksi -> isi item -> Generate Word.
@@ -75,8 +76,7 @@ type Props = {
   initialLaporan: number | null;
 };
 
-export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChange, initialProdi, initialDokumen, initialLaporan }: Props) {
-  const [lingkup, setLingkup] = useState<'prodi' | 'universitas'>('prodi');
+export function AccreditationWorkspace({ catalog, onCatalogChange, initialProdi, initialDokumen, initialLaporan }: Props) {
   const awal = catalog.programs.find(p => String(p.slug) === initialProdi);
   const [fakultas, setFakultas] = useState(awal ? String(awal.fakultas_id) : '');
   const [prodi, setProdi] = useState(awal ? initialProdi : '');
@@ -141,34 +141,24 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
   const activeGroup = groups.find(g => g.key === groupKey) ?? groups[0];
 
   return <div className="content accreditation-workspace">
-    <div className="workspace-head">
-      <PageHeader title="Akreditasi" icon="certificate.png" caption="Kelengkapan data LED & LKPS — instrumen akreditasi Program Studi (LAM-INFOKOM)." />
-      <div className="user-chip">{user.nama}<button onClick={onLogout}>Keluar</button></div>
-    </div>
+    <PageHeader title="Akreditasi" icon="certificate.png" caption="Susun LED & LKPS program studi (LAM-INFOKOM) bersama staf prodi." />
     {yatim > 0 && <Notice type="error">{yatim} program studi belum terhubung ke fakultas mana pun, sehingga tidak muncul di pemilih. Perbaiki kolom fakultas_id pada tabel akreditasi_prodi.</Notice>}
 
-    <section className="accreditation-selectors accreditation-selectors--4" aria-label="Pilihan dokumen akreditasi">
+    {/* Pemilih prodi & dokumen hanya tampil saat memilih laporan; saat laporan terbuka cukup "Ganti laporan". */}
+    {!laporanId && <section className="accreditation-selectors" aria-label="Pilihan dokumen akreditasi">
       <div className="field">
-        <label htmlFor="ak-lingkup">Lingkup akreditasi</label>
-        <select id="ak-lingkup" value={lingkup} onChange={e => setLingkup(e.target.value as 'prodi' | 'universitas')}>
-          <option value="prodi">Akreditasi Program Studi</option>
-          <option value="universitas">Akreditasi Universitas</option>
-        </select>
-      </div>
-      <div className="field">
-        <label htmlFor="ak-fakultas">Fakultas (wajib)</label>
-        <select id="ak-fakultas" value={fakultas} onChange={e => pilihFakultas(e.target.value)} disabled={lingkup !== 'prodi'}>
+        <label htmlFor="ak-fakultas">Fakultas</label>
+        <select id="ak-fakultas" value={fakultas} onChange={e => pilihFakultas(e.target.value)}>
           <option value="">Pilih fakultas…</option>
           {catalog.faculties.map(f => {
             const n = catalog.programs.filter(p => String(p.fakultas_id) === String(f.id)).length;
             return <option key={String(f.id)} value={String(f.id)}>{String(f.nama)}{n ? ` (${n} prodi)` : ' (belum ada prodi)'}</option>;
           })}
         </select>
-        <small className="field-hint">Nama fakultas panjang bisa terpotong — buka daftar untuk melihat lengkap.</small>
       </div>
       <div className="field">
-        <label htmlFor="ak-prodi">Program Studi (wajib)</label>
-        <select id="ak-prodi" value={prodi} disabled={!fakultas || lingkup !== 'prodi'} onChange={e => { setProdi(e.target.value); setGroupKey(''); setLaporanId(null); }}>
+        <label htmlFor="ak-prodi">Program studi</label>
+        <select id="ak-prodi" value={prodi} disabled={!fakultas} onChange={e => { setProdi(e.target.value); setGroupKey(''); setLaporanId(null); }}>
           {!fakultas && <option value="">Pilih fakultas dulu</option>}
           {prodiDariFakultas.map(p => <option key={String(p.id)} value={String(p.slug)}>{labelProdi(p)}</option>)}
           {fakultas && <option value={TAMBAH_PRODI}>+ Tambah prodi baru</option>}
@@ -176,20 +166,18 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
       </div>
       <div className="field">
         <label htmlFor="ak-dokumen">Dokumen</label>
-        <select id="ak-dokumen" value={dokumen} disabled={lingkup !== 'prodi'} onChange={e => { setDokumen(e.target.value as Dokumen); setGroupKey(''); setLaporanId(null); setTahunTarget(null); }}>
-          <option value="LED">📘 LED — Laporan Evaluasi Diri</option>
-          <option value="LKPS">📗 LKPS — Laporan Kinerja Program Studi</option>
+        <select id="ak-dokumen" value={dokumen} onChange={e => { setDokumen(e.target.value as Dokumen); setGroupKey(''); setLaporanId(null); setTahunTarget(null); }}>
+          <option value="LED">LED — Laporan Evaluasi Diri</option>
+          <option value="LKPS">LKPS — Laporan Kinerja Program Studi</option>
         </select>
       </div>
-    </section>
+    </section>}
 
-    {lingkup === 'universitas'
-      ? <Notice type="info">Instrumen akreditasi Universitas (BAN-PT — LED APT/LKPT) berbeda struktur dari instrumen Program Studi (LAM-INFOKOM — LED/LKPS) yang sudah dibangun di sini. Dokumen requirement untuk instrumen institusi ini belum tersedia, jadi fitur ini akan dikembangkan setelah dokumen requirement LED APT/LKPT disiapkan.</Notice>
-      : prodi === TAMBAH_PRODI && fakultas
+    {prodi === TAMBAH_PRODI && fakultas
         ? <AddProgram fakultasId={fakultas} fakultasNama={String(catalog.faculties.find(f => String(f.id) === fakultas)?.nama ?? '')}
             onAdded={async slug => { await onCatalogChange(); setProdi(slug); }} onCancel={() => { const p = prodiDariFakultas[0]; setProdi(p ? String(p.slug) : TAMBAH_PRODI); }} />
         : !prodi
-          ? <Notice type="info">Pilih Fakultas dan Program Studi dulu untuk melihat kelengkapan data.</Notice>
+          ? <CaraKerja terbuka />
           : !laporanId
             ? <PilihLaporan prodi={prodi} dokumen={dokumen} tahunTarget={tahunTarget} laporanTarget={laporanTarget}
                 onPilih={id => { setLaporanId(id); setTahunTarget(null); setLaporanTarget(null); setMode('isi'); }} />
@@ -199,7 +187,7 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
                 ? <div className="loading" role="status">Memuat kelengkapan data…</div>
                 : <>
                 <div className="laporan-bar">
-                  <div><p className="section-kicker">Laporan yang sedang dikerjakan</p><h2>{workspace.laporan.nama}</h2><p className="section-note">{workspace.prodi.nama} · dikerjakan bersama staf prodi yang memegang PIN prodi.</p></div>
+                  <div><p className="section-kicker">{workspace.prodi.nama} · {dokumen}</p><h2>{workspace.laporan.nama}</h2></div>
                   <button className="button secondary" onClick={() => { setLaporanId(null); setWorkspace(null); }}>Ganti laporan</button>
                 </div>
                 <nav className="ruang-mode" aria-label="Tahap pengerjaan laporan">
@@ -245,6 +233,11 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
                     </div>}
                   </div>}
                 </section>
+                <details className="lipat riwayat-ubah">
+                  <summary>Riwayat perubahan laporan ini</summary>
+                  <p className="section-note">Siapa mengubah apa dan kapan, dari semua staf prodi yang mengerjakan laporan ini.</p>
+                  <DaftarAktivitas muat={() => aktivitasLaporan(workspace.laporan.id)} kunci={workspace} kosong="Belum ada perubahan yang tercatat sejak riwayat ini diaktifkan." />
+                </details>
                 <div className="ruang-mode__lanjut">
                   <p>Selesai mengisi? Periksa laporan seperti dokumen, tandai tiap bagian final, lalu unduh Word.</p>
                   <button className="button" onClick={() => { setMode('review'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Review dokumen ›</button>
@@ -257,15 +250,14 @@ export function AccreditationWorkspace({ catalog, user, onLogout, onCatalogChang
 function Ringkasan({ workspace }: { workspace: Workspace }) {
   const r = workspace.ringkasan;
   // Kelompok mengikuti status resmi di data_source_map.json; "lengkap" = ada isian tim atau data live.
-  return <>
-    <section className="progress-overview" aria-label="Ringkasan kelengkapan">
-      <StatCard label="Total item" value={r.total} note={`${workspace.dokumen} · ${workspace.prodi.nama}`} />
-      <StatCard label="Tersedia dari sumber live" value={`${r.tersedia.lengkap}/${r.tersedia.total}`} note="ditarik pipeline dari situs resmi" />
-      <StatCard label="Perlu akses data" value={`${r.akses_data.lengkap}/${r.akses_data.total}`} note="sumber ada, diisi tim (mis. SIMASTER)" />
-      <StatCard label="Perlu disusun tim" value={`${r.penyusunan.lengkap}/${r.penyusunan.total}`} note="narasi & keputusan tim penyusun" />
-    </section>
+  return <section className="ringkas-lengkap" aria-label="Ringkasan kelengkapan">
     <ProgressLine value={r.lengkap} total={r.total} percent={r.persen} note={`${r.terisi_manual} item diisi tim; sisanya dari data live`} />
-  </>;
+    <dl className="ringkas-lengkap__rinci">
+      <div><dt>Dari sumber live</dt><dd>{r.tersedia.lengkap}/{r.tersedia.total}</dd></div>
+      <div><dt>Perlu akses data</dt><dd>{r.akses_data.lengkap}/{r.akses_data.total}</dd></div>
+      <div><dt>Perlu disusun tim</dt><dd>{r.penyusunan.lengkap}/{r.penyusunan.total}</dd></div>
+    </dl>
+  </section>;
 }
 
 function AddProgram({ fakultasId, fakultasNama, onAdded, onCancel }: { fakultasId: string; fakultasNama: string; onAdded: (slug: string) => Promise<void>; onCancel: () => void }) {
@@ -293,14 +285,16 @@ function AddProgram({ fakultasId, fakultasNama, onAdded, onCancel }: { fakultasI
 }
 
 function UploadPanel({ workspace, dokumen, onChange }: { workspace: Workspace; dokumen: Dokumen; onChange: () => void }) {
-  const [files, setFiles] = useState<File[]>([]);
   const [pesanUpload, setPesanUpload] = useState<{ type: 'info' | 'error'; text: string }[]>([]);
   const [sibuk, setSibuk] = useState(false);
+  const [seret, setSeret] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const bisaDiekstrak = workspace.uploads.filter(u => ['belum_diekstrak', 'gagal_ekstrak', 'terhenti'].includes(u.status));
   const sedang = workspace.uploads.filter(u => u.status === 'sedang_diekstrak');
 
-  async function unggah() {
+  // File langsung diunggah begitu dipilih atau dijatuhkan: tidak perlu tombol "Upload" terpisah.
+  async function unggah(files: File[]) {
+    if (!files.length) return;
     setSibuk(true); setPesanUpload([]);
     const hasil: { type: 'info' | 'error'; text: string }[] = [];
     for (const f of files) {
@@ -308,7 +302,7 @@ function UploadPanel({ workspace, dokumen, onChange }: { workspace: Workspace; d
       try { await accreditationUpload(workspace.laporan.id, f); hasil.push({ type: 'info', text: `${f.name} tersimpan.` }); }
       catch (e) { hasil.push({ type: 'error', text: `${f.name}: ${pesan(e, 'upload gagal')}` }); }
     }
-    setPesanUpload(hasil); setFiles([]); if (input.current) input.current.value = '';
+    setPesanUpload(hasil); if (input.current) input.current.value = '';
     setSibuk(false); onChange();
   }
 
@@ -324,22 +318,25 @@ function UploadPanel({ workspace, dokumen, onChange }: { workspace: Workspace; d
   return <section className="upload-workflow upload-workflow--stack">
     <div>
       <p className="section-kicker">Dokumen pendukung</p>
-      <h2>Upload & ekstraksi file</h2>
-      <p>PDF, DOCX, atau XLSX — maks. {MAX_UPLOAD_MB} MB per file. Setelah diupload, klik <b>Ekstrak data</b>: nilai yang ditemukan AI <b>langsung masuk ke tabel data</b> laporan ini. Isian yang sudah ada tidak pernah ditimpa: kolom kosong diisi, baris baru ditambahkan, dan setiap file baru menambah detail. Periksa hasilnya di riwayat ekstraksi di bawah.</p>
+      <h2>Unggah & ekstrak file</h2>
+      <p>Unggah dokumen, lalu klik <b>Ekstrak data</b>: isinya masuk ke tabel laporan ini tanpa menimpa isian yang sudah ada.</p>
     </div>
-    <div className="upload-controls">
-      <label className="sr-only" htmlFor="ak-upload">Pilih file pendukung</label>
-      <input id="ak-upload" ref={input} type="file" multiple accept=".pdf,.docx,.xlsx" onChange={e => setFiles(Array.from(e.target.files ?? []))} />
-      <button className="button" disabled={sibuk || files.length === 0} onClick={unggah}>{sibuk && files.length ? 'Mengunggah…' : `Upload${files.length > 1 ? ` ${files.length} file` : ''}`}</button>
-    </div>
+    <label className={`unggah-zona ${seret ? 'is-seret' : ''} ${sibuk ? 'is-sibuk' : ''}`} htmlFor="ak-upload"
+      onDragOver={e => { e.preventDefault(); setSeret(true); }} onDragLeave={() => setSeret(false)}
+      onDrop={e => { e.preventDefault(); setSeret(false); if (!sibuk) unggah(Array.from(e.dataTransfer.files)); }}>
+      <input id="ak-upload" ref={input} className="sr-only" type="file" multiple accept=".pdf,.docx,.xlsx" disabled={sibuk}
+        onChange={e => unggah(Array.from(e.target.files ?? []))} />
+      <b>{sibuk ? 'Mengunggah…' : 'Pilih file atau tarik ke sini'}</b>
+      <span>PDF, Word, atau Excel · maks. {MAX_UPLOAD_MB} MB per file · boleh beberapa sekaligus</span>
+    </label>
     {pesanUpload.map((p, i) => <Notice key={i} type={p.type}>{p.text}</Notice>)}
     {workspace.uploads.length === 0
-      ? <p className="section-note">Belum ada file yang diupload untuk laporan ini.</p>
+      ? <p className="section-note">Belum ada file untuk laporan ini.</p>
       : <div className="data-table-wrap"><table className="data-table">
         <caption className="sr-only">File pendukung yang sudah diupload untuk laporan ini</caption>
-        <thead><tr><th scope="col">Nama file</th><th scope="col">Tipe</th><th scope="col">Ukuran</th><th scope="col">Status</th><th scope="col">Diupload</th></tr></thead>
+        <thead><tr><th scope="col">Nama file</th><th scope="col">Tipe</th><th scope="col">Ukuran</th><th scope="col">Status</th><th scope="col">Diunggah</th></tr></thead>
         <tbody>{workspace.uploads.map(u => <tr key={u.id}>
-          <td>{u.nama_file}{u.diupload_oleh && <small className="upload-summary">oleh {u.diupload_oleh}</small>}{u.ringkasan && <small className="upload-summary">{u.ringkasan.error
+          <td>{u.nama_file}{u.diupload_oleh?.includes('@') && <small className="upload-summary">oleh {u.diupload_oleh}</small>}{u.ringkasan && <small className="upload-summary">{u.ringkasan.error
             ? `Kendala: ${u.ringkasan.error}`
             : `${u.ringkasan.n_item_ditemukan ?? 0} item ditemukan${u.ringkasan.diterapkan ? `, ${u.ringkasan.diterapkan.ditambahkan} nilai masuk tabel` : ''}`}</small>}</td>
           <td>{u.tipe_file.toUpperCase()}</td>
@@ -349,8 +346,8 @@ function UploadPanel({ workspace, dokumen, onChange }: { workspace: Workspace; d
         </tr>)}</tbody>
       </table></div>}
     <div className="action-row">
-      <button className="button secondary" disabled={sibuk || bisaDiekstrak.length === 0 || !workspace.ekstraksi.tersedia} onClick={ekstrak}>
-        {sedang.length ? `Mengekstrak ${sedang.length} file…` : `Ekstrak data dari ${bisaDiekstrak.length} file (mode ${dokumen})`}
+      <button className={`button ${bisaDiekstrak.length ? '' : 'secondary'}`} disabled={sibuk || bisaDiekstrak.length === 0 || !workspace.ekstraksi.tersedia} onClick={ekstrak}>
+        {sedang.length ? `Mengekstrak ${sedang.length} file…` : bisaDiekstrak.length ? `Ekstrak data dari ${bisaDiekstrak.length} file` : 'Semua file sudah diekstrak'}
       </button>
       {!workspace.ekstraksi.tersedia && <span className="field-hint">Ekstraksi AI nonaktif: isi OPENAI_API_KEY di .env lalu jalankan ulang API.</span>}
       {workspace.ekstraksi.tersedia && bisaDiekstrak.length > 0 && <span className="field-hint">Bisa makan beberapa menit per file (dipecah jadi beberapa panggilan AI kecil).</span>}
@@ -554,6 +551,20 @@ function GeneratePanel({ workspace, onChange }: { workspace: Workspace; onChange
   </section>;
 }
 
+/** Panduan singkat alur kerja portal: terbuka untuk prodi yang belum punya laporan, terlipat setelahnya. */
+function CaraKerja({ terbuka }: { terbuka: boolean }) {
+  return <details className="cara-kerja" open={terbuka}>
+    <summary>Cara kerja portal ini</summary>
+    <ol>
+      <li><b>Pilih prodi dan dokumen</b> (LED atau LKPS), lalu buka dengan PIN prodi.</li>
+      <li><b>Unggah dokumen pendukung</b>: PDF, Word, atau Excel. Isinya diekstrak otomatis ke tabel tanpa menimpa data yang sudah ada.</li>
+      <li><b>Periksa dan lengkapi</b> tiap butir; butir yang kosong ditandai "Perlu input".</li>
+      <li><b>Review</b> laporan seperti dokumen dan tandai tiap bagian final.</li>
+      <li><b>Unduh Word</b> untuk diserahkan.</li>
+    </ol>
+  </details>;
+}
+
 /** Riwayat laporan prodi + dokumen: lanjutkan draft, hapus, atau buat laporan baru; dibuka dengan PIN prodi. */
 function PilihLaporan({ prodi, dokumen, tahunTarget, laporanTarget, onPilih }: { prodi: string; dokumen: Dokumen; tahunTarget: number | null; laporanTarget: number | null; onPilih: (id: number) => void }) {
   const [data, setData] = useState<DaftarLaporan | null>(null);
@@ -596,31 +607,11 @@ function PilihLaporan({ prodi, dokumen, tahunTarget, laporanTarget, onPilih }: {
       <div><p className="section-kicker">Riwayat laporan · {data.prodi.nama}</p><h2 id="pilih-laporan-judul">Laporan {dokumen}</h2></div>
       <span className={`status-pill ${data.terbuka ? '' : 'is-locked'}`}>{!data.terkunci ? 'Belum ada PIN prodi' : data.terbuka ? 'Terbuka untuk sesi ini' : 'Terkunci'}</span>
     </div>
-    <p className="section-note">Semua staf prodi mengerjakan laporan yang sama. Pilih laporan untuk melanjutkan draft, atau buat laporan tahun baru. Isi laporan hanya bisa dibuka dengan PIN prodi, dan PIN diminta lagi setiap kali login.</p>
-    {namaTarget && !data.terbuka && <Notice type="info">Masukkan PIN prodi di bawah untuk melanjutkan <b>{namaTarget}</b>; laporan akan langsung terbuka.</Notice>}
-
-    {data.laporan.length === 0
-      ? <p className="chart-empty">Belum ada laporan {dokumen} untuk prodi ini.</p>
-      : <ul className="laporan-list">{data.laporan.map(l => <li key={l.id} className="laporan-list__item">
-        <div className="laporan-list__info">
-          <strong>{l.nama}</strong>
-          <span>{l.terakhir_diubah ? `Terakhir diubah ${waktu(l.terakhir_diubah)} oleh ${l.terakhir_oleh ?? '-'}` : 'Belum ada isian'}{l.dibuat_oleh ? ` · dibuat oleh ${l.dibuat_oleh}` : ''}</span>
-          <ProgressLine value={l.lengkap} total={l.total} percent={l.persen} />
-        </div>
-        <div className="laporan-list__aksi">
-          <button className="button" disabled={!data.terbuka} onClick={() => onPilih(l.id)} title={data.terbuka ? undefined : 'Masukkan PIN prodi dulu'}>{data.terbuka ? 'Lanjutkan' : data.terkunci ? 'Terkunci' : 'Buat PIN dulu'}</button>
-          {data.terbuka && <button className="button button--danger" onClick={() => setHapusId(l.id)} aria-expanded={hapusId === l.id}>Hapus</button>}
-        </div>
-        {hapusId === l.id && <div className="admin-confirm laporan-list__konfirmasi" role="alertdialog" aria-label={`Hapus ${l.nama}`}>
-          <p>Hapus <b>{l.nama}</b> secara permanen? Semua isian ({l.lengkap} item terisi), file upload, riwayat ekstraksi, dan riwayat Word laporan ini ikut terhapus untuk semua staf prodi, dan tidak bisa dibatalkan.</p>
-          <button className="button button--danger" disabled={sibuk} onClick={() => jalankan(async () => { const r = await hapusLaporan(l.id); setHapusId(null); setPesanInfo(r.message); })}>{sibuk ? 'Menghapus…' : 'Ya, hapus laporan'}</button>
-          <button className="button secondary" onClick={() => setHapusId(null)}>Batal</button>
-        </div>}
-      </li>)}</ul>}
-
+    <p className="section-note">Semua staf prodi mengerjakan laporan yang sama. Isi laporan dibuka dengan PIN prodi, yang diminta lagi setiap kali login.</p>
+    <CaraKerja terbuka={data.laporan.length === 0} />
+    {namaTarget && !data.terbuka && <Notice type="info">Masukkan PIN prodi untuk melanjutkan <b>{namaTarget}</b>; laporan akan langsung terbuka.</Notice>}
     {galat && <Notice type="error">{galat}</Notice>}
     {pesanInfo && <Notice type="info">{pesanInfo}</Notice>}
-
     {!data.terkunci && <form className="laporan-form" onSubmit={e => { e.preventDefault(); if (!syarat) jalankan(() => buatPinProdi(prodi, pin), 'PIN prodi dibuat. Bagikan ke staf prodi yang ikut menyusun laporan.'); }}>
       <h3>Buat PIN prodi</h3>
       <p className="section-note">Prodi ini belum punya PIN. PIN ({PIN_MIN}–{PIN_MAX} angka) mengunci semua laporan prodi (LED dan LKPS, tahun berapa pun). Bagikan hanya ke staf prodi yang ikut menyusun.</p>
@@ -658,13 +649,34 @@ function PilihLaporan({ prodi, dokumen, tahunTarget, laporanTarget, onPilih }: {
       </div>
     </form>}
 
-    {data.terbuka && <form className="laporan-form" onSubmit={e => { e.preventDefault(); jalankan(async () => { const baru = await buatLaporan(prodi, dokumen, Number(tahun), nama); setNama(''); onPilih(baru.id); }); }}>
-      <h3>Buat laporan baru</h3>
+
+    {data.laporan.length === 0
+      ? <p className="chart-empty">Belum ada laporan {dokumen} untuk prodi ini.</p>
+      : <ul className="laporan-list">{data.laporan.map(l => <li key={l.id} className="laporan-list__item">
+        <div className="laporan-list__info">
+          <strong>{l.nama}</strong>
+          <span>{l.terakhir_diubah ? `Terakhir diubah ${waktu(l.terakhir_diubah)} oleh ${l.terakhir_oleh ?? '-'}` : 'Belum ada isian'}{l.dibuat_oleh ? ` · dibuat oleh ${l.dibuat_oleh}` : ''}</span>
+          <ProgressLine value={l.lengkap} total={l.total} percent={l.persen} />
+        </div>
+        <div className="laporan-list__aksi">
+          <button className="button" disabled={!data.terbuka} onClick={() => onPilih(l.id)} title={data.terbuka ? undefined : 'Masukkan PIN prodi dulu'}>{data.terbuka ? 'Lanjutkan' : data.terkunci ? 'Terkunci' : 'Buat PIN dulu'}</button>
+          {data.terbuka && <button className="button button--danger-outline" onClick={() => setHapusId(l.id)} aria-expanded={hapusId === l.id}>Hapus</button>}
+        </div>
+        {hapusId === l.id && <div className="admin-confirm laporan-list__konfirmasi" role="alertdialog" aria-label={`Hapus ${l.nama}`}>
+          <p>Hapus <b>{l.nama}</b> secara permanen? Semua isian ({l.lengkap} item terisi), file upload, riwayat ekstraksi, dan riwayat Word laporan ini ikut terhapus untuk semua staf prodi, dan tidak bisa dibatalkan.</p>
+          <button className="button button--danger" disabled={sibuk} onClick={() => jalankan(async () => { const r = await hapusLaporan(l.id); setHapusId(null); setPesanInfo(r.message); })}>{sibuk ? 'Menghapus…' : 'Ya, hapus laporan'}</button>
+          <button className="button secondary" onClick={() => setHapusId(null)}>Batal</button>
+        </div>}
+      </li>)}</ul>}
+
+    {data.terbuka && <details className="lipat laporan-baru" open={data.laporan.length === 0}>
+      <summary>+ Buat laporan baru</summary>
+      <form className="laporan-form" onSubmit={e => { e.preventDefault(); jalankan(async () => { const baru = await buatLaporan(prodi, dokumen, Number(tahun), nama); setNama(''); onPilih(baru.id); }); }}>
       <div className="laporan-form__fields">
         <div className="field"><label htmlFor="lap-tahun">Tahun laporan</label><input id="lap-tahun" type="number" inputMode="numeric" min={2000} max={2100} value={tahun} onChange={e => setTahun(e.target.value)} /></div>
         <div className="field laporan-form__wide"><label htmlFor="lap-nama">Nama laporan (opsional)</label><input id="lap-nama" maxLength={150} value={nama} onChange={e => setNama(e.target.value)} placeholder={`${dokumen} ${tahun}`} /></div>
       </div>
       <button className="button" type="submit" disabled={sibuk || !/^\d{4}$/.test(tahun)}>{sibuk ? 'Membuat…' : 'Buat laporan'}</button>
-    </form>}
+    </form></details>}
   </section>;
 }

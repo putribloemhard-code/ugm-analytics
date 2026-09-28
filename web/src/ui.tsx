@@ -13,10 +13,6 @@ export function Notice({ type, children }: { type: 'info' | 'warning' | 'error';
   return <div className={`notice ${type}`} role={type === 'error' ? 'alert' : 'status'}>{children}</div>;
 }
 
-/** Kartu angka ringkas — dipakai statistik Profil dan ringkasan Admin. */
-export function StatCard({ label, value, note }: { label: string; value: ReactNode; note?: string }) {
-  return <div className="progress-card"><span>{label}</span><strong>{value}</strong>{note && <small>{note}</small>}</div>;
-}
 
 /** Bar kelengkapan dengan teks persentase. */
 export function ProgressLine({ value, total, percent, note }: { value: number; total: number; percent: number; note?: string }) {
