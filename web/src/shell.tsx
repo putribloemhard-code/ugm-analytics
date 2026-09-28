@@ -123,7 +123,7 @@ function SiteHeader() {
   const accUser = useAuthUser();
   const dampakUser = useDampakAuthUser();
   const onLanding = location.pathname === '/';
-  const onDampak = location.pathname === '/dampak';
+  const onDampak = location.pathname === '/dampak' || location.pathname === '/dampak/admin';
   const onReport = isReportLocation(location.pathname, location.hash);
   const onAccreditation = accreditationPaths.includes(location.pathname);
   const showReportNav = onReport && dampakUser;
@@ -142,6 +142,7 @@ function SiteHeader() {
       </nav>
       {onDampak && dampakUser && <span className="auth-chip">
         <span className="auth-chip__name">{dampakUser.nama}</span>
+        {dampakUser.is_admin && <Link className="auth-chip__admin" to="/dampak/admin" title="Kelola akun Analisis Dampak">Admin</Link>}
         <button type="button" onClick={() => { void keluarKe('dampak'); }}>Keluar</button>
       </span>}
       {onAccreditation && accUser && <span className="auth-chip">

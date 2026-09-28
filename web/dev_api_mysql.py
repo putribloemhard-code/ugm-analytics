@@ -26,6 +26,9 @@ from pathlib import Path
 # ("Memory allocation still failed") sebelum API sempat menyala. Satu thread cukup untuk pratinjau.
 for _var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_var, "1")
+# Lupa password tanpa SMTP di laptop: tautan reset ditulis ke log jendela API ini
+# (services/reset_password.py). Tidak berlaku di server/produksi.
+os.environ.setdefault("RESET_LINK_KE_LOG", "1")
 
 from dotenv import load_dotenv
 from sqlalchemy import URL, create_engine

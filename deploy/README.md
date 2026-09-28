@@ -133,10 +133,35 @@ Tanpa konfigurasi, tombol "Ekstrak data" di `/akreditasi` nonaktif. Untuk mengak
 File itu dibaca lewat `env_file` dengan `required: false` (butuh Docker Compose ≥ 2.24) — sengaja
 bukan `${VAR}` karena semua `${VAR}` di compose wajib terisi. `deploy/openai.env` di-gitignore.
 
-Tombol "Update data" di `/admin` tidak tersedia di container (tidak ada venv pipeline); update data
-di server tetap lewat dump MySQL + migrasi. Karena `mysql-reader` sudah memuat dump yang
+Update data berita di server lewat dump MySQL + migrasi (container tidak memuat venv pipeline;
+tombol "Update data" di web sudah dihapus). Karena `mysql-reader` sudah memuat dump yang
 sama, langkah ini hanya perlu kalau data diambil langsung dari MySQL sumber — dan `mysql-reader`
 memang sudah dijalankan lebih dulu (`api` menunggu `mysql-reader` healthy).
+
+## Email "Lupa password" (opsional)
+
+Login Akreditasi dan Analisis Dampak punya "Lupa password?": tautan reset (30 menit, sekali pakai)
+dikirim ke email akun. Untuk mengaktifkan pengiriman email:
+`cp deploy/smtp.env.example deploy/smtp.env && chmod 600 deploy/smtp.env`, isi `SMTP_*` dan
+`APP_BASE_URL` (alamat web yang dibuka pengguna, dipakai di tautan), lalu `docker compose up -d api`.
+Tanpa file ini fitur tetap aman dipakai lewat jalur cadangan: admin portal membuat tautan reset untuk
+akun tertentu di halaman Admin (`/admin` untuk Akreditasi, `/dampak/admin` untuk Analisis Dampak) lalu
+mengirimkannya sendiri. `deploy/smtp.env` di-gitignore.
+
+## Masuk dengan Google (opsional)
+
+Kedua login punya tombol "Masuk dengan Google" di samping login email + password. Hanya akun Google
+berverifikasi dengan email @ugm.ac.id / @mail.ugm.ac.id yang diterima; email yang sudah terdaftar masuk
+ke akun lamanya (status admin tetap), email baru dibuatkan akun tanpa password. Untuk mengaktifkan:
+
+1. Google Cloud Console > Credentials > OAuth client (Web application). Di *Authorized redirect URIs*
+   daftarkan `https://<domain>/api/v1/analytics/auth/google/callback` (harus HTTPS + nama domain;
+   alamat IP ditolak Google). Untuk kerja lokal tambahkan juga
+   `http://127.0.0.1:3000/api/v1/analytics/auth/google/callback`.
+2. `cp deploy/google.env.example deploy/google.env && chmod 600 deploy/google.env`, isi client ID,
+   secret, dan redirect URI yang sama persis, lalu `docker compose up -d api`.
+
+Tanpa file ini tombol Google tidak tampil. `deploy/google.env` di-gitignore.
 
 ## Pemulihan: `mysql-reader` mati saat import dump
 

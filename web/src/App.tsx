@@ -7,10 +7,12 @@ import { MultiSelect } from './multiselect';
 import { ChartGrid, Insight, StoryTableView } from './story';
 import { LaporanDampak, MataKuliahPanel } from './laporan';
 import { Notice, PageHeader } from './ui';
-import { AdminPage, ProfilePage } from './account';
+import { AdminPage, DampakAdminPage, ProfilePage } from './account';
 import { AccreditationWorkspace } from './akreditasi';
 import { SumberSection } from './sumber';
 import { LaporanUnduh } from './laporan-unduh';
+import { GoogleMasuk } from './google-masuk';
+import { LupaPasswordForm, ResetPasswordPage } from './lupa-password';
 import { PembagianDampakChart } from './pembagian';
 import { SdgPetaView, TagSdgManual } from './sdg';
 import { PemetaanKepmenPanel, TagTemaManual } from './tema';
@@ -280,7 +282,7 @@ function LandingPage() {
 }
 
 function DampakLogin({ onUser, next }: { onUser: (user: AuthUser) => void; next?: string | null }) {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'lupa'>('login');
   const [email, setEmail] = useState(''); const [name, setName] = useState(''); const [password, setPassword] = useState(''); const [message, setMessage] = useState('');
   const navigate = useNavigate();
   async function submit() {
@@ -290,7 +292,7 @@ function DampakLogin({ onUser, next }: { onUser: (user: AuthUser) => void; next?
         try { await dampakRegister(email, name, password); }
         catch (e) {
           // Akun Analisis Dampak terpisah dari portal lain: email yang sama bisa sudah terdaftar di sini.
-          if (e instanceof Error && e.message.includes('sudah terdaftar')) { setMode('login'); setMessage('Email ini sudah punya akun Analisis Dampak. Silakan masuk dengan password akun tersebut; kalau lupa, minta admin menghapus akunnya lalu daftar ulang.'); return; }
+          if (e instanceof Error && e.message.includes('sudah terdaftar')) { setMode('login'); setMessage('Email ini sudah punya akun Analisis Dampak. Silakan masuk dengan password akun tersebut; kalau lupa, klik "Lupa password?".'); return; }
           throw e;
         }
         setMode('login'); setMessage('Registrasi berhasil. Silakan masuk.'); return;
@@ -299,7 +301,7 @@ function DampakLogin({ onUser, next }: { onUser: (user: AuthUser) => void; next?
       if (next && next.startsWith('/')) navigate(next, { replace: true });
     } catch (e) { setMessage(e instanceof Error ? e.message : 'Autentikasi gagal'); }
   }
-  return <div className="accreditation-gate"><section className="accreditation-hero dampak"><div className="brand-chip"><img src={assetUrl('logo/LogoUGM.png')} alt="" /> Universitas Gadjah Mada</div><h1>Analisis <span>Dampak UGM</span></h1><p>Telaah jejak dampak sosial, ekonomi, dan lingkungan UGM melalui pemberitaan publik dan kerangka SDGs resmi Kepmen 361/M/KEP/2025.</p></section><section className="auth-panel"><p className="section-kicker">Selamat datang</p><h2>Masuk untuk melanjutkan</h2><p className="section-note">Akun Analisis Dampak terpisah dari akun Akreditasi.</p><div className="auth-tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Masuk</button><button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Daftar akun baru</button></div>{mode === 'register' && <div className="field"><label htmlFor="dp-name">Nama lengkap</label><input id="dp-name" value={name} onChange={e => setName(e.target.value)} /></div>}<div className="field"><label htmlFor="dp-email">Email UGM</label><input id="dp-email" type="email" placeholder="nama@ugm.ac.id" aria-describedby="dp-email-hint" value={email} onChange={e => setEmail(e.target.value)} /><small id="dp-email-hint" className="field-hint">Hanya email @ugm.ac.id atau @mail.ugm.ac.id.</small></div><div className="field"><label htmlFor="dp-password">Password</label><input id="dp-password" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div><button className="button auth-submit" onClick={submit}>{mode === 'login' ? 'Masuk' : 'Buat akun'}</button>{message && <Notice type={/^(Registrasi|Email ini sudah)/.test(message) ? 'info' : 'error'}>{message}</Notice>}</section></div>;
+  return <div className="accreditation-gate"><section className="accreditation-hero dampak"><div className="brand-chip"><img src={assetUrl('logo/LogoUGM.png')} alt="" /> Universitas Gadjah Mada</div><h1>Analisis <span>Dampak UGM</span></h1><p>Telaah jejak dampak sosial, ekonomi, dan lingkungan UGM melalui pemberitaan publik dan kerangka SDGs resmi Kepmen 361/M/KEP/2025.</p></section><section className="auth-panel"><p className="section-kicker">Selamat datang</p><h2>{mode === 'lupa' ? 'Lupa password' : 'Masuk untuk melanjutkan'}</h2><p className="section-note">Akun Analisis Dampak terpisah dari akun Akreditasi.</p><div className="auth-tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Masuk</button><button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Daftar akun baru</button></div>{mode !== 'lupa' && <GoogleMasuk portal="dampak" next={next} />}{mode === 'lupa' ? <LupaPasswordForm portal="dampak" emailAwal={email} onKembali={() => setMode('login')} /> : <>{mode === 'register' && <div className="field"><label htmlFor="dp-name">Nama lengkap</label><input id="dp-name" value={name} onChange={e => setName(e.target.value)} /></div>}<div className="field"><label htmlFor="dp-email">Email UGM</label><input id="dp-email" type="email" placeholder="nama@ugm.ac.id" aria-describedby="dp-email-hint" value={email} onChange={e => setEmail(e.target.value)} /><small id="dp-email-hint" className="field-hint">Hanya email @ugm.ac.id atau @mail.ugm.ac.id.</small></div><div className="field"><label htmlFor="dp-password">Password</label><input id="dp-password" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div>{mode === 'login' && <button type="button" className="link-button auth-lupa" onClick={() => { setMessage(''); setMode('lupa'); }}>Lupa password?</button>}<button className="button auth-submit" onClick={submit}>{mode === 'login' ? 'Masuk' : 'Buat akun'}</button>{message && <Notice type={/^(Registrasi|Email ini sudah)/.test(message) ? 'info' : 'error'}>{message}</Notice>}</>}</section></div>;
 }
 
 function DampakPage() {
@@ -317,7 +319,7 @@ function DampakPage() {
 }
 
 function AccreditationLogin({ onUser, next }: { onUser: (user: { id: number; email: string; nama: string; is_admin: boolean }) => void; next?: string | null }) {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'lupa'>('login');
   const [email, setEmail] = useState(''); const [name, setName] = useState(''); const [password, setPassword] = useState(''); const [message, setMessage] = useState('');
   const navigate = useNavigate();
   async function submit() {
@@ -327,7 +329,7 @@ function AccreditationLogin({ onUser, next }: { onUser: (user: { id: number; ema
         try { await accreditationRegister(email, name, password); }
         catch (e) {
           // Akun Akreditasi terpisah dari portal lain: email yang sama bisa sudah terdaftar di sini.
-          if (e instanceof Error && e.message.includes('sudah terdaftar')) { setMode('login'); setMessage('Email ini sudah punya akun Akreditasi. Silakan masuk dengan password akun tersebut; kalau lupa, minta admin menghapus akunnya lalu daftar ulang.'); return; }
+          if (e instanceof Error && e.message.includes('sudah terdaftar')) { setMode('login'); setMessage('Email ini sudah punya akun Akreditasi. Silakan masuk dengan password akun tersebut; kalau lupa, klik "Lupa password?".'); return; }
           throw e;
         }
         setMode('login'); setMessage('Registrasi berhasil. Silakan masuk.'); return;
@@ -337,7 +339,7 @@ function AccreditationLogin({ onUser, next }: { onUser: (user: { id: number; ema
       if (next && next.startsWith('/')) navigate(next, { replace: true });
     } catch (e) { setMessage(e instanceof Error ? e.message : 'Autentikasi gagal'); }
   }
-  return <div className="accreditation-gate"><section className="accreditation-hero akreditasi"><div className="brand-chip"><img src={assetUrl('logo/LogoUGM.png')} alt="" /> Universitas Gadjah Mada</div><h1>Portal <span>Akreditasi</span></h1><p>Kelola kelengkapan data LED & LKPS, ekstrak dokumen pendukung, dan susun laporan akreditasi program studi dalam satu tempat.</p></section><section className="auth-panel"><p className="section-kicker">Selamat datang</p><h2>Masuk untuk melanjutkan</h2><p className="section-note">Gunakan akun UGM Anda untuk mengelola dokumen akreditasi.</p><div className="auth-tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Masuk</button><button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Daftar akun baru</button></div>{mode === 'register' && <div className="field"><label htmlFor="acc-name">Nama lengkap</label><input id="acc-name" value={name} onChange={e => setName(e.target.value)} /></div>}<div className="field"><label htmlFor="acc-email">Email UGM</label><input id="acc-email" type="email" placeholder="nama@ugm.ac.id" aria-describedby="acc-email-hint" value={email} onChange={e => setEmail(e.target.value)} /><small id="acc-email-hint" className="field-hint">Hanya email @ugm.ac.id atau @mail.ugm.ac.id.</small></div><div className="field"><label htmlFor="acc-password">Password</label><input id="acc-password" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div><button className="button auth-submit" onClick={submit}>{mode === 'login' ? 'Masuk' : 'Buat akun'}</button>{message && <Notice type={/^(Registrasi|Email ini sudah)/.test(message) ? 'info' : 'error'}>{message}</Notice>}</section></div>;
+  return <div className="accreditation-gate"><section className="accreditation-hero akreditasi"><div className="brand-chip"><img src={assetUrl('logo/LogoUGM.png')} alt="" /> Universitas Gadjah Mada</div><h1>Portal <span>Akreditasi</span></h1><p>Kelola kelengkapan data LED & LKPS, ekstrak dokumen pendukung, dan susun laporan akreditasi program studi dalam satu tempat.</p></section><section className="auth-panel"><p className="section-kicker">Selamat datang</p><h2>{mode === 'lupa' ? 'Lupa password' : 'Masuk untuk melanjutkan'}</h2><p className="section-note">Gunakan akun UGM Anda untuk mengelola dokumen akreditasi.</p><div className="auth-tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Masuk</button><button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Daftar akun baru</button></div>{mode !== 'lupa' && <GoogleMasuk portal="akreditasi" next={next} />}{mode === 'lupa' ? <LupaPasswordForm portal="akreditasi" emailAwal={email} onKembali={() => setMode('login')} /> : <>{mode === 'register' && <div className="field"><label htmlFor="acc-name">Nama lengkap</label><input id="acc-name" value={name} onChange={e => setName(e.target.value)} /></div>}<div className="field"><label htmlFor="acc-email">Email UGM</label><input id="acc-email" type="email" placeholder="nama@ugm.ac.id" aria-describedby="acc-email-hint" value={email} onChange={e => setEmail(e.target.value)} /><small id="acc-email-hint" className="field-hint">Hanya email @ugm.ac.id atau @mail.ugm.ac.id.</small></div><div className="field"><label htmlFor="acc-password">Password</label><input id="acc-password" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div>{mode === 'login' && <button type="button" className="link-button auth-lupa" onClick={() => { setMessage(''); setMode('lupa'); }}>Lupa password?</button>}<button className="button auth-submit" onClick={submit}>{mode === 'login' ? 'Masuk' : 'Buat akun'}</button>{message && <Notice type={/^(Registrasi|Email ini sudah)/.test(message) ? 'info' : 'error'}>{message}</Notice>}</>}</section></div>;
 }
 
 function AccreditationPage() {
@@ -368,6 +370,8 @@ export default function App() {
     <Route path="/akreditasi" element={<AccreditationPage />} />
     <Route path="/profil" element={<AppShell><ProfilePage /></AppShell>} />
     <Route path="/admin" element={<AppShell><AdminPage /></AppShell>} />
+    <Route path="/dampak/admin" element={<AppShell><DampakAdminPage /></AppShell>} />
+    <Route path="/reset-password" element={<AppShell plain><ResetPasswordPage /></AppShell>} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;
 }

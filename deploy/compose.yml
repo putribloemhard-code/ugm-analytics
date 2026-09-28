@@ -75,6 +75,12 @@ services:
     env_file:
       - path: ./openai.env
         required: false
+      # Email "Lupa password" (opsional, contoh: smtp.env.example); tanpa file ini admin membuat tautan reset.
+      - path: ./smtp.env
+        required: false
+      # Tombol "Masuk dengan Google" (opsional, contoh: google.env.example).
+      - path: ./google.env
+        required: false
     volumes:
       - ../runtime/accreditation-uploads:/app/data/accreditation/uploads
       - ../runtime/accreditation-generated:/app/data/accreditation/generated

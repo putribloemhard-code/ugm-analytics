@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 
-import { accreditationAdminAction, accreditationAdminUsers, accreditationMe, accreditationProfile, daftarPengajuanReset, downloadAccreditationHistory, putuskanReset, simpanBlob, type AdminOverview, type PengajuanReset, type ProfileResult } from './lib/api';
+import { accreditationAdminAction, accreditationAdminUsers, accreditationMe, accreditationProfile, buatTautanReset, daftarPengajuanReset, dampakAdminAction, dampakAdminUsers, dampakMe, downloadAccreditationHistory, putuskanReset, simpanBlob, type AdminOverview, type DampakAdminOverview, type PengajuanReset, type Portal, type ProfileResult, type TautanReset } from './lib/api';
 import { Notice, PageHeader, ProgressLine, StatCard } from './ui';
 
 /** Gerbang halaman terproteksi: alihkan ke /akreditasi bila belum login. */
@@ -166,6 +166,32 @@ function ResetPasswordPanel() {
   </section>;
 }
 
+/** Jalur cadangan lupa password tanpa server email: admin membuat tautan reset untuk satu akun
+ *  lalu mengirimkannya sendiri (mis. lewat WA) ke pemilik akun. */
+function TautanResetAdmin({ portal, userId, email }: { portal: Portal; userId: number; email: string }) {
+  const [hasil, setHasil] = useState<TautanReset | null>(null);
+  const [galat, setGalat] = useState('');
+  const [tersalin, setTersalin] = useState(false);
+  async function buat() {
+    setGalat(''); setTersalin(false);
+    try { setHasil(await buatTautanReset(portal, userId)); } catch (e) { setGalat(e instanceof Error ? e.message : 'Tautan gagal dibuat.'); }
+  }
+  async function salin() {
+    if (!hasil) return;
+    try { await navigator.clipboard.writeText(hasil.tautan); setTersalin(true); } catch { setGalat('Salin manual tautan di atas.'); }
+  }
+  return <div className="tautan-reset">
+    {!hasil && <button className="button secondary" type="button" onClick={buat}>Buat tautan reset password</button>}
+    {hasil && <>
+      <p className="field-hint">{hasil.message}</p>
+      <label className="sr-only" htmlFor={`tautan-${portal}-${userId}`}>Tautan reset untuk {email}</label>
+      <input id={`tautan-${portal}-${userId}`} className="tautan-reset__isi" readOnly value={hasil.tautan} onFocus={e => e.target.select()} />
+      <button className="button" type="button" onClick={salin}>{tersalin ? 'Tersalin' : 'Salin tautan'}</button>
+    </>}
+    {galat && <p className="field-hint" role="alert">{galat}</p>}
+  </div>;
+}
+
 export function AdminPage() {
   const { loading, user } = useRequireUser();
   const [data, setData] = useState<AdminOverview | null>(null);
@@ -228,8 +254,71 @@ export function AdminPage() {
             : <button className="button" type="button" disabled={u.diri_sendiri} title={u.diri_sendiri ? 'Tidak berlaku untuk akun sendiri' : undefined} onClick={() => aksi(u.id, 'admin', true)}>Jadikan admin</button>}
           <button className="button button--danger" type="button" disabled={u.diri_sendiri} title={u.diri_sendiri ? 'Tidak berlaku untuk akun sendiri' : undefined} onClick={() => setKonfirmasi(u.id)}>Hapus</button>
         </div>
+        {!u.is_blocked && <TautanResetAdmin portal="akreditasi" userId={u.id} email={u.email} />}
         {konfirmasi === u.id && <div className="admin-confirm">
           <p>Hapus akun <b>{u.email}</b> secara permanen? Riwayat laporannya ikut terhapus; data yang sudah ia konfirmasi tetap ada.</p>
+          <button className="button button--danger" type="button" onClick={() => aksi(u.id, 'hapus')}>Ya, hapus</button>
+          <button className="button" type="button" onClick={() => setKonfirmasi(null)}>Batal</button>
+        </div>}
+      </article>)}</div>
+    </section>
+  </div>;
+}
+
+/** Halaman Admin portal Analisis Dampak: kelola akun Dampak (terpisah dari akun Akreditasi). */
+export function DampakAdminPage() {
+  const [user, setUser] = useState<{ id: number; email: string; nama: string; is_admin: boolean } | null | undefined>(undefined);
+  const [data, setData] = useState<DampakAdminOverview | null>(null);
+  const [message, setMessage] = useState<{ type: 'info' | 'error'; text: string } | null>(null);
+  const [konfirmasi, setKonfirmasi] = useState<number | null>(null);
+  useEffect(() => { dampakMe().then(setUser).catch(() => setUser(null)); }, []);
+  const muat = () => { dampakAdminUsers().then(setData).catch(e => setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Data akun belum dapat dimuat.' })); };
+  useEffect(() => { if (user?.is_admin) muat(); }, [user]);
+
+  if (user === undefined) return <div className="content loading">Memuat halaman admin...</div>;
+  if (!user) return <Navigate to="/dampak" replace />;
+  if (!user.is_admin) return <div className="content"><PageHeader title="Admin Analisis Dampak" kicker="Akun Analisis Dampak" /><Notice type="error">Akses ditolak — halaman ini khusus admin Analisis Dampak.</Notice><p><Link className="button" to="/dampak">Kembali ke Analisis Dampak</Link></p></div>;
+  if (!data) return <div className="content loading">{message ? <Notice type={message.type}>{message.text}</Notice> : 'Memuat data akun...'}</div>;
+
+  async function aksi(targetId: number, action: 'blokir' | 'admin' | 'hapus', value?: boolean) {
+    setMessage(null); setKonfirmasi(null);
+    try { const hasil = await dampakAdminAction(targetId, action, value); setMessage({ type: 'info', text: hasil.message }); muat(); }
+    catch (e) { setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Aksi gagal.' }); }
+  }
+  const sendiri = 'Tidak berlaku untuk akun sendiri';
+  return <div className="content account-page">
+    <PageHeader title="Admin Analisis Dampak" kicker="Akun Analisis Dampak" caption="Kelola akun portal Analisis Dampak. Akun ini terpisah dari akun Akreditasi. Akun Anda sendiri tidak bisa diblokir, dihapus, atau dicabut status adminnya." />
+    {message && <Notice type={message.type}>{message.text}</Notice>}
+    <section className="progress-overview">
+      <StatCard label="Total akun" value={data.summary.total_akun} />
+      <StatCard label="Admin" value={data.summary.admin} note="termasuk Anda" />
+      <StatCard label="Diblokir" value={data.summary.diblokir} note="tidak bisa login" />
+    </section>
+    <section className="section">
+      <div className="section-title-row"><div><p className="section-kicker">Semua pengguna</p><h2>Daftar akun</h2></div></div>
+      <div className="data-table-wrap"><table className="data-table"><caption className="sr-only">Daftar akun Analisis Dampak</caption>
+        <thead><tr><th scope="col">Nama</th><th scope="col">Email</th><th scope="col">Terdaftar</th><th scope="col">Login terakhir</th><th scope="col">Status</th><th scope="col">Peran</th><th scope="col">Tag manual</th></tr></thead>
+        <tbody>{data.users.map(u => <tr key={u.id}>
+          <td>{u.nama}{u.diri_sendiri && <span className="tag">akun Anda</span>}</td>
+          <td>{u.email}</td><td>{u.terdaftar ?? '-'}</td><td>{u.login_terakhir ?? '-'}</td>
+          <td>{u.is_blocked ? 'Diblokir' : 'Aktif'}</td><td>{u.is_admin ? 'Admin' : '—'}</td><td>{u.n_tag}</td>
+        </tr>)}</tbody>
+      </table></div>
+      <p className="section-note">Tag manual = berita yang ditandai SDG atau tema secara manual oleh akun itu.</p>
+    </section>
+    <section className="section">
+      <div className="section-title-row"><div><p className="section-kicker">Kelola akun</p><h2>Aksi per akun</h2></div></div>
+      <div className="admin-grid">{data.users.map(u => <article className={`admin-card ${u.is_blocked ? 'is-blocked' : ''}`} key={u.id}>
+        <div className="admin-card__head"><b>{u.nama}</b>{u.is_admin && <span className="status-pill">Admin</span>}{u.diri_sendiri && <span className="status-pill">Akun Anda</span>}</div>
+        <p className="section-note">{u.email} · {u.n_tag} tag manual</p>
+        <div className="admin-card__actions">
+          <button className="button" type="button" disabled={u.diri_sendiri} title={u.diri_sendiri ? sendiri : undefined} onClick={() => aksi(u.id, 'blokir', !u.is_blocked)}>{u.is_blocked ? 'Buka blokir' : 'Blokir'}</button>
+          <button className="button" type="button" disabled={u.diri_sendiri} title={u.diri_sendiri ? sendiri : undefined} onClick={() => aksi(u.id, 'admin', !u.is_admin)}>{u.is_admin ? 'Cabut admin' : 'Jadikan admin'}</button>
+          <button className="button button--danger" type="button" disabled={u.diri_sendiri} title={u.diri_sendiri ? sendiri : undefined} onClick={() => setKonfirmasi(u.id)}>Hapus</button>
+        </div>
+        {!u.is_blocked && <TautanResetAdmin portal="dampak" userId={u.id} email={u.email} />}
+        {konfirmasi === u.id && <div className="admin-confirm">
+          <p>Hapus akun <b>{u.email}</b> secara permanen? Tag manual yang pernah ia simpan tetap ada.</p>
           <button className="button button--danger" type="button" onClick={() => aksi(u.id, 'hapus')}>Ya, hapus</button>
           <button className="button" type="button" onClick={() => setKonfirmasi(null)}>Batal</button>
         </div>}

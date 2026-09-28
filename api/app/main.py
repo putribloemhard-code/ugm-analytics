@@ -26,6 +26,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         ensure_tema_manual(get_engine())
         from app.services.accreditation_laporan import ensure_schema as ensure_laporan
         ensure_laporan(get_engine())
+        from app.services.reset_password import ensure_schema as ensure_reset
+        ensure_reset(get_engine())
     except Exception:
         # DB belum menyala saat start -- biarkan; endpoint /dampak/auth/* akan tetap gagal
         # dengan 503 seperti biasa (lihat database_unreachable di bawah), bukan meng-crash proses API.

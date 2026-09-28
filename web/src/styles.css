@@ -1205,3 +1205,25 @@ td { line-height: 1.45; }
 .kertas__p--edit:hover { border-color: #b9c2ca; }
 .kertas__p--edit:focus { border-color: #01416b; outline: 2px solid color-mix(in srgb, #01416b 25%, transparent); background: #f7fafc; }
 .kertas__p--edit.is-diedit { background: #fff8db; }
+
+/* Lupa password & tautan reset admin. */
+.auth-lupa { justify-self: start; margin: -4px 0 4px; font-size: .88rem; }
+.lupa-password { display: grid; gap: 12px; }
+.lupa-password__kembali { justify-self: start; }
+.reset-password { display: grid; place-items: center; min-height: 70vh; }
+.reset-password__panel { width: min(100%, 460px); }
+.reset-password__panel h1 { margin: 4px 0 12px; }
+.reset-password__panel form { display: grid; gap: 12px; }
+.tautan-reset { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-subtle); }
+.tautan-reset .field-hint { flex-basis: 100%; margin: 0; }
+.tautan-reset__isi { flex: 1 1 220px; min-width: 0; min-height: 40px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface-subtle); font-size: .8rem; }
+.tautan-reset .button { min-height: 40px; }
+
+/* Masuk dengan Google (google-masuk.tsx): tombol putih bergaris sesuai pedoman merek Google, lalu pemisah "atau". */
+.google-masuk { display: grid; gap: 14px; margin-bottom: 6px; }
+.google-masuk__tombol { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; width: 100%;
+  background: #fff; color: #1f1f1f; border: 1px solid #747775; font-weight: 600; text-decoration: none; }
+.google-masuk__tombol:hover { background: #f2f2f2; color: #1f1f1f; }
+.google-masuk__tombol:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.google-masuk__atau { display: flex; align-items: center; gap: 12px; margin: 0; color: var(--text-muted); font-size: .85rem; }
+.google-masuk__atau::before, .google-masuk__atau::after { content: ''; flex: 1; border-top: 1px solid var(--border-subtle); }

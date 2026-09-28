@@ -47,6 +47,8 @@ web/dist/
 # Isolated BTD deployment runtime state and target environment
 /deploy/.env
 /deploy/openai.env
+/deploy/smtp.env
+/deploy/google.env
 /deploy/data/
 /deploy/stage-manifest.sha256
 /deploy/remote-manifest.sha256

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.responses import Response
 
 from app.api.v1.schemas import AnalyticsResponse, ReportRequest, SearchResponse
@@ -166,6 +166,154 @@ def dampak_logout(request: Request, api: AnalyticsService = Depends(service)):
     response = JSONResponse({"ok": True})
     response.delete_cookie(COOKIE_NAME, path="/")
     return response
+
+
+# ------------------------------------------------------------------ masuk dengan Google (dua portal)
+@router.get("/auth/google/status")
+def google_status():
+    from app.services.google_login import aktif
+    return {"aktif": aktif()}
+
+
+def _google_gagal(request: Request, portal: str, pesan: str) -> RedirectResponse:
+    from urllib.parse import quote
+    from app.services.google_login import PORTAL, STATE_COOKIE
+    path = PORTAL.get(portal, PORTAL["akreditasi"])["path"]
+    response = RedirectResponse(f"{_base_url(request)}{path}?google_error={quote(pesan)}", status_code=303)
+    response.delete_cookie(STATE_COOKIE, path="/")
+    response.delete_cookie(STATE_COOKIE + "_next", path="/")
+    return response
+
+
+@router.get("/auth/google/start")
+def google_start(request: Request, portal: str = Query(..., max_length=16), next: str = Query("", max_length=512)):
+    from app.services.google_login import STATE_AGE, STATE_COOKIE, GoogleLoginError, mulai, redirect_uri, tujuan_aman
+    try:
+        url, state = mulai(portal, redirect_uri(_base_url(request)))
+    except GoogleLoginError as exc:
+        return _google_gagal(request, portal, str(exc))
+    response = RedirectResponse(url, status_code=303)
+    # SameSite=Lax: cookie ini harus ikut terkirim saat Google mengarahkan browser kembali ke callback.
+    response.set_cookie(STATE_COOKIE, state, max_age=STATE_AGE, httponly=True, samesite="lax",
+                        secure=_base_url(request).startswith("https://"), path="/")
+    if tujuan_aman(portal, next):
+        response.set_cookie(STATE_COOKIE + "_next", next, max_age=STATE_AGE, httponly=True, samesite="lax",
+                            secure=_base_url(request).startswith("https://"), path="/")
+    return response
+
+
+@router.get("/auth/google/callback")
+def google_callback(request: Request, code: str = Query("", max_length=2048), state: str = Query("", max_length=256),
+                    error: str = Query("", max_length=256), api: AnalyticsService = Depends(service)):
+    from app.services import accreditation_auth, dampak_auth
+    from app.services.google_login import PORTAL, STATE_COOKIE, GoogleLoginError, baca_cookie, redirect_uri, selesaikan, tujuan_aman
+    cookie = baca_cookie(request.cookies.get(STATE_COOKIE))
+    portal = cookie["portal"] if cookie else "akreditasi"
+    if error:
+        return _google_gagal(request, portal, "Login Google dibatalkan." if error == "access_denied" else "Google menolak permintaan login.")
+    try:
+        if portal == "dampak":
+            dampak_auth.ensure_schema(api.engine)
+        portal, _user, token = selesaikan(api.engine, code, state, cookie, redirect_uri(_base_url(request)))
+    except GoogleLoginError as exc:
+        return _google_gagal(request, portal, str(exc))
+    except Exception:  # noqa: BLE001 -- jaringan ke Google putus dsb.; detailnya di log, bukan di URL
+        logging.getLogger(__name__).exception("login Google gagal")
+        return _google_gagal(request, portal, "Login Google gagal karena gangguan koneksi. Coba lagi.")
+    nama_cookie = dampak_auth.COOKIE_NAME if portal == "dampak" else accreditation_auth.COOKIE_NAME
+    tujuan = request.cookies.get(STATE_COOKIE + "_next", "")
+    tujuan = tujuan if tujuan_aman(portal, tujuan) else PORTAL[portal]["path"]
+    response = RedirectResponse(f"{_base_url(request)}{tujuan}", status_code=303)
+    response.set_cookie(nama_cookie, token, max_age=43200, httponly=True, samesite="strict", secure=False, path="/")
+    response.delete_cookie(STATE_COOKIE, path="/")
+    response.delete_cookie(STATE_COOKIE + "_next", path="/")
+    return response
+
+
+# ------------------------------------------------------------------ lupa password (dua portal)
+def _base_url(request: Request) -> str:
+    """Alamat web untuk tautan reset: APP_BASE_URL (server) atau alamat yang dipakai browser (lokal)."""
+    import os
+    dasar = os.environ.get("APP_BASE_URL")
+    if dasar:
+        return dasar
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    return f"{proto}://{request.headers.get('x-forwarded-host') or request.headers.get('host') or request.url.netloc}"
+
+
+def _reset_call(fn, *args):
+    from app.services.reset_password import ResetError
+    try:
+        return fn(*args)
+    except ResetError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+@router.post("/auth/lupa-password")
+def lupa_password(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
+    """Kirim tautan reset ke email akun (Akreditasi atau Dampak). Jawaban sama walau email tidak terdaftar."""
+    from app.services.reset_password import minta_reset
+    return _reset_call(minta_reset, api.engine, str(payload.get("portal", "")), str(payload.get("email", "")), _base_url(request))
+
+
+@router.get("/auth/reset-password")
+def cek_reset_password(portal: str = Query(..., max_length=16), token: str = Query(..., max_length=128),
+                       api: AnalyticsService = Depends(service)):
+    """Cek tautan reset masih berlaku (untuk menampilkan email pemilik di halaman password baru)."""
+    from app.services.reset_password import cek
+    return _reset_call(cek, api.engine, portal, token)
+
+
+@router.post("/auth/reset-password")
+def simpan_reset_password(payload: dict[str, Any], api: AnalyticsService = Depends(service)):
+    """Simpan password baru dari tautan reset; tautan sekali pakai dan semua sesi akun diakhiri."""
+    from app.services.reset_password import reset
+    return _reset_call(reset, api.engine, str(payload.get("portal", "")), str(payload.get("token", "")),
+                       str(payload.get("password", "")))
+
+
+@router.post("/accreditation/admin/users/{target_id}/reset-link")
+def accreditation_admin_reset_link(target_id: int, request: Request, api: AnalyticsService = Depends(service)):
+    """Admin Akreditasi membuat tautan reset untuk sebuah akun (jalur cadangan tanpa server email)."""
+    user = _auth_user(request, api)
+    from app.services.reset_password import buat_tautan_admin
+    return _reset_call(buat_tautan_admin, api.engine, "akreditasi", user, target_id, _base_url(request))
+
+
+def _dampak_admin_call(fn, *args):
+    from app.services.accreditation_account import AksiDitolak
+    try:
+        return fn(*args)
+    except AksiDitolak as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+@router.get("/dampak/admin/users")
+def dampak_admin_users(request: Request, api: AnalyticsService = Depends(service)):
+    """Daftar akun Analisis Dampak; hanya admin Dampak."""
+    user = _dampak_auth_user(request, api)
+    from app.services.dampak_account import DampakAccountService
+    return _dampak_admin_call(DampakAccountService(api.engine).admin_overview, user)
+
+
+@router.post("/dampak/admin/users/{target_id}/action")
+def dampak_admin_action(target_id: int, payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
+    """Blokir/buka blokir, beri/cabut admin, atau hapus akun Analisis Dampak."""
+    user = _dampak_auth_user(request, api)
+    from app.services.dampak_account import DampakAccountService
+    value = payload.get("value")
+    return _dampak_admin_call(DampakAccountService(api.engine).admin_action, user, str(payload.get("action", "")),
+                              target_id, None if value is None else bool(value))
+
+
+@router.post("/dampak/admin/users/{target_id}/reset-link")
+def dampak_admin_reset_link(target_id: int, request: Request, api: AnalyticsService = Depends(service)):
+    """Admin Dampak membuat tautan reset untuk sebuah akun Dampak."""
+    user = _dampak_auth_user(request, api)
+    from app.services.reset_password import buat_tautan_admin
+    return _reset_call(buat_tautan_admin, api.engine, "dampak", user, target_id, _base_url(request))
 
 
 def _account_service(api: AnalyticsService):

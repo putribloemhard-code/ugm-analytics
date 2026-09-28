@@ -202,6 +202,22 @@ async function kirim<T>(path: string, method: string, body?: unknown): Promise<T
   return hasil as T;
 }
 
+/* ---- Lupa password dua portal + halaman Admin Analisis Dampak (services/reset_password.py, dampak_account.py) ---- */
+export type Portal = 'akreditasi' | 'dampak';
+export function lupaPassword(portal: Portal, email: string) { return kirim<{ message: string }>('/analytics/auth/lupa-password', 'POST', { portal, email }); }
+export function cekResetPassword(portal: Portal, token: string) { return kirim<{ email: string; nama: string }>(`/analytics/auth/reset-password?${toQuery({ portal, token })}`, 'GET'); }
+export function resetPassword(portal: Portal, token: string, password: string) { return kirim<{ message: string }>('/analytics/auth/reset-password', 'POST', { portal, token, password }); }
+export type TautanReset = { email: string; tautan: string; berlaku_sampai: string; message: string };
+export function buatTautanReset(portal: Portal, userId: number) {
+  return kirim<TautanReset>(portal === 'akreditasi' ? `/analytics/accreditation/admin/users/${userId}/reset-link` : `/analytics/dampak/admin/users/${userId}/reset-link`, 'POST');
+}
+export type DampakAdminUser = { id: number; nama: string; email: string; is_admin: boolean; is_blocked: boolean; terdaftar: string | null; login_terakhir: string | null; n_tag: number; diri_sendiri: boolean };
+export type DampakAdminOverview = { summary: { total_akun: number; admin: number; diblokir: number }; users: DampakAdminUser[] };
+export function dampakAdminUsers() { return kirim<DampakAdminOverview>('/analytics/dampak/admin/users', 'GET'); }
+export function dampakAdminAction(targetId: number, action: 'blokir' | 'admin' | 'hapus', value?: boolean) {
+  return kirim<{ message: string }>(`/analytics/dampak/admin/users/${targetId}/action`, 'POST', { action, value });
+}
+
 export function accreditationProfile() { return kirim<ProfileResult>('/analytics/accreditation/profile', 'GET'); }
 export function accreditationAdminUsers() { return kirim<AdminOverview>('/analytics/accreditation/admin/users', 'GET'); }
 export function accreditationAdminAction(targetId: number, action: 'blokir' | 'admin' | 'hapus', value?: boolean) {
@@ -416,3 +432,8 @@ export async function downloadReport(payload: Record<string, unknown>) {
   const nama = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')?.[1];
   return { blob: await response.blob(), nama };
 }
+
+/* ---- Masuk dengan Google (services/google_login.py) ---- */
+export async function googleLoginAktif() { try { return (await kirim<{ aktif: boolean }>('/analytics/auth/google/status', 'GET')).aktif; } catch { return false; } }
+/** Alamat navigasi penuh (bukan fetch): server mengarahkan browser ke Google lalu kembali ke `next`. */
+export function googleLoginUrl(portal: Portal, next: string) { return `${API_BASE}/analytics/auth/google/start?${toQuery({ portal, next })}`; }
