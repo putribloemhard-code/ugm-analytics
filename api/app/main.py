@@ -18,6 +18,9 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # Siapkan tabel akun login Analisis Dampak (independen dari akreditasi_users/sessions).
     try:
         from app.db import get_engine
+        # Paling awal: kolom id tanpa nomor otomatis (migrasi lama) membuat akun baru ber-id NULL.
+        from app.services.perbaikan_skema import perbaiki
+        perbaiki(get_engine())
         from app.services.dampak_auth import ensure_schema
         from app.services.sdg_manual import ensure_schema as ensure_sdg_manual
         from app.services.tema_manual import ensure_schema as ensure_tema_manual

@@ -140,6 +140,8 @@ def login(engine: Engine, email: str, password: str) -> tuple[dict[str, Any] | N
         return None, "Email atau password salah.", None
     if row["is_blocked"]:
         return None, "Akun Anda diblokir, hubungi admin.", None
+    if row["id"] is None:  # akun dari skema server lama; lihat services/perbaikan_skema.py
+        return None, "Akun ini belum punya nomor ID di database server. Minta admin menjalankan ulang API, lalu coba lagi.", None
     now = datetime.now()
     token = secrets.token_urlsafe(32)
     with engine.begin() as conn:
@@ -150,6 +152,10 @@ def login(engine: Engine, email: str, password: str) -> tuple[dict[str, Any] | N
         """), {"hash": token_hash(token), "user_id": row["id"], "created": now, "expires": now + SESSION_AGE})
         conn.execute(text("UPDATE dampak_users SET last_login_at = :now WHERE id = :id"), {"now": now, "id": row["id"]})
     return {"id": row["id"], "email": row["email"], "nama": row["nama"], "is_admin": bool(row["is_admin"])}, None, token
+
+
+class _IdKosong(Exception):
+    """INSERT akun menghasilkan id NULL (skema server lama)."""
 
 
 def register(engine: Engine, email: str, name: str, password: str) -> tuple[bool, str]:
@@ -166,9 +172,15 @@ def register(engine: Engine, email: str, name: str, password: str) -> tuple[bool
             """), {"email": email, "name": name, "hash": bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(), "now": now})
             # SELECT, bukan RETURNING: RETURNING tidak dikenal MySQL. Email unik, jadi baris ini pasti yang baru.
             new_id = conn.execute(text("SELECT id FROM dampak_users WHERE email = :email"), {"email": email}).scalar_one()
+            if new_id is None:
+                # Kolom id tanpa nomor otomatis (lihat services/perbaikan_skema.py): batalkan, jangan
+                # simpan akun yang tidak akan pernah bisa login.
+                raise _IdKosong()
             # Akun pertama jadi admin -- sama seperti akreditasi (akreditasi_auth.register).
             if conn.execute(text("SELECT MIN(id) FROM dampak_users")).scalar() == new_id:
                 conn.execute(text("UPDATE dampak_users SET is_admin = TRUE WHERE id = :id"), {"id": new_id})
+    except _IdKosong:
+        return False, "Pendaftaran gagal: database server belum memberi nomor ID akun. Jalankan ulang API (perbaikan otomatis) atau hubungi admin."
     except Exception as exc:
         if sqlcompat.is_duplicate_entry_error(exc):
             with engine.connect() as conn:
