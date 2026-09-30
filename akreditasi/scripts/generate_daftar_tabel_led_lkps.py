@@ -3,8 +3,7 @@
 import sys
 
 sys.path.insert(0, "D:/ugm-analytics/akreditasi/scripts")
-from daftar_tabel_led_lkps import (MD, SEP, ekstrak, LED_TOC_PAGES, LED_HAL_CETAK_AWAL,
-                                   LKPS_TANPA_NOMOR_PAGE)
+from daftar_tabel_led_lkps import MD, SEP, LKPS_TANPA_NOMOR_PAGE, ekstrak
 
 d = ekstrak()
 

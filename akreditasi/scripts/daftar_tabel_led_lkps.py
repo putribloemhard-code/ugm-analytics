@@ -27,8 +27,6 @@ SEP = " ǀ "
 LED_TOC_PAGES = [11, 12]
 # Halaman LKPS berisi tabel tanpa nomor (daftar program studi) — indeks 0-based.
 LKPS_TANPA_NOMOR_PAGE = 1
-# Nomor halaman cetak awal DAFTAR TABEL LED, untuk hitung offset halaman cetak -> PDF.
-LED_HAL_CETAK_AWAL = 9
 
 # Kosakata nama kolom yang dikenal -> dipakai untuk mengenali baris header & merapikan
 # tanda tangan header LED (sel di luar kosakata = data yang bocor ke baris header).
