@@ -90,43 +90,192 @@ def _baris_header(r):
     return True
 
 
-def header_columns(table, rows, max_rows=10):
-    """Gabung baris header bertingkat per kolom. Baris header = deretan sel pendek
-    berhuruf di atas tabel; berhenti di baris pertama yang berisi data (sel panjang
-    atau angka). Baris spanduk dilewati tanpa menghentikan pemindaian."""
+def _isi_sel(sel):
+    if sel is None:
+        return ""
+    return norm(str(sel)).replace(" ,", ",")
+
+
+def _baris_spanduk(joined):
+    return joined.startswith("roadmap") or "link dokumen roadmap" in joined
+
+
+def _judul_caption(nomor, judul, header=None):
+    """Judul tabel dari PDF tanpa duplikat (judul sumber bisa mengulang nomor).
+    Judul dipakai untuk caption di dalam xlsx (bukan nama file), jadi tidak dipotong
+    di sini — pemotongan untuk nama file dilakukan terpisah di generator."""
+    j = judul
+    if j.lower().startswith("tabel"):
+        j = j[5:].lstrip()
+    return f"Tabel {nomor} {j}".rstrip()
+
+
+def _sel(rows, ri, ci):
+    """Akses sel aman: baris hasil ekstraksi tidak selalu seragam panjangnya."""
+    if ri >= len(rows) or ci >= len(rows[ri]):
+        return ""
+    return _isi_sel(rows[ri][ci])
+
+
+def _serap_sel(rows, ri, ci):
+    """Nilai sel untuk baris data contoh: serap runtunan kosong horizontal (sel yang
+    teksnya melebar ke sel kanan) dan gabung vertikal (lanjutan baris di bawah,
+    pola ekstrak: lanjutan berhenti tepat 1 kolom sebelum kolom isi berikutnya)."""
+    n = len(rows[ri])
+    parts, last_c = [], ci
+    for c in range(ci, n):
+        v = _sel(rows, ri, c)
+        if v:
+            parts.append(v)
+            last_c = c
+        else:
+            break
+    ri2 = ri + 1
+    while ri2 < len(rows) and all(not _sel(rows, ri2, c) for c in range(0, last_c + 1)):
+        lanjut = [_sel(rows, ri2, c) for c in range(last_c + 1, n)]
+        if not any(lanjut):
+            ri2 += 1
+            continue
+        # batas baris lanjutan: kolom isi pertama sel baris berikutnya - 1
+        stop = n - 1
+        if ri2 + 1 < len(rows):
+            for c in range(ci, len(rows[ri2 + 1])):
+                if _sel(rows, ri2 + 1, c):
+                    stop = max(last_c, c - 1)
+                    break
+        for c in range(last_c + 1, stop + 1):
+            v = _sel(rows, ri2, c)
+            if v:
+                parts.append(v)
+        last_c = stop
+        ri2 += 1
+    if last_c == ci:
+        return " ".join(parts)   # sel sempit: hanya serap vertikal, jangan melebar
+    # sel lebar menutup kolom tetangganya -> kolom tetangga kosong; kembalikan None
+    return None
+
+
+def baris_dan_header(rows):
+    """Baris header bertingkat (urutan untuk merge) + baris data contoh pertama."""
     idx = []
-    for i, r in enumerate(rows[:max_rows]):
-        joined = " ".join(norm(c) for c in r if norm(c)).lower()
-        # baris spanduk "Roadmap / Link dokumen roadmap ..." menjorok ke area header:
-        # dilewati (tidak ikut digabung), pemindaian lanjut ke baris berikutnya.
-        if joined.startswith("roadmap") or "link dokumen roadmap" in joined:
+    for i, r in enumerate(rows[:10]):
+        joined = " ".join(_isi_sel(c) for c in r if _isi_sel(c)).lower()
+        if _baris_spanduk(joined):
             continue
         if _baris_header(r):
             idx.append(i)
         else:
             break
     if not idx:
-        # baris pertama bukan header (mis. berisi URL panjang dari spanduk Roadmap):
-        # cari deret baris header pertama di beberapa baris teratas.
         for i in range(min(6, len(rows))):
-            if _baris_header(rows[i]) and sum(1 for c in rows[i] if norm(c)) >= 3:
+            if _baris_header(rows[i]) and sum(1 for c in rows[i] if _isi_sel(c)) >= 3:
                 idx = [j for j in range(i, min(i + 3, len(rows))) if _baris_header(rows[j])]
                 break
     if not idx:
         idx = [0]
+    hdr_rows = [[_isi_sel(c) for c in rows[i]] for i in idx]
+    # buang baris header yang benar-benar kosong (artefak ekstraksi)
+    hdr_rows = [r for r in hdr_rows if any(v for v in r)]
+    if not hdr_rows:
+        hdr_rows = [["-"]]
+    data_i = next((j for j in range(idx[-1] + 1, len(rows))
+                   if any(_isi_sel(c) for c in rows[j])), None)
+    if data_i is None:
+        example = None
+    else:
+        example = []
+        ci = 0
+        while ci < len(rows[0]):
+            v = _serap_sel(rows, data_i, ci)
+            example.append(v or "")
+            if v is None:            # sel lebar: tetangganya kosong, lompat
+                ci += 2
+            else:
+                ci += 1
+    return hdr_rows, example
+
+
+def header_dari_baris(hdr_rows, n_cols):
+    """Header gabungan per kolom dari baris header bertingkat."""
     out = []
-    for ci in range(len(rows[0])):
+    for ci in range(n_cols):
         parts = []
-        for ri in idx:
-            v = norm(rows[ri][ci]) if ci < len(rows[ri]) else ""
+        for r in hdr_rows:
+            v = r[ci] if ci < len(r) else ""
             if v and v not in parts:
                 parts.append(v)
         out.append(" ".join(parts) if parts else "-")
     return out
 
 
+def gabung_sel_kosong(hdr_rows):
+    """Serap kolom kosong di dalam runtunan kolom berisi yang identik antarbaris
+    (pola pymupdf: sel lebar teksnya jatuh di kolom kiri runtunan kosong)."""
+    if not hdr_rows:
+        return hdr_rows
+    n = max(len(r) for r in hdr_rows)
+    rows = [r + [""] * (n - len(r)) for r in hdr_rows]
+    ambil = [True] * n
+    c = 0
+    while c < n:
+        if any(r[c] for r in rows):
+            c += 1
+            continue
+        kiri = c - 1
+        kanan = c + 1
+        if kiri < 0 or kanan >= n or any(r[kanan] for r in rows):
+            break  # ujung kiri/kanan atau runtunan kosong penuh: biarkan (dipangkas belakangan)
+        vals_kiri = [r[kiri] for r in rows if r[kiri]]
+        vals_kanan = [r[kanan] for r in rows if r[kanan]]
+        if vals_kiri and vals_kiri == vals_kanan:
+            ambil[c] = False
+            c += 1
+        else:
+            break
+    return [[r[c] for c in range(n) if ambil[c]] for r in rows]
+
+
+def pangkas_kolom_kosong(hdr_rows, example):
+    """Buang kolom yang kosong di header DAN baris contoh (artefak ekstraksi);
+    bila baris contoh punya isi di sana, jadikan '-' supaya kolom tak salah buang."""
+    if not hdr_rows:
+        return hdr_rows, example
+    n = max(len(r) for r in hdr_rows)
+    hdr_rows = [r + [""] * (n - len(r)) for r in hdr_rows]
+    if example is not None:
+        example = example + [""] * (n - len(example))
+    ambil = [True] * n
+    for c in range(n):
+        if any(r[c] for r in hdr_rows):
+            continue
+        if example is not None and example[c]:
+            example[c] = "-"
+        else:
+            ambil[c] = False
+    out_h = [[r[c] for c in range(n) if ambil[c]] for r in hdr_rows]
+    out_e = [example[c] for c in range(n) if ambil[c]] if example is not None else None
+    return out_h, out_e
+
+
+def rapikan_struktur(hdr_rows, example):
+    """Gabung kolom terpecah + pangkas kolom kosong artefak ekstraksi."""
+    hdr_rows = gabung_sel_kosong(hdr_rows)
+    return pangkas_kolom_kosong(hdr_rows, example)
+
+
+def header_columns(table, rows, max_rows=10):
+    """Gabung baris header bertingkat per kolom. Baris header = deretan sel pendek
+    berhuruf di atas tabel; berhenti di baris pertama yang berisi data (sel panjang
+    atau angka). Baris spanduk dilewati tanpa menghentikan pemindaian."""
+    hdr_rows, example = baris_dan_header(rows)
+    hdr_rows, _ = rapikan_struktur(hdr_rows, example)
+    return header_dari_baris(hdr_rows, len(rows[0]))
+
+
 def page_blocks(page):
-    """Blok tabel satu halaman: (y0, nbaris, header) — blok <2 baris dibuang."""
+    """Blok tabel satu halaman: (y0, nbaris, header, hdr_rows, example) — blok <2 baris
+    dibuang. hdr_rows = baris header bertingkat (untuk merge di xlsx), example = baris
+    data pertama yang selnya sudah diserap (contoh isi)."""
     out = []
     try:
         tabs = page.find_tables()
@@ -139,7 +288,9 @@ def page_blocks(page):
             continue
         if len(rows) < 2:
             continue
-        out.append((t.bbox[1], len(rows), header_columns(t, rows)))
+        hdr_rows, example = rapikan_struktur(*baris_dan_header(rows))
+        header = header_dari_baris(hdr_rows, len(rows[0]))
+        out.append((t.bbox[1], len(rows), header, hdr_rows, example))
     return sorted(out)
 
 
@@ -256,6 +407,43 @@ def urut_lkps(key):
     return [int(x) if x.isdigit() else x for x in key.split(".")]
 
 
+def _serap_dari_rows(rows):
+    """Serap baris data pertama dari rows mentah (untuk fallback blok pengganti yang
+    hanya punya header gabungan)."""
+    _, example = rapikan_struktur(*baris_dan_header(rows))
+    return example
+
+
+def _blok_pengganti(lkps_pages, halaman, y_caption, pengganti):
+    """Timpa struktur blok utama dengan blok pengganti bila header utama tidak
+    informatif; baris contoh blok utama tetap dipakai bila pengganti tak punya."""
+    kandidat = [(by0, h, hr, ex) for by0, _nr, h, hr, ex in lkps_pages[halaman - 1]
+                if by0 >= y_caption - 3]
+    if not kandidat:
+        return
+    def skor(h):
+        return sum(1 for c in h if c.strip() not in ("", "-"))
+    utama_h, utama_hr, utama_ex = kandidat[0][1], kandidat[0][2], kandidat[0][3]
+    if skor(utama_h) >= max(1, len(utama_h) // 2):
+        return
+    for by0, h, hr, ex in kandidat[1:]:
+        if skor(h) > skor(utama_h):
+            pengganti["hdr_rows"] = hr
+            if utama_ex is not None:
+                pengganti["example"] = utama_ex
+            elif ex is not None:
+                pengganti["example"] = ex
+            return
+
+
+def _pilih_blok(hdrs):
+    """Indeks blok paling informatif (paling sedikit sel '-'): blok pertama bisa
+    lanjutan tabel dari halaman sebelumnya."""
+    def skor(h):
+        return sum(1 for c in h if c.strip() not in ("", "-"))
+    return max(range(len(hdrs)), key=lambda i: skor(hdrs[i]))
+
+
 def ekstrak():
     """Kembalikan dict berisi semua yang dibutuhkan kedua pemakai."""
     led = pymupdf.open(LED)
@@ -273,7 +461,7 @@ def ekstrak():
     # --- LED: kelompokkan blok per tanda tangan kolom KANONIK ---
     sig, tanpa_header = {}, 0
     for pno, blks in enumerate(led_pages):
-        for y0, nrow, hdr in blks:
+        for y0, nrow, hdr, _hr, _ex in blks:
             toks = [t for t in (canon(c) for c in hdr) if t]
             if len(toks) < 3:                 # blok tanda tangan / pecahan tabel
                 tanpa_header += 1
@@ -284,27 +472,40 @@ def ekstrak():
     led_rows = []
     for nomor, judul, hal_cetak in led_toc:
         cap = led_caps.get(nomor)
-        header, hal_pdf = [], None
+        header, hdr_rows, example, hal_pdf = [], [], None, None
         if cap:
             hal_pdf, y0 = cap[0], cap[1]
-            kandidat = [h for by0, _, h in led_pages[hal_pdf - 1] if by0 >= y0 - 3]
+            kandidat = [(h, hr, ex) for by0, _nr, h, hr, ex in led_pages[hal_pdf - 1]
+                        if by0 >= y0 - 3]
             if not kandidat and hal_pdf < len(led_pages):
                 # tabelnya nyambung ke halaman berikutnya (caption di akhir halaman)
-                kandidat = [h for _, _, h in led_pages[hal_pdf]]
-            header = pilih_blok_informatif(kandidat)
-        led_rows.append({"nomor": nomor, "judul": judul, "hal_cetak": hal_cetak,
-                         "hal_pdf": hal_pdf, "header": header})
+                kandidat = [(h, hr, ex) for _y, _nr, h, hr, ex in led_pages[hal_pdf]]
+            if kandidat:
+                i = _pilih_blok([k[0] for k in kandidat])
+                header, hdr_rows, example = kandidat[i]
+        led_rows.append({"nomor": nomor, "judul": _judul_caption(nomor, judul),
+                         "judul_raw": judul,
+                         "hal_cetak": hal_cetak, "hal_pdf": hal_pdf, "header": header,
+                         "hdr_rows": hdr_rows, "example": example})
 
     # --- LKPS: caption bernomor + tabel tanpa nomor di halaman daftar prodi ---
     lkps_rows = []
     for key in sorted(lkps_caps, key=urut_lkps):
         hal, title, y0 = lkps_caps[key]
-        lkps_rows.append({"nomor": key, "judul": title, "hal": hal,
-                          "header": header_untuk(lkps_pages, hal, y0)})
+        kandidat = [(by0, h, hr, ex) for by0, _nr, h, hr, ex in lkps_pages[hal - 1]
+                    if by0 >= y0 - 3]
+        r = {"nomor": key, "judul": _judul_caption(key, title), "judul_raw": title,
+             "hal": hal, "header": [], "hdr_rows": [], "example": None}
+        if kandidat:
+            r["header"], r["hdr_rows"], r["example"] = (kandidat[0][1], kandidat[0][2],
+                                                        kandidat[0][3])
+            _blok_pengganti(lkps_pages, hal, y0, r)
+        lkps_rows.append(r)
 
     lkps_tanpa = []
-    for y0, nrow, hdr in lkps_pages[LKPS_TANPA_NOMOR_PAGE]:
-        lkps_tanpa.append({"nbaris": nrow, "header": hdr})
+    for y0, nrow, hdr, hdr_rows, example in lkps_pages[LKPS_TANPA_NOMOR_PAGE]:
+        lkps_tanpa.append({"nbaris": nrow, "header": hdr, "hdr_rows": hdr_rows,
+                           "example": example})
 
     return {
         "led_toc": led_toc,
