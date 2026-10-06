@@ -290,7 +290,7 @@ function LandingPage() {
     <section className="cold-open cold-open--landing landing" aria-labelledby="landing-title"><div className="cold-open__inner">
       <p className="eyebrow">Universitas Gadjah Mada</p>
       <h1 id="landing-title">UGM <span>Analytics</span></h1>
-      <p className="cold-open__statement">Satu pintu untuk dua layanan: membaca jejak dampak sosial, ekonomi, dan lingkungan UGM lewat pemberitaan publik dan kerangka SDGs, serta mengelola kelengkapan data akreditasi Program Studi (LED & LKPS).</p>
+      <p className="cold-open__statement">Platform analitik data Universitas Gadjah Mada yang mengolah data dari berbagai sumber menjadi informasi, analisis, dan laporan untuk mendukung perencanaan, evaluasi, dan pengambilan keputusan.</p>
       <div className="landing__pilih" aria-label="Pilih layanan">
         <Link className="route-card route-card--ringkas green" to="/dampak">
           <div className="route-card-top"><img src={assetUrl('logo/dampak.png')} alt="" /><span>Analisis data</span></div>

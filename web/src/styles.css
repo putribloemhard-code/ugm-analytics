@@ -661,6 +661,27 @@ td { line-height: 1.45; }
 .auth-tabs button { border: 0; border-bottom: 3px solid transparent; color: var(--text-muted); background: transparent; cursor: pointer; }
 .auth-tabs button.active { border-bottom-color: var(--gold); color: var(--text-heading); font-weight: 800; }
 .auth-submit { width: 100%; margin-top: 18px; }
+
+/* Gerbang login (Akreditasi & Analisis Dampak) ringkas: muat satu layar laptop tanpa scroll. */
+.content:has(> .accreditation-gate) { padding: clamp(14px, 3vh, 28px) 0; }
+.accreditation-gate { min-height: 0; max-width: 1040px; margin: 0 auto; border-radius: 14px; }
+.accreditation-gate .accreditation-hero { padding: 32px 40px; }
+.accreditation-gate .brand-chip { margin-bottom: 22px; font-size: .82rem; }
+.accreditation-gate .brand-chip img { width: 32px; height: 32px; }
+.accreditation-gate .accreditation-hero h1 { margin-bottom: 12px; font-size: clamp(1.8rem, 3.4vw, 2.6rem); }
+.accreditation-gate .accreditation-hero p { margin: 0; font-size: .92rem; line-height: 1.6; }
+.accreditation-gate .auth-panel { padding: 24px clamp(22px, 4vw, 44px); }
+.accreditation-gate .section-kicker { margin-bottom: 4px; }
+.accreditation-gate .auth-panel h2 { margin-bottom: 4px; font-size: 1.35rem; }
+.accreditation-gate .section-note { margin-bottom: 0; font-size: .88rem; line-height: 1.45; }
+.accreditation-gate .auth-tabs { margin: 14px 0 12px; }
+.accreditation-gate .auth-tabs button { padding: 6px 2px; font-size: .92rem; }
+.accreditation-gate .google-masuk { gap: 10px; margin-bottom: 8px; }
+.accreditation-gate .google-masuk__tombol { min-height: 40px; font-size: .92rem; }
+.accreditation-gate .field { gap: 4px; margin-bottom: 8px; }
+.accreditation-gate .field input { padding: 7px 10px; }
+.accreditation-gate .auth-lupa { margin: -2px 0 0; font-size: .82rem; }
+.accreditation-gate .auth-submit { min-height: 42px; margin-top: 10px; }
 .workspace-head, .section-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .accreditation-selectors { display: grid; grid-template-columns: 2.1fr 1.6fr 1fr; gap: 14px; padding: 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
 /* Nama fakultas UGM panjang ("Fakultas Kedokteran, Kesehatan Masyarakat, dan Keperawatan"),
