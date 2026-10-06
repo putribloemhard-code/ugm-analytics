@@ -390,15 +390,15 @@ LABEL_TOPIC_ALL = {
     "kunjungan_akademik": "Kunjungan Akademik",
     "kolaborasi_riset": "Kolaborasi Riset",
     "pendidikan_inklusif": "Pendidikan Inklusif",
-    "penelitian_inovasi_sosial": "Penelitian & Inovasi",
+    "penelitian_inovasi_sosial": "Penelitian dan Inovasi",
     "pengabdian_masyarakat": "Pengabdian Masyarakat",
     "instansi_publik": "Kebijakan Publik",
-    "pengajaran_pembelajaran": "Pengajaran & Pembelajaran",
+    "pengajaran_pembelajaran": "Pengajaran dan Pembelajaran",
     "belanja_umkm": "Pengeluaran Institusi",
     "energi": "Energi",
     "limbah": "Konsumsi yang Bertanggung Jawab",
     "transportasi": "Transportasi",
-    "pendidikan_dan_penelitian": "Pendidikan & Penelitian",
+    "pendidikan_dan_penelitian": "Pendidikan dan Penelitian",
 }
 
 # Warna pilar (konsisten di semua chart).

@@ -30,9 +30,10 @@ def test_ringkasan_mata_kuliah_dan_sumber_internal_jujur():
     s = ringkasan_sumber(frames())
     mk = s["mata_kuliah"]
     assert mk["tersedia"] is True and mk["baris"] == 8   # 8 baris uji
-    assert mk["indikator_resmi"] == 3 and mk["berdampak"] == 5
+    # MK hanya dipetakan ke tema 4.5 (indikator resmi), jadi berdampak = indikator resmi, semua di Lingkungan.
+    assert mk["indikator_resmi"] == 3 and mk["berdampak"] == 3
     assert mk["berdampak"] <= mk["mk_unik"]
-    assert {p["pilar"]: p["jumlah"] for p in mk["per_pilar"]}["Lingkungan"] == 3
+    assert {p["pilar"]: p["jumlah"] for p in mk["per_pilar"]} == {"Sosial": 0, "Ekonomi": 0, "Lingkungan": 3}
     assert s["internal"][0]["status"] == "Belum ada akses"
     assert ringkasan_sumber(frames(dengan_matkul=False))["mata_kuliah"] == {"tersedia": False}
 

@@ -5,7 +5,7 @@ import { AUTH_EVENT, DAMPAK_AUTH_EVENT, accreditationLogin, accreditationMe, acc
 import { assetUrl, keluarKe, SiteShell, useInView } from './shell';
 import { MultiSelect } from './multiselect';
 import { ChartGrid, Insight, StoryTableView } from './story';
-import { LaporanDampak, MataKuliahPanel } from './laporan';
+import { CARA_MEMBACA_LAPORAN, LaporanDampak, MataKuliahPanel } from './laporan';
 import { Notice, PageHeader } from './ui';
 import { AdminPage, DampakAdminPage, ProfilePage } from './account';
 import { AccreditationWorkspace } from './akreditasi';
@@ -72,7 +72,8 @@ function Executive({ story }: { story: Story }) {
     <h3>Ringkasan eksekutif</h3>
     <div className="analysis-summary-grid">{story.executive.metrics.map(metric => <div className="metric" key={metric.label} title={metric.help ?? undefined}><div className="metric-label">{metric.label}</div><div className="metric-value">{fmtValue(metric.value)}</div>{metric.note && <div className="metric-note">{metric.note}</div>}</div>)}</div>
     {story.executive.pembagian && <PembagianDampakChart data={story.executive.pembagian} />}
-    <Insight label={story.executive.narrative_source === 'llm' ? 'Ringkasan analisis · dirangkai AI dari angka dashboard' : 'Ringkasan analisis'}>{story.executive.narrative}</Insight>
+    {/* Satu kotak Ringkasan: narasi angka + cara membaca laporan per bab (dulu kotak terpisah di Laporan dampak). */}
+    <Insight label="Ringkasan">{story.executive.narrative}{story.chapters.length > 0 && <span className="insight__lanjutan">{CARA_MEMBACA_LAPORAN}</span>}</Insight>
   </section>;
 }
 

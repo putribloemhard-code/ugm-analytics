@@ -30,7 +30,7 @@ export function PembagianDampakChart({ data }: { data: PembagianDampak }) {
     <div className="pembagian__grid">
       <div className="pembagian__donat-wrap">
         <div className="pembagian__donat">
-          <svg viewBox="0 0 180 180" role="img" aria-label={`Donat pembagian ${fmt(data.total)} berita dampak: ${irisan.map(s => `${s.label} ${fmt(s.jumlah)}`).join(', ')}`}>
+          <svg viewBox="0 0 180 180" role="img" aria-label={`Grafik pembagian ${fmt(data.total)} berita dampak: ${irisan.map(s => `${s.label} ${fmt(s.jumlah)}`).join(', ')}`}>
             <circle cx="90" cy="90" r={R} className="pembagian__lintasan" />
             {busur.map(s => <circle key={s.kunci} cx="90" cy="90" r={R}
               className={`pembagian__busur pembagian--${KELAS[s.kunci] ?? 'lain'} ${aktif && aktif !== s.kunci ? 'is-redup' : ''}`}
@@ -63,7 +63,7 @@ export function PembagianDampakChart({ data }: { data: PembagianDampak }) {
             <span className="pembagian__angka">{fmt(p.jumlah)} <small>{persen(p.persen)}</small></span>
           </li>)}
         </ul>
-        <p className="chart-note">Persentase terhadap {fmt(data.total)} berita dampak. Jumlah ketiganya {fmt(jumlahPilar)}, lebih dari total, karena satu berita bisa masuk lebih dari satu dampak; donat memisahkan berita yang masuk satu, dua, atau tiga dampak.</p>
+        <p className="chart-note">Persentase terhadap {fmt(data.total)} berita dampak. Jumlah ketiganya {fmt(jumlahPilar)}, lebih dari total, karena satu berita bisa masuk lebih dari satu dampak.</p>
       </div>
     </div>
   </figure>;

@@ -11,15 +11,13 @@ Status yang dihitung ke indikator: `Substansial – dihitung` (Kepmen no. 2: MK 
 hanya menyinggung sepintas tidak dihitung). Angka resmi dari Ringkasan PDF:
 511 baris penawaran = 453 MK unik (dedup nama_mk, kasus/whitespace dinormalkan).
 
-KAITAN KE 14 TEMA — penting, jangan dikaburkan:
+KAITAN KE TEMA KEPMEN — penting, jangan dikaburkan:
 - Indikator "Jumlah mata kuliah/modul yang memuat materi sustainability dan biodiversitas"
   adalah tema 4.5 `pendidikan_dan_penelitian` (Dampak Lingkungan). Kriteria a–j di PDF
   Ringkasan PERSIS kriteria tema itu. Jadi SEMUA MK substansial terkait tema 4.5.
-- Tagging ke 14 tema (`tag_tema`) memakai tiga dasar yang dicatat per baris: indikator
-  resmi (4.5), kriteria a–j kurasi (`KRITERIA_TEMA`: c→energi, d/e→limbah,
-  f/g/h/i→rehabilitasi_lingkungan; a, b, j terlalu lintas-tema → hanya 4.5), dan leksikon
-  kurikulum (`LEKSIKON_TEMA`) untuk tema sosial/ekonomi/transportasi. Selain 4.5 = perluasan
-  analitik, bukan klaim pelaporan resmi. Tiga tema berbasis Rp: `TEMA_TANPA_PADANAN`.
+- Sejak 2026-10-06 `tag_tema` HANYA memetakan MK ke tema 4.5 (indikator resmi satu-satunya).
+  Perluasan ke tema lain (kriteria kurasi & leksikon kurikulum Sosial/Ekonomi) dihapus atas
+  keputusan pengguna: dashboard tidak menampilkan MK di pilar Sosial/Ekonomi.
 
 Angka resmi (511 baris / 453 MK unik / 142 parsial + jumlah per kriteria a–j) hidup di
 `ringkasan_kepmen.py` — hasil konversi `Ringkasan Indikator Kepmen.md`/`.json`. Tiap kali
@@ -66,69 +64,11 @@ KRITERIA_LABEL: dict[str, str] = {
 }
 
 
-# ---- Tagging MK ke 14 tema Kepmen ------------------------------------------------------
-# Tiga dasar pemetaan, dicatat per baris supaya tidak tercampur di laporan:
+# ---- Tagging MK ke tema Kepmen: hanya indikator resmi tema 4.5 --------------------------
 DASAR_RESMI = "Indikator resmi (tema 4.5)"
-DASAR_KRITERIA = "Kriteria a-j (kurasi manual)"
-DASAR_KEYWORD = "Keyword nama/deskripsi MK"
 
-# Tema lingkungan: diambil dari kriteria a-j yang SUDAH dikurasi manual di CSV (hanya MK
-# Substansial) -- lebih andal daripada keyword karena kurasi sengaja membuang false positive
-# (Konservasi Gigi, Data Mining, dst.). Tema 4.5 = semua MK Substansial (indikator resmi).
-KRITERIA_TEMA: dict[str, set[str]] = {
-    "energi": {"c"},
-    "limbah": {"d", "e"},
-    "rehabilitasi_lingkungan": {"f", "g", "h", "i"},
-}
-
-# Tema sosial/ekonomi yang topiknya punya padanan mata kuliah: leksikon kurikulum per tema,
-# diturunkan dari definisi indikator resmi (kepmen_sdg.py). SENGAJA tidak memakai keyword
-# berita apa adanya: "seminar" (kunjungan akademik) atau "mata kuliah" (tema 4.5) akan
-# menyeret hampir semua MK. Diperiksa manual per MK (2026-09-24); lihat pengecualian di bawah.
-LEKSIKON_TEMA: dict[str, list[str]] = {
-    "kewirausahaan": ["kewirausahaan", "wirausaha", "entrepreneur", "entrepreneurship", "technopreneur",
-                      "technopreneurship", "startup", "start-up", "bisnis rintisan", "usaha rintisan",
-                      "inkubasi bisnis"],
-    "kolaborasi_riset": ["hilirisasi", "komersialisasi", "kekayaan intelektual", "hak kekayaan intelektual",
-                         "haki", "hki", "paten", "transfer teknologi", "valuasi teknologi",
-                         "technology transfer", "intellectual property"],
-    "pendidikan_inklusif": ["pendidikan inklusif", "inklusif", "inklusi", "disabilitas", "difabel",
-                            "berkebutuhan khusus", "pendidikan luar biasa", "afirmasi"],
-    "penelitian_inovasi_sosial": ["teknologi tepat guna", "inovasi sosial", "social innovation", "kemiskinan",
-                                  "masyarakat rentan", "kelompok rentan", "poverty"],
-    "pengabdian_masyarakat": ["kuliah kerja nyata", "kkn", "pengabdian", "pemberdayaan masyarakat",
-                              "pengembangan masyarakat", "community development", "community engagement",
-                              "desa binaan", "penyuluhan"],
-    "instansi_publik": ["kebijakan publik", "administrasi publik", "administrasi negara", "pelayanan publik",
-                        "manajemen publik", "sektor publik", "tata kelola pemerintahan", "pemerintahan daerah",
-                        "pemerintahan desa", "otonomi daerah", "desentralisasi", "keuangan negara",
-                        "keuangan daerah", "public policy", "public administration", "public sector",
-                        "local government", "good governance"],
-    "transportasi": ["transportasi", "transportation", "lalu lintas", "mobilitas perkotaan", "angkutan umum",
-                     "pejalan kaki", "jalur sepeda"],
-}
-# Transportasi dicocokkan ke NAMA MK saja: di deskripsi "transport(asi)" sering bermakna lain
-# (transport polutan, transportasi vertikal gedung, tiket perjalanan wisata).
-LEKSIKON_NAMA_SAJA = {"transportasi"}
-# "Kebutuhan khusus" di kedokteran gigi = layanan klinis, bukan pendidikan inklusif.
-LEKSIKON_KECUALI: dict[str, str] = {"pendidikan_inklusif": r"gigi|dentistry|dental"}
-
-# Tema yang indikatornya berupa pengeluaran (Rp) -- tidak ada padanan kurikulum. Tetap
-# ditampilkan (0 MK) beserta alasannya, supaya 14 tema lengkap dan tidak disangka terlewat.
-TEMA_TANPA_PADANAN: dict[str, str] = {
-    "kunjungan_akademik": "Indikator = pengeluaran pengunjung kegiatan akademik (Rp), bukan kurikulum.",
-    "pengajaran_pembelajaran": "Indikator = pengeluaran harian mahasiswa (Rp), bukan isi mata kuliah.",
-    "belanja_umkm": "Indikator = belanja institusi ke UMKM lokal (Rp), bukan kurikulum.",
-}
-
-# Status yang tidak ikut tagging tema sosial/ekonomi/SDG: nama MK berupa kode/tak lengkap.
+# Status yang tidak ikut tagging SDG: nama MK berupa kode/tak lengkap.
 STATUS_TAK_DINILAI = "Belum dapat dinilai – cek kurikulum"
-
-
-def _pola(kata: list[str]) -> re.Pattern[str]:
-    """Cocok di awal kata dan berakhir di batas kata (metode Ringkasan butir 6), case-insensitive."""
-    isi = "|".join(re.escape(k) for k in sorted(kata, key=len, reverse=True))
-    return re.compile(rf"(?<![0-9a-z])(?:{isi})(?![0-9a-z])", re.IGNORECASE)
 
 
 def _pola_sdg(kata: list[str]) -> re.Pattern[str]:
@@ -146,33 +86,13 @@ def _unik(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def tag_tema(baris: pd.DataFrame, mk_unik: pd.DataFrame) -> pd.DataFrame:
-    """Satu baris per (MK unik, tema): kolom tema, dasar, pemicu + identitas MK."""
+    """Satu baris per MK unik Substansial di tema 4.5 (indikator resmi): kolom tema, dasar, pemicu
+    (kriteria a-j) + identitas MK. `baris` tidak dipakai lagi; dipertahankan demi tanda tangan."""
     kolom = ["nama_mk", "fakultas", "prodi", "jenjang", "status", "kriteria", "keywords", "deskripsi"]
-    potong: list[pd.DataFrame] = []
-    # Tema 4.5: semua MK Substansial (indikator resmi).
-    potong.append(mk_unik[kolom].assign(tema=TEMA_INDIKATOR, dasar=DASAR_RESMI,
-                                        pemicu=mk_unik["kriteria"].map(
-                                            lambda k: ", ".join(KRITERIA_LABEL.get(h, h) for h in huruf_kriteria(k)))))
-    # Energi / limbah / rehabilitasi: dari kriteria kurasi.
-    for tema_id, huruf in KRITERIA_TEMA.items():
-        cocok = mk_unik[mk_unik["kriteria"].map(lambda k, h=huruf: bool(h & set(huruf_kriteria(k))))]
-        potong.append(cocok[kolom].assign(
-            tema=tema_id, dasar=DASAR_KRITERIA,
-            pemicu=cocok["kriteria"].map(lambda k, h=huruf: ", ".join(
-                KRITERIA_LABEL[x] for x in huruf_kriteria(k) if x in h))))
-    # Tema sosial/ekonomi + transportasi: leksikon kurikulum pada semua MK yang bisa dinilai.
-    dinilai = baris[(baris["nama_mk"] != "") & (baris["status"] != STATUS_TAK_DINILAI)]
-    teks_lengkap = (dinilai["nama_mk"] + " " + dinilai["deskripsi"]).str.lower()
-    for tema_id, kata in LEKSIKON_TEMA.items():
-        pola = _pola(kata)
-        teks = dinilai["nama_mk"].str.lower() if tema_id in LEKSIKON_NAMA_SAJA else teks_lengkap
-        pemicu = teks.map(lambda t, p=pola: ", ".join(dict.fromkeys(m.group(0).lower() for m in p.finditer(t))))
-        mask = pemicu != ""
-        if tema_id in LEKSIKON_KECUALI:
-            mask &= ~dinilai["nama_mk"].str.contains(LEKSIKON_KECUALI[tema_id], case=False, regex=True)
-        cocok = _unik(dinilai[mask].assign(pemicu=pemicu[mask]))
-        potong.append(cocok[kolom + ["pemicu"]].assign(tema=tema_id, dasar=DASAR_KEYWORD))
-    return pd.concat(potong, ignore_index=True)
+    return mk_unik[kolom].assign(
+        tema=TEMA_INDIKATOR, dasar=DASAR_RESMI,
+        pemicu=mk_unik["kriteria"].map(lambda k: ", ".join(KRITERIA_LABEL.get(h, h) for h in huruf_kriteria(k))),
+    ).reset_index(drop=True)
 
 
 def tag_sdg(baris: pd.DataFrame) -> pd.DataFrame:

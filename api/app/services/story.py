@@ -32,8 +32,8 @@ from sqlalchemy.engine import Engine
 from app.domain.models import FilterParams
 from app.domain.source import kepmen, keywords, load_module, units
 from app.services.matkul import (
-    DASAR_KEYWORD, DASAR_KRITERIA, DASAR_RESMI, KRITERIA_LABEL, KRITERIA_TEMA, LEKSIKON_NAMA_SAJA, LEKSIKON_TEMA,
-    TEMA_INDIKATOR, TEMA_TANPA_PADANAN, MatkulFrames, huruf_kriteria, load_matkul, meta_tema as meta_tema_matkul,
+    DASAR_RESMI, KRITERIA_LABEL, TEMA_INDIKATOR, MatkulFrames, huruf_kriteria, load_matkul,
+    meta_tema as meta_tema_matkul,
 )
 from app.services.ringkasan_kepmen import CATATAN_METODE_RESMI
 
@@ -505,7 +505,8 @@ def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str,
     if matkul is not None:
         for chapter in response["chapters"]:
             for section in chapter["subsections"]:
-                section["mata_kuliah"] = mata_kuliah_per_tema(matkul, section["topic"])
+                if section["topic"] == TEMA_INDIKATOR:  # indikator MK hanya ada di tema 4.5
+                    section["mata_kuliah"] = mata_kuliah_per_tema(matkul, section["topic"])
     if pillar:
         response["pillar_detail"] = _pillar_detail(ctx, pillar, topic)
     return response
@@ -523,7 +524,8 @@ def pembagian_dampak(t: pd.DataFrame, pillar_set: tuple[str, ...]) -> dict[str, 
     pillar_set = tuple([p for p in CHAPTER_ORDER if p in pillar_set] + [p for p in pillar_set if p not in CHAPTER_ORDER])
     per_url = t[t["dampak"].isin(pillar_set)].groupby("url")["dampak"].agg(lambda s: frozenset(s))
     total = int(len(per_url))
-    irisan = [{"kunci": p, "label": f"Hanya {p}", "pilar": [p], "jumlah": int((per_url == frozenset([p])).sum())}
+    # Label irisan cukup nama dampaknya (tanpa "Hanya"); artinya tetap berita yang masuk SATU dampak itu saja.
+    irisan = [{"kunci": p, "label": p, "pilar": [p], "jumlah": int((per_url == frozenset([p])).sum())}
               for p in pillar_set]
     banyak = per_url.map(len)
     for n, label in ((2, "Dua dampak sekaligus"), (3, "Tiga dampak sekaligus")):
@@ -751,27 +753,13 @@ def _mk_meta_tema() -> dict[str, dict[str, Any]]:
             for tid in mapping.LABEL_TOPIC_ALL if tid in semua}
 
 
+# Mata kuliah hanya dipetakan ke tema 4.5 (indikator resmi satu-satunya, lihat matkul.py).
 def _dasar_tema(tema_id: str) -> str:
-    if tema_id == TEMA_INDIKATOR:
-        return DASAR_RESMI
-    if tema_id in KRITERIA_TEMA:
-        return DASAR_KRITERIA
-    if tema_id in TEMA_TANPA_PADANAN:
-        return "Tidak ada padanan kurikulum"
-    return DASAR_KEYWORD
+    return DASAR_RESMI
 
 
 def _catatan_tema(tema_id: str) -> str:
-    if tema_id == TEMA_INDIKATOR:
-        return "Semua MK berstatus Substansial: angka indikator resmi Kepmen (453 MK unik)."
-    if tema_id in KRITERIA_TEMA:
-        huruf = ", ".join(f"{h} ({KRITERIA_LABEL[h]})" for h in sorted(KRITERIA_TEMA[tema_id]))
-        return f"MK Substansial yang kriteria kurasinya memuat {huruf}. Perluasan analitik, bukan indikator tema ini."
-    if tema_id in TEMA_TANPA_PADANAN:
-        return TEMA_TANPA_PADANAN[tema_id]
-    nama = " (nama MK saja)" if tema_id in LEKSIKON_NAMA_SAJA else ""
-    return (f"Keyword kurikulum{nama}: {', '.join(LEKSIKON_TEMA.get(tema_id, [])[:8])}…; "
-            "keterkaitan topik, bukan indikator tema ini.")
+    return "Semua MK berstatus Substansial: angka indikator resmi Kepmen (453 MK unik)."
 
 
 def _mk_rows(df: pd.DataFrame, meta: dict[str, dict[str, Any]], kolom: list[str]) -> list[dict[str, Any]]:
@@ -810,21 +798,19 @@ def _sdg_tema(meta: dict[str, dict[str, Any]], tema_ids: pd.Series) -> pd.Series
 
 def _mk_tema_section(mf: MatkulFrames, mode: str, pilars: tuple[str, ...], topiks: tuple[str, ...],
                      sdgs: tuple[int, ...]) -> dict[str, Any]:
-    """Mode Dampak / Dampak x SDGs: MK per 14 tema Kepmen (dengan dasar pemetaan per baris).
+    """Mode Dampak / Dampak x SDGs: MK indikator resmi tema 4.5 (pilar Lingkungan) saja.
 
     Mengikuti filter GLOBAL (dampak/tema/SDG), bukan pilar yang sedang dibuka di drill-down:
-    panel ini berada di akhir laporan tiga bab, jadi harus mencakup semua bab yang terfilter."""
+    panel ini berada di akhir laporan tiga bab. Filter yang tidak mencakup tema 4.5 -> 0 MK."""
     meta = _mk_meta_tema()
-    tema_scope = [tid for tid, m in meta.items()
-                  if (not pilars or m["dampak"] in pilars) and (not topiks or tid in topiks)]
+    tema_scope = [tid for tid, m in meta.items() if tid == TEMA_INDIKATOR
+                  and (not pilars or m["dampak"] in pilars) and (not topiks or tid in topiks)]
     df = mf.mk_tema[mf.mk_tema["tema"].isin(tema_scope)]
     if mode == "impact-sdgs" and sdgs:
         df = df[_sdg_tema(meta, df["tema"]).map(lambda s: bool(s & set(sdgs)))]
     unik = df.drop_duplicates("nama_mk")
     n_resmi = int((df["tema"] == TEMA_INDIKATOR).sum())
     metrics = [
-        {"label": "MK unik terkait", "value": int(len(unik)),
-         "help": "Mata kuliah unik (dedup nama) yang terpetakan ke minimal satu tema dalam cakupan filter."},
         {"label": "MK indikator resmi (tema 4.5)", "value": n_resmi,
          "help": "MK berstatus Substansial, satu-satunya angka yang merupakan indikator resmi Kepmen untuk kurikulum."},
         {"label": "Fakultas/sekolah terlibat", "value": int(unik["fakultas"].nunique()) if len(unik) else 0,
@@ -838,17 +824,6 @@ def _mk_tema_section(mf: MatkulFrames, mode: str, pilars: tuple[str, ...], topik
         "dasar": _dasar_tema(tid), "catatan": _catatan_tema(tid),
     } for tid in tema_scope]
     if len(df):
-        dist = pd.DataFrame([{"label": r["tema"], "jumlah": r["jumlah"], "pilar": r["pilar"]} for r in rekap])
-        charts.append(_chart(
-            "matkul_tema", "bar", "Mata kuliah per tema Kepmen",
-            _bar_data(dist.sort_values("jumlah", ascending=False, kind="stable"), "label", "jumlah"),
-            insight=insight_top2(dist[dist["jumlah"] > 0], "label", "jumlah", satuan="MK"),
-            note=("Tiga dasar pemetaan: tema 4.5 = indikator resmi (semua MK Substansial); Energi/"
-                  "Konsumsi Bertanggung Jawab/Keanekaragaman Hayati = kriteria a-j hasil kurasi manual; "
-                  "tema sosial/ekonomi/transportasi = keyword kurikulum pada nama & deskripsi MK. Tiga tema "
-                  "berbasis pengeluaran (Rp) tidak punya padanan kurikulum (0). Satu MK bisa masuk >1 tema."),
-            orientation="h",
-        ))
         if len({meta[t]["dampak"] for t in tema_scope}) > 1:
             per_pilar = (df.assign(pilar=df["tema"].map(lambda t: meta[t]["dampak"]))
                          .groupby("pilar")["nama_mk"].nunique().reindex(list(PILLARS), fill_value=0).reset_index())

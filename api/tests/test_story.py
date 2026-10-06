@@ -173,7 +173,7 @@ def test_impact_story_pillar_detail_tabs_and_semantics():
     tren_tab = next(t for t in detail["tabs"] if t["id"] == "tren")
     heat = chart_by_id(tren_tab["charts"], "tema_tahun")["data"]
     assert set(heat["rows"]) == {"Keanekaragaman Hayati", "Energi", "Transportasi",
-                                 "Konsumsi yang Bertanggung Jawab", "Pendidikan & Penelitian"}
+                                 "Konsumsi yang Bertanggung Jawab", "Pendidikan dan Penelitian"}
     assert heat["cols"] == ["2023", "2024"]
     # kata kunci: default = tema dengan berita terbanyak, opsi terbatas pada dampak ini
     assert detail["selected_topic"] == "rehabilitasi_lingkungan"
@@ -258,18 +258,18 @@ def test_chapters_follow_report_table_of_contents():
 
     sosial = chapters[0]
     assert [(s["number"], s["label"]) for s in sosial["subsections"]] == [
-        ("2.1", "Pendidikan Inklusif"), ("2.2", "Penelitian & Inovasi"),
+        ("2.1", "Pendidikan Inklusif"), ("2.2", "Penelitian dan Inovasi"),
         ("2.3", "Pengabdian Masyarakat"), ("2.4", "Kebijakan Publik"),
     ]
     ekonomi = chapters[1]
     assert [(s["number"], s["label"]) for s in ekonomi["subsections"]] == [
-        ("3.1", "Pengajaran & Pembelajaran"), ("3.2", "Kolaborasi Riset"), ("3.3", "Kewirausahaan"),
+        ("3.1", "Pengajaran dan Pembelajaran"), ("3.2", "Kolaborasi Riset"), ("3.3", "Kewirausahaan"),
         ("3.4", "Kunjungan Akademik"), ("3.5", "Pengeluaran Institusi"),
     ]
     lingkungan = chapters[2]
     assert [(s["number"], s["label"]) for s in lingkungan["subsections"]] == [
         ("4.1", "Energi"), ("4.2", "Konsumsi yang Bertanggung Jawab"), ("4.3", "Transportasi"),
-        ("4.4", "Keanekaragaman Hayati"), ("4.5", "Pendidikan & Penelitian"),
+        ("4.4", "Keanekaragaman Hayati"), ("4.5", "Pendidikan dan Penelitian"),
     ]
 
     # Tiap bab punya 2 chart level-bab (distribusi tema + heatmap tema × tahun), id unik per bab.
@@ -436,46 +436,32 @@ def test_mata_kuliah_block_is_non_breaking_and_carries_indicator_data():
     # Angka resmi Ringkasan PDF: dedup nama MK (dua baris "Ekologi Hutan" -> 1 MK).
     assert blok["n_substansial"] == 4 and blok["n_mk_unik"] == 3 and blok["parsial"] == 1
     metrics = {m["label"]: m["value"] for m in blok["metrics"]}
-    # 3 MK substansial + KKN (pengabdian) + Kewirausahaan; MK gigi & transport polutan tidak masuk.
-    assert metrics["MK unik terkait"] == 5
-    assert metrics["MK indikator resmi (tema 4.5)"] == 3
-    rekap = {r["tema_id"]: r for r in blok["per_tema"]}
-    assert len(rekap) == 14   # semua tema tampil, termasuk yang 0
-    assert rekap["pendidikan_dan_penelitian"]["jumlah"] == 3
-    assert rekap["pengabdian_masyarakat"]["jumlah"] == 1 and rekap["kewirausahaan"]["jumlah"] == 1
-    assert rekap["pendidikan_inklusif"]["jumlah"] == 0 and rekap["transportasi"]["jumlah"] == 0
-    assert rekap["belanja_umkm"]["jumlah"] == 0 and "Rp" in rekap["belanja_umkm"]["catatan"]
+    # MK hanya dipetakan ke tema 4.5 (indikator resmi): KKN/Kewirausahaan tidak lagi ikut.
+    assert blok["metrics"][0]["label"] == "MK indikator resmi (tema 4.5)"
+    assert metrics["MK indikator resmi (tema 4.5)"] == 3 and "MK unik terkait" not in metrics
+    assert [(r["tema_id"], r["jumlah"]) for r in blok["per_tema"]] == [("pendidikan_dan_penelitian", 3)]
+    assert not any(c["id"] == "matkul_tema" for c in blok["charts"])
     daftar = next(t for t in blok["tables"] if t["id"] == "matkul_daftar")
     assert daftar["page_size"] == 10 and "deskripsi" not in daftar["rows"][0]
     json.dumps(story)
 
 
-def test_tagging_tema_memakai_tiga_dasar_dan_membuang_false_positive():
-    mf = make_matkul()
-    t = mf.mk_tema
-    dasar = dict(zip(t["tema"], t["dasar"]))
-    assert dasar["pendidikan_dan_penelitian"].startswith("Indikator resmi")
-    assert dasar["energi"].startswith("Kriteria") and dasar["kewirausahaan"].startswith("Keyword")
-    assert set(t[t["tema"] == "energi"]["nama_mk"]) == {"Energi Terbarukan"}
-    assert set(t[t["tema"] == "limbah"]["nama_mk"]) == {"Pengelolaan Limbah"}
-    assert set(t[t["tema"] == "rehabilitasi_lingkungan"]["nama_mk"]) == {"Ekologi Hutan"}
-    assert set(t[t["tema"] == "pengabdian_masyarakat"]["nama_mk"]) == {"KKN Desa Binaan"}
-    # "berkebutuhan khusus" di kedokteran gigi bukan pendidikan inklusif; "transport polutan"
-    # di deskripsi bukan tema transportasi (tema ini hanya dicocokkan ke nama MK).
-    assert "pendidikan_inklusif" not in set(t["tema"]) and "transportasi" not in set(t["tema"])
-    # Tema berbasis pengeluaran (Rp) tidak pernah diisi MK.
-    assert not set(t["tema"]) & {"kunjungan_akademik", "pengajaran_pembelajaran", "belanja_umkm"}
+def test_tagging_tema_hanya_indikator_resmi_45():
+    """MK hanya dipetakan ke tema 4.5 (indikator resmi satu-satunya), tidak ke tema Sosial/Ekonomi."""
+    t = make_matkul().mk_tema
+    assert set(t["tema"]) == {"pendidikan_dan_penelitian"}
+    assert t["dasar"].str.startswith("Indikator resmi").all()
+    assert set(t["nama_mk"]) == {"Energi Terbarukan", "Pengelolaan Limbah", "Ekologi Hutan"}
 
 
 def test_sub_bab_laporan_membawa_kurikulum_tema():
     story = build_story(make_frames(), FilterParams(), "impact", matkul=make_matkul())
-    sub = {sec["topic"]: sec["mata_kuliah"] for ch in story["chapters"] for sec in ch["subsections"]}
+    sub = {sec["topic"]: sec.get("mata_kuliah") for ch in story["chapters"] for sec in ch["subsections"]}
     assert len(sub) == 14
+    # Hanya sub-bab 4.5 yang membawa panel kurikulum.
+    assert {k for k, v in sub.items() if v} == {"pendidikan_dan_penelitian"}
     assert sub["pendidikan_dan_penelitian"]["jumlah"] == 3
     assert sub["pendidikan_dan_penelitian"]["tabel"]["page_size"] == 5
-    assert sub["kewirausahaan"]["jumlah"] == 1 and sub["kewirausahaan"]["dasar"].startswith("Keyword")
-    assert sub["kunjungan_akademik"]["jumlah"] == 0 and sub["kunjungan_akademik"]["tabel"] is None
-    assert "Rp" in sub["kunjungan_akademik"]["catatan"]
     # Tanpa data MK, sub-bab tidak membawa kunci mata_kuliah (kontrak lama utuh).
     polos = build_story(make_frames(), FilterParams(), "impact")
     assert all("mata_kuliah" not in sec for ch in polos["chapters"] for sec in ch["subsections"])
@@ -484,37 +470,27 @@ def test_sub_bab_laporan_membawa_kurikulum_tema():
 def test_mata_kuliah_follows_selected_pillar_and_topic():
     mf = make_matkul()
     # Pilar yang dibuka di drill-down TIDAK mempersempit panel (panel ada di akhir laporan 3 bab).
-    drill = build_story(make_frames(), FilterParams(), "impact", pillar="Lingkungan", matkul=mf)
-    assert len(drill["mata_kuliah"]["per_tema"]) == 14
+    drill = build_story(make_frames(), FilterParams(), "impact", pillar="Sosial", matkul=mf)
+    assert drill["mata_kuliah"]["metrics"][0]["value"] == 3
     lingkungan = build_story(make_frames(), FilterParams(pillars=("Lingkungan",)), "impact", matkul=mf)
-    tema = chart_by_id(lingkungan["mata_kuliah"]["charts"], "matkul_tema")
-    nilai = {row["label"]: row["value"] for row in tema["data"]}
-    assert nilai["Pendidikan & Penelitian"] == 3 and nilai["Energi"] == 1 and nilai["Transportasi"] == 0
     assert lingkungan["mata_kuliah"]["metrics"][0]["value"] == 3
-
-    # Pilar Sosial kini berisi MK (KKN -> Pengabdian Masyarakat), bukan kosong seperti dulu.
+    # Filter yang tidak mencakup tema 4.5 (pilar Sosial, tema lain) -> 0 MK.
     sosial = build_story(make_frames(), FilterParams(pillars=("Sosial",)), "impact", matkul=mf)
-    assert sosial["mata_kuliah"]["metrics"][0]["value"] == 1
-    assert {r["tema_id"] for r in sosial["mata_kuliah"]["per_tema"]} == {
-        "pendidikan_inklusif", "penelitian_inovasi_sosial", "pengabdian_masyarakat", "instansi_publik"}
-
+    assert sosial["mata_kuliah"]["metrics"][0]["value"] == 0 and sosial["mata_kuliah"]["per_tema"] == []
     fokus = build_story(make_frames(), FilterParams(topics=("kewirausahaan",)), "impact", matkul=mf)
-    daftar = next(t for t in fokus["mata_kuliah"]["tables"] if t["id"] == "matkul_daftar")
-    assert [r["nama_mk"] for r in daftar["rows"]] == ["Kewirausahaan"]
+    assert fokus["mata_kuliah"]["metrics"][0]["value"] == 0
 
 
 def test_mata_kuliah_dampak_sdgs_filters_by_sdg_cluster():
-    """Mode Dampak x SDGs: SDG tiap MK = gabungan klaster SDG tema-temanya."""
+    """Mode Dampak x SDGs: SDG tiap MK = klaster SDG tema 4.5 (SDG 14 & 15)."""
     mf = make_matkul()
     blok = build_story(make_frames(), FilterParams(), "impact-sdgs", matkul=mf)["mata_kuliah"]
     nilai = {row["label"]: row["value"] for row in chart_by_id(blok["charts"], "matkul_sdg")["data"]}
-    assert nilai["SDG 14"] == 3 and nilai["SDG 15"] == 3   # tema 4.5 = SDG 14 & 15
-    assert nilai["SDG 7"] == 1                              # Energi Terbarukan (kriteria c)
-    assert nilai["SDG 17"] == 1                             # KKN -> Pengabdian (SDG 1, 8, 11, 17)
-    energi = build_story(make_frames(), FilterParams(sdgs=(7,)), "impact-sdgs", matkul=mf)
-    daftar = next(t for t in energi["mata_kuliah"]["tables"] if t["id"] == "matkul_daftar")
-    assert {row["nama_mk"] for row in daftar["rows"]} == {"Energi Terbarukan"}
-    kosong = build_story(make_frames(), FilterParams(sdgs=(5,)), "impact-sdgs", matkul=mf)
+    assert nilai["SDG 14"] == 3 and nilai["SDG 15"] == 3
+    assert not {k for k, v in nilai.items() if v} - {"SDG 14", "SDG 15"}
+    hutan = build_story(make_frames(), FilterParams(sdgs=(15,)), "impact-sdgs", matkul=mf)
+    assert hutan["mata_kuliah"]["metrics"][0]["value"] == 3
+    kosong = build_story(make_frames(), FilterParams(sdgs=(7,)), "impact-sdgs", matkul=mf)
     assert kosong["mata_kuliah"]["metrics"][0]["value"] == 0 and kosong["mata_kuliah"]["charts"] == []
 
 

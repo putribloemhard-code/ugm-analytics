@@ -264,7 +264,7 @@ bersumber dari detailing indikator tiap tema di TABEL Kepmen 361
    pangan, digitalisasi desa (pengabdian); puskesmas, pemerintah desa,
    kelurahan (kebijakan publik).
 3. Kata luas yang = materi lintas-tema TIDAK dipakai (93/160 match tema
-   "Pendidikan & Penelitian" ternyata noise berita umum lewat kata
+   "Pendidikan dan Penelitian" ternyata noise berita umum lewat kata
    pembangunan berkelanjutan/perubahan iklim/sustainability — dibuang;
    tersisa 8 berita matkul/modul/ESD).
 4. Token pendek (≤5 huruf) otomatis word boundary di `tag_kepmen_all.py`

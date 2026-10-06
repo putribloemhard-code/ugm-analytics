@@ -221,10 +221,10 @@ dan dikaitkan ke tema Kepmen:
 
   | Dasar | Tema | Cara |
   |---|---|---|
-  | Indikator resmi | 4.5 Pendidikan & Penelitian | semua MK Substansial (453) — **satu-satunya angka indikator resmi** |
+  | Indikator resmi | 4.5 Pendidikan dan Penelitian | semua MK Substansial (453) — **satu-satunya angka indikator resmi** |
   | Kriteria a–j (kurasi manual) | 4.1 Energi (c), 4.2 Konsumsi Bertanggung Jawab (d, e), 4.4 Keanekaragaman Hayati (f, g, h, i) | dari kolom `kriteria_kepmen_match` MK Substansial |
-  | Keyword kurikulum | 2.1 Pendidikan Inklusif, 2.2 Penelitian & Inovasi, 2.3 Pengabdian, 2.4 Kebijakan Publik, 3.2 Kolaborasi Riset, 3.3 Kewirausahaan, 4.3 Transportasi | `LEKSIKON_TEMA` (dari definisi indikator resmi, BUKAN keyword berita — "seminar"/"mata kuliah" menyeret hampir semua MK), awal-kata; diperiksa manual per MK |
-  | Tidak ada padanan | 3.1 Pengajaran & Pembelajaran, 3.4 Kunjungan Akademik, 3.5 Pengeluaran Institusi | indikator berupa pengeluaran (Rp) → 0 MK + alasan |
+  | Keyword kurikulum | 2.1 Pendidikan Inklusif, 2.2 Penelitian dan Inovasi, 2.3 Pengabdian, 2.4 Kebijakan Publik, 3.2 Kolaborasi Riset, 3.3 Kewirausahaan, 4.3 Transportasi | `LEKSIKON_TEMA` (dari definisi indikator resmi, BUKAN keyword berita — "seminar"/"mata kuliah" menyeret hampir semua MK), awal-kata; diperiksa manual per MK |
+  | Tidak ada padanan | 3.1 Pengajaran dan Pembelajaran, 3.4 Kunjungan Akademik, 3.5 Pengeluaran Institusi | indikator berupa pengeluaran (Rp) → 0 MK + alasan |
 
   Pengecualian yang disengaja: Transportasi hanya dicocokkan ke **nama** MK ("transport
   polutan", "Praktikum Ticketing" tidak masuk); "berkebutuhan khusus" di kedokteran gigi bukan

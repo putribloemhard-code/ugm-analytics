@@ -166,16 +166,17 @@ type RailSub = { key: string; label: string } & ({ kind: 'pillar'; pillar: strin
  *  kind 'pillar' = menulis hash bertingkat (#dampak-ekonomi) yang diparsing AnalysisScene untuk
  *  memilih pilar lalu menggulir ke detailnya; kind 'scroll' = gulir murni ke anchor blok. */
 const railSubItems: Record<string, RailSub[]> = {
+  // Urutan pilar = urutan di halaman (laporan resmi: Sosial, Ekonomi, Lingkungan).
   dampak: [
-    { key: 'lingkungan', label: 'Lingkungan', kind: 'pillar', pillar: 'Lingkungan' },
-    { key: 'ekonomi', label: 'Ekonomi', kind: 'pillar', pillar: 'Ekonomi' },
     { key: 'sosial', label: 'Sosial', kind: 'pillar', pillar: 'Sosial' },
+    { key: 'ekonomi', label: 'Ekonomi', kind: 'pillar', pillar: 'Ekonomi' },
+    { key: 'lingkungan', label: 'Lingkungan', kind: 'pillar', pillar: 'Lingkungan' },
     { key: 'laporan', label: 'Laporan', kind: 'scroll', anchor: 'laporan-unduh-impact' },
   ],
   'dampak-sdgs': [
-    { key: 'lingkungan', label: 'Lingkungan', kind: 'pillar', pillar: 'Lingkungan' },
-    { key: 'ekonomi', label: 'Ekonomi', kind: 'pillar', pillar: 'Ekonomi' },
     { key: 'sosial', label: 'Sosial', kind: 'pillar', pillar: 'Sosial' },
+    { key: 'ekonomi', label: 'Ekonomi', kind: 'pillar', pillar: 'Ekonomi' },
+    { key: 'lingkungan', label: 'Lingkungan', kind: 'pillar', pillar: 'Lingkungan' },
     { key: 'laporan', label: 'Laporan', kind: 'scroll', anchor: 'laporan-unduh-impact-sdgs' },
   ],
   sdgs: [

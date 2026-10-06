@@ -27,11 +27,6 @@ function DaftarIsi({ chapters }: { chapters: Chapter[] }) {
   // Navigasi ringkas: nama dampak (tanpa label "BAB" + nomor) lalu daftar temanya
   // dengan panah. Nomor bab/sub-bab tetap ada di judul bagian isinya, bukan di sini.
   return <nav className="laporan-toc" aria-label="Daftar isi laporan dampak">
-    <div className="laporan-toc__head">
-      <p className="section-kicker">Mengikuti laporan resmi</p>
-      <h3>Daftar isi</h3>
-      <p className="section-note">Struktur mengikuti Laporan Dampak Sosial, Ekonomi, dan Lingkungan UGM 2025: tiap tema resmi Kepmen menjadi satu bagian.</p>
-    </div>
     <ol className="laporan-toc__list">
       {chapters.map(chapter => <li key={chapter.pillar}>
         <button type="button" className="laporan-toc__bab" onClick={() => scrollTo(babId(chapter.pillar))}>
@@ -165,8 +160,8 @@ function Bab({ chapter }: { chapter: Chapter }) {
 /* ------------------------------------------------- panel mata kuliah (baru) ---- */
 /** Blok "Mata kuliah sustainability": data kurikulum UGM (Deskripsi Matkul Kepmen.csv)
  *  yang dimatching-kan ke tema Kepmen 361/M/KEP/2025. Tema resmi indikator ini =
- *  "Pendidikan dan Penelitian" (Dampak Lingkungan) — SEMUA MK substansial masuk di sana;
- *  kaitan ke tema lain berasal dari kriteria a-j yang tercantum di tema tersebut. */
+ *  "Pendidikan dan Penelitian" (Dampak Lingkungan) — SEMUA MK substansial masuk di sana, dan
+ *  MK hanya dipetakan ke tema itu (tidak ke tema Sosial/Ekonomi). */
 export function MataKuliahPanel({ blok, pillar, anchorId }: { blok: MataKuliahBlok; pillar?: string; anchorId?: string }) {
   if (!blok.tersedia) return null;
   const kosong = blok.metrics[0]?.value === 0 || blok.metrics[0]?.value === undefined;
@@ -175,7 +170,7 @@ export function MataKuliahPanel({ blok, pillar, anchorId }: { blok: MataKuliahBl
     <div className="laporan-matkul__head">
       <div>
         <p className="section-kicker">Sumber data kedua (bukan berita)</p>
-        <h3>{sdg ? 'Mata kuliah UGM per SDG' : 'Mata kuliah UGM per tema dampak Kepmen'}</h3>
+        <h3>{sdg ? 'Mata kuliah UGM per SDG' : 'Mata kuliah UGM: tema 4.5 Pendidikan dan Penelitian'}</h3>
       </div>
       <span className="laporan-matkul__badge" title="Angka indikator resmi Kepmen (MK unik berstatus Substansial)">{fmtValue(blok.n_mk_unik)} MK indikator resmi</span>
     </div>
@@ -187,11 +182,7 @@ export function MataKuliahPanel({ blok, pillar, anchorId }: { blok: MataKuliahBl
       {sdg
         ? <>Di bagian SDGs, setiap MK dicocokkan langsung ke 17 SDG dengan kamus keyword yang sama dengan
           berita (nama & deskripsi MK). Kamus ini luas, jadi angkanya indikatif, bukan indikator Kepmen.</>
-        : <>Pemetaan ke 14 tema memakai tiga dasar yang ditandai per baris: <strong>indikator resmi</strong> (tema
-          4.5), <strong>kriteria a-j hasil kurasi</strong> (Energi, Konsumsi Bertanggung Jawab, Keanekaragaman
-          Hayati), dan <strong>keyword kurikulum</strong> pada nama/deskripsi MK (tema sosial, ekonomi,
-          transportasi). Tiga tema berbasis pengeluaran (Rp) tidak punya padanan kurikulum. Selain tema 4.5,
-          angka ini keterkaitan topik, bukan klaim pelaporan resmi.</>}
+        : <>Karena itu mata kuliah hanya dipetakan ke tema 4.5 di pilar Lingkungan.</>}
     </Insight>
     <div className="analysis-summary-grid analysis-summary-grid--3">
       {blok.metrics.map(metric => <div className="metric" key={metric.label} title={metric.help ?? undefined}>
@@ -226,20 +217,15 @@ export function MataKuliahPanel({ blok, pillar, anchorId }: { blok: MataKuliahBl
   </section>;
 }
 
+/** Cara membaca laporan per bab; ditampilkan sebagai lanjutan kotak Ringkasan di ringkasan eksekutif. */
+export const CARA_MEMBACA_LAPORAN = 'Laporan dampak di bawah mengikuti struktur Laporan Dampak Sosial, Ekonomi, dan Lingkungan UGM 2025: '
+  + 'Dampak Sosial (4 tema), Dampak Ekonomi (5 tema), dan Dampak Lingkungan (5 tema). Setiap tema menampilkan indikator '
+  + 'penilaian resmi Kepmen 361/M/KEP/2025 di samping analisis pemberitaan publik untuk tema tersebut.';
+
 /* ------------------------------------------------------------- tampilan utama ---- */
 export function LaporanDampak({ story }: { story: Story }) {
   if (!story.chapters.length) return null;
   return <section className="story-block laporan" aria-label="Laporan dampak per bab">
-    <div className="laporan__intro">
-      <h3>Laporan dampak</h3>
-      <Insight label="Cara membaca">
-        Bagian di bawah mengikuti struktur Laporan Dampak Sosial, Ekonomi, dan Lingkungan UGM 2025:
-        Dampak Sosial (4 tema), Dampak Ekonomi (5 tema), dan Dampak Lingkungan (5 tema).
-        Setiap tema menampilkan indikator penilaian resmi Kepmen 361/M/KEP/2025 di samping analisis
-        pemberitaan publik untuk tema tersebut. Angka berita adalah lower-bound berbasis keyword;
-        indikator resmi tetap menjadi rujukan penilaian, bukan angka pemberitaan.
-      </Insight>
-    </div>
     <DaftarIsi chapters={story.chapters} />
     <div className="laporan__bab-list">
       {story.chapters.map(chapter => <Bab key={chapter.pillar} chapter={chapter} />)}

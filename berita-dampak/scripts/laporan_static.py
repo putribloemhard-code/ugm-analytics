@@ -71,7 +71,7 @@ def main() -> None:
     b_t["label"] = b_t["topik"].map(LABEL_TOPIC)
 
     # 1. Distribusi per tema (14 tema, warna pilar) — sinkron 14: tema tanpa
-    # match (mis. Pengajaran & Pembelajaran) tetap tampil dengan jumlah 0.
+    # match (mis. Pengajaran dan Pembelajaran) tetap tampil dengan jumlah 0.
     dist = (
         bk.groupby("topik")["url"]
         .nunique()
