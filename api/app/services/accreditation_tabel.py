@@ -58,9 +58,19 @@ TANPA_NOMOR = {"Tanpa Nomor": " (tabel tanpa nomor)", "Tim Penyusun": ""}
 def judul_tabel(fmt: dict[str, Any]) -> str:
     """'Tabel 1.A.1 Pimpinan ...'; tabel tanpa nomor resmi memakai judulnya saja."""
     kode = fmt["kode"]
+    if vertikal(fmt):
+        return f"{kode}. {fmt['judul']}"  # "A. Spesifikasi Program" (bagian Identitas Pengusul LED)
     if kode in TANPA_NOMOR:
         return fmt["judul"] + TANPA_NOMOR[kode]
     return f"Tabel {kode} {fmt['judul']}"
+
+
+def vertikal(fmt: dict[str, Any]) -> bool:
+    """Satu record: tiap butir satu baris (kolom A = butir, kolom B = keterangan)."""
+    return fmt.get("bentuk") == "vertikal"
+
+
+HEADER_VERTIKAL = ("Butir", "Keterangan")
 
 
 def _jalur(fmt: dict[str, Any]) -> list[list[str]]:
@@ -98,6 +108,8 @@ def nama_file(fmt: dict[str, Any]) -> str:
 
 def buat_template(item_id: str) -> tuple[bytes, str]:
     fmt = _format(item_id)
+    if vertikal(fmt):
+        return _template_vertikal(item_id, fmt)
     dalam, sel = _sel_header(fmt)
     n_kolom = len(fmt["kolom"]) + (1 if fmt["nomor"] else 0)
     wb = Workbook()
@@ -135,6 +147,30 @@ def buat_template(item_id: str) -> tuple[bytes, str]:
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.freeze_panes = ws.cell(awal, 1)
 
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue(), nama_file(fmt)
+
+
+def _template_vertikal(item_id: str, fmt: dict[str, Any]) -> tuple[bytes, str]:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Spesifikasi Program"
+    wb.properties.keywords = f"{PENANDA}{item_id}"
+    wb.properties.title = judul_tabel(fmt)
+    ws.cell(1, 1, judul_tabel(fmt)).font = F_JUDUL
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=2)
+    ws.row_dimensions[1].height = 22
+    for c, teks in enumerate(HEADER_VERTIKAL, start=1):
+        cell = ws.cell(2, c, teks)
+        cell.font, cell.alignment, cell.border = F_HEADER, TENGAH, GARIS
+    for r, butir in enumerate(fmt["kolom"], start=3):
+        a, b = ws.cell(r, 1, butir), ws.cell(r, 2)
+        a.font, a.alignment, a.border = F_ISI, KIRI, GARIS
+        b.font, b.alignment, b.border = F_ISI, KIRI, GARIS
+    ws.column_dimensions["A"].width = 42
+    ws.column_dimensions["B"].width = 70
+    ws.freeze_panes = "B3"
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue(), nama_file(fmt)
@@ -183,6 +219,8 @@ def baca_upload(item_id: str, isi: bytes) -> dict[str, Any]:
         raise TabelError(f"Judul di baris 1 file («{ws.cell(1, 1).value or 'kosong'}») tidak sama dengan «{judul}». "
                          "Pastikan file ini format tabel yang benar dan judulnya tidak diubah.")
 
+    if vertikal(fmt):
+        return _baca_vertikal(ws, fmt)
     dalam, sel = _sel_header(fmt)
     for r1, c1, _, _, teks in sel:
         ada = ws.cell(r1, c1).value
@@ -204,3 +242,22 @@ def baca_upload(item_id: str, isi: bytes) -> dict[str, Any]:
     if not rows:
         raise TabelError("Tidak ada baris data di file. Isi baris di bawah header lalu unggah lagi.")
     return {"kolom": kolom, "rows": rows}
+
+
+def _baca_vertikal(ws, fmt: dict[str, Any]) -> dict[str, Any]:
+    """Kolom A harus berisi butir persis urutan format; kolom B = nilainya. Hasil: satu record."""
+    for c, teks in enumerate(HEADER_VERTIKAL, start=1):
+        if _norm(ws.cell(2, c).value) != _norm(teks):
+            raise TabelError(f"Header {get_column_letter(c)}2 di file berisi «{ws.cell(2, c).value or 'kosong'}», "
+                             f"seharusnya «{teks}». Unduh ulang format bila perlu.")
+    kolom = list(fmt["kolom"])
+    baris: dict[str, str] = {}
+    for i, butir in enumerate(kolom):
+        ada = ws.cell(3 + i, 1).value
+        if _norm(ada) != _norm(butir):
+            raise TabelError(f"Sel A{3 + i} berisi «{ada or 'kosong'}», seharusnya butir «{butir}». "
+                             "Jangan ubah, hapus, atau pindah baris butir.")
+        baris[butir] = _nilai(ws.cell(3 + i, 2).value)
+    if all(v in ("", "-") for v in baris.values()):
+        raise TabelError("Kolom Keterangan masih kosong. Isi keterangan tiap butir lalu unggah lagi.")
+    return {"kolom": kolom, "rows": [baris]}

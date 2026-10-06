@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { setItemFinal, type Workspace, type WorkspaceGroup, type WorkspaceItem } from './lib/api';
 import { Notice } from './ui';
-import { pesan, useItemEditor, waktu } from './akreditasi-edit';
+import { dariEkstraksi, labelPengisi, pesan, useItemEditor, waktu } from './akreditasi-edit';
 import { FormatTabelAksi } from './akreditasi-format';
 
 /* Review dokumen LED/LKPS: satu bagian (item) per halaman seperti dokumen, bisa diedit langsung di
@@ -16,7 +16,7 @@ const PLACEHOLDER: Record<WorkspaceItem['kategori'], string> = {
 };
 
 function sumberIsian(item: WorkspaceItem): string {
-  if (item.terisi) return item.diisi_oleh?.startsWith('AI: ') ? `Ekstraksi AI (${item.diisi_oleh.slice(4)})` : `Isian tim${item.diisi_oleh ? ` · ${item.diisi_oleh}` : ''}`;
+  if (item.terisi) return dariEkstraksi(item.diisi_oleh) ? labelPengisi(item.diisi_oleh ?? '') : `Isian tim${item.diisi_oleh ? ` · ${item.diisi_oleh}` : ''}`;
   if (item.live) return 'Data live dari sumber resmi';
   return 'Belum ada isian';
 }
@@ -88,7 +88,22 @@ function HalamanItem({ bagian, nomor, total, workspace, onNav, onChange, onEditT
         <button type="button" className="link-button" onClick={ed.salinLive}>Salin data live ke isian</button>
       </div>}
 
-      {item.tipe === 'narasi'
+      {item.bentuk === 'vertikal'
+        ? <div className="review__tabel-wrap"><table className="review__tabel tabel-vertikal">
+            <caption className="sr-only">{item.nama}</caption>
+            <thead><tr><th scope="col">Butir</th><th scope="col">Keterangan</th></tr></thead>
+            <tbody>{item.kolom.map(k => <tr key={k}>
+              <th scope="row"><label htmlFor={`rv-${item.id}-${k}`}>{k}</label></th>
+              <td><textarea id={`rv-${item.id}-${k}`} className="review__sel" rows={1} placeholder={placeholder}
+                value={ed.rows[0]?.[k] ?? ''} onChange={e => ed.ubah(0, k, e.target.value)} disabled={!item.editable} /></td>
+            </tr>)}</tbody>
+          </table>
+          {item.format_excel && <div className="review__tabel-aksi">
+            <FormatTabelAksi itemId={item.id} laporanId={workspace.laporan.id} disabled={!item.editable}
+              onRows={ed.muatDariFile} onError={teks => ed.setStatus({ type: 'error', text: teks })} />
+          </div>}
+        </div>
+        : item.tipe === 'narasi'
         ? <div className="review__narasi">{item.kolom.map(k => <div key={k} className="review__paragraf">
             <label htmlFor={`rv-${item.id}-${k}`}>{k}</label>
             <textarea id={`rv-${item.id}-${k}`} className="review__teks" rows={2} placeholder={placeholder}

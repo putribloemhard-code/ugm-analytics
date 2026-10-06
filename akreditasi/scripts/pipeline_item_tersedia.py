@@ -96,21 +96,22 @@ def _h2_sections(html: str) -> dict[str, str]:
 
 
 def kumpulkan_identitas_pt_upps_ps(now: datetime) -> list[tuple]:
+    """Butir Identitas Pengusul, satu kolom per butir seperti di LED (registry identitas_pt_upps_ps)."""
     rows = []
     # SK Pendirian PT -- fakta hukum/historis stabil (PP tidak pernah direvisi
     # sejak 1949), TIDAK ditemukan satu halaman UGM resmi yang menyatakannya
     # eksplisit & bisa di-parse otomatis -- dicatat sbg referensi tetap,
     # sumber_url mengarah ke artikel yang mengutipnya, BUKAN klaim "live-parsed".
-    rows.append(("identitas_pt_upps_ps", 1, "No. & Tanggal SK Pendirian PT",
-                 "Peraturan Pemerintah No. 23 Tahun 1949, 16 Desember 1949",
-                 "https://amp.kompas.com/tren/read/2021/12/19/100400365/"
-                 "sejarah-berdirinya-universitas-gadjah-mada-19-desember-1949", now))
+    url_pp = ("https://amp.kompas.com/tren/read/2021/12/19/100400365/"
+              "sejarah-berdirinya-universitas-gadjah-mada-19-desember-1949")
+    rows.append(("identitas_pt_upps_ps", 1, "Nomor SK Pendirian PT", "Peraturan Pemerintah No. 23 Tahun 1949", url_pp, now))
+    rows.append(("identitas_pt_upps_ps", 1, "Tanggal SK Pendirian PT", "16 Desember 1949", url_pp, now))
 
     r = _get(URL_ADMISSIONS_MEI)
     if r:
         m = re.search(r"Surat Keputusan Rektor Universitas Gadjah Mada Nomor ([\w./]+)", r.text)
         if m:
-            rows.append(("identitas_pt_upps_ps", 1, "No. & Tanggal SK Pembukaan PS",
+            rows.append(("identitas_pt_upps_ps", 1, "Nomor SK Pembukaan PS",
                          f"Keputusan Rektor UGM Nomor {m.group(1)}", URL_ADMISSIONS_MEI, now))
 
     r = _get(URL_MEI)
@@ -125,15 +126,17 @@ def kumpulkan_identitas_pt_upps_ps(now: datetime) -> list[tuple]:
         if m_addr:
             alamat = unescape(re.sub(r"<[^>]+>", ", ", m_addr.group(1) + " " + m_addr.group(2)))
             alamat = re.sub(r"\s*,\s*", ", ", re.sub(r"\s+", " ", alamat)).strip(", ")
-            rows.append(("identitas_pt_upps_ps", 1, "Nama & Alamat PT/UPPS/PS",
-                         f"Universitas Gadjah Mada; Departemen Ilmu Komputer dan Elektronika "
-                         f"(UPPS); Program Studi Magister Elektronika dan Instrumentasi; {alamat}",
-                         URL_MEI, now))
+            for kolom, nilai in (("Perguruan Tinggi", "Universitas Gadjah Mada"),
+                                 ("Unit Pengelola Program Studi", "Departemen Ilmu Komputer dan Elektronika"),
+                                 ("Nama Program Studi", "Magister Elektronika dan Instrumentasi"),
+                                 ("Alamat", alamat)):
+                rows.append(("identitas_pt_upps_ps", 1, kolom, nilai, URL_MEI, now))
         if m_mail:
-            kontak = m_mail.group(1)
-            if m_phone:
-                kontak += f"; {re.sub(r'\s+', ' ', m_phone.group(1)).strip()}"
-            rows.append(("identitas_pt_upps_ps", 1, "Kontak", kontak, URL_MEI, now))
+            rows.append(("identitas_pt_upps_ps", 1, "E-mail dan Website",
+                         f"{m_mail.group(1)} dan {URL_MEI}", URL_MEI, now))
+        if m_phone:
+            rows.append(("identitas_pt_upps_ps", 1, "Nomor Telepon",
+                         re.sub(r'\s+', ' ', m_phone.group(1)).strip(), URL_MEI, now))
 
     # Pejabat Penandatangan: TIDAK ditemukan halaman UGM yg bisa di-parse
     # otomatis utk nama rektor penandatangan SK spesifik 211/2023 -- gap

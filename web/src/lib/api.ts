@@ -231,6 +231,8 @@ export type WorkspaceItem = {
   tipe: 'tabel' | 'narasi'; kolom: string[]; tabel_lkps: string | null; narasi: boolean; terisi: boolean;
   /** true bila isian ini punya template Excel (Unduh format / Upload data). */
   format_excel: boolean;
+  /** 'vertikal' = satu record ditampilkan sebagai tabel Butir | Keterangan (Identitas Pengusul). */
+  bentuk: 'horizontal' | 'vertikal';
   state: 'otomatis' | 'live' | 'terisi' | 'kosong' | 'belum_tersedia'; editable: boolean; rows: ItemRow[];
   diisi_oleh: string | null; updated_at: string | null;
   /** Status resmi dari data_source_map.json (bukan status_ketersediaan registry). */
@@ -241,7 +243,7 @@ export type WorkspaceItem = {
   final: { oleh: string | null; waktu: string | null } | null;
 };
 export type KategoriSumber = 'tersedia' | 'akses_data' | 'penyusunan';
-/** Satu nilai hasil ekstraksi AI dan apa yang terjadi saat diterapkan ke data laporan. */
+/** Satu nilai hasil ekstraksi dan apa yang terjadi saat diterapkan ke data laporan. */
 export type RiwayatEkstraksi = {
   id: number; item_id: string; item_nama: string; grup: string; baris_ke: number; kolom: string; nilai: string;
   kutipan: string | null; nama_file: string; status: 'ditambahkan' | 'sudah_ada' | 'tidak_menimpa' | 'kolom_lain';

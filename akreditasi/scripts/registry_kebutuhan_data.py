@@ -134,10 +134,17 @@ KEBUTUHAN_DATA: dict[str, dict] = {
         "kriteria_led": "Umum",
         "tabel_lkps": None,
         "nama": "Identitas PT/UPPS/PS",
-        "deskripsi_singkat": "Nama, alamat, kontak, no. SK pendirian PT & pembukaan PS, tanggal, pejabat penandatangan.",
+        "deskripsi_singkat": "Identitas pengusul (spesifikasi program) seperti di halaman Identitas Pengusul LED.",
         "tipe": "narasi",
-        "kolom_dibutuhkan": ["Nama & Alamat PT/UPPS/PS", "Kontak", "No. & Tanggal SK Pendirian PT",
-                              "No. & Tanggal SK Pembukaan PS", "Pejabat Penandatangan"],
+        # Satu kolom per butir "Spesifikasi program" LED (2026-10-06; sebelumnya 5 kolom gabungan, sehingga
+        # butir seperti tahun pertama menerima mahasiswa & SK LAM tidak punya tempat). Isian lama dipecah
+        # oleh api/app/services/migrasi_kolom_tabel.py.
+        "kolom_dibutuhkan": ["Perguruan Tinggi", "Unit Pengelola Program Studi", "Jenis Program", "Nama Program Studi",
+                              "Alamat", "Nomor Telepon", "E-mail dan Website", "Nomor SK Pendirian PT",
+                              "Tanggal SK Pendirian PT", "SK Pendirian PT", "Nomor SK Pembukaan PS",
+                              "Tanggal SK Pembukaan PS", "Pejabat Penandatangan SK Pembukaan PS",
+                              "Tahun Pertama Kali Menerima Mahasiswa", "Peringkat Terbaru Akreditasi PS",
+                              "Nomor SK LAM INFOKOM"],
         "sumber_data": "Rektorat/Biro Hukum & Tata Laksana UGM (arsip PDF)",
         "status_ketersediaan": "perlu_input_manual",
         "mysql_table": None,

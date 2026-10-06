@@ -6,10 +6,11 @@ import {
   type AccreditationResult, type AuthUser, type DaftarLaporan, type Dokumen, type RiwayatEkstraksi, type Workspace, type WorkspaceItem, type WorkspaceUpload,
 } from './lib/api';
 import { Notice, PageHeader, ProgressLine } from './ui';
-import { pesan, useItemEditor, waktu } from './akreditasi-edit';
+import { dariEkstraksi, labelPengisi, PREFIX_EKSTRAKSI, pesan, useItemEditor, waktu } from './akreditasi-edit';
 import { ReviewDokumen } from './akreditasi-dokumen';
 import { FormatTabelAksi } from './akreditasi-format';
 import { DaftarAktivitas } from './aktivitas';
+import { assetUrl } from './shell';
 
 type Mode = 'isi' | 'review' | 'download';
 const MODE_LABEL: Record<Mode, string> = { isi: '1. Isi data', review: '2. Review', download: '3. Unduh Word' };
@@ -50,7 +51,7 @@ function syaratPin(pin: string, ulang: string): string | null {
   if (ulang !== pin) return ulang ? 'Kedua PIN belum sama.' : 'Ketik ulang PIN untuk konfirmasi.';
   return null;
 }
-// Narasi hasil AI bisa ratusan kata; di tabel cukup awalnya, sisanya dibuka per baris.
+// Narasi hasil ekstraksi bisa ratusan kata; di tabel cukup awalnya, sisanya dibuka per baris.
 const NILAI_RINGKAS = 180;
 const UPLOAD_LABEL: Record<WorkspaceUpload['status'], string> = {
   belum_diekstrak: 'Belum diekstrak', sedang_diekstrak: 'Sedang diekstrak', diekstrak: 'Sudah diekstrak',
@@ -141,8 +142,10 @@ export function AccreditationWorkspace({ catalog, onCatalogChange, initialProdi,
   const groups = workspace?.groups ?? [];
   const activeGroup = groups.find(g => g.key === groupKey) ?? groups[0];
 
+  // Saat laporan terbuka, judul halaman digabung ke bar laporan (satu baris ringkas) supaya tidak makan tempat.
+  const laporanTerbuka = Boolean(laporanId && !error && workspace && workspace.laporan.id === laporanId);
   return <div className="content accreditation-workspace">
-    <PageHeader title="Akreditasi" icon="certificate.png" caption="Susun LED & LKPS program studi (LAM-INFOKOM) bersama staf prodi." />
+    {!laporanTerbuka && <PageHeader title="Akreditasi" icon="certificate.png" caption="Susun LED & LKPS program studi (LAM-INFOKOM) bersama staf prodi." />}
     {yatim > 0 && <Notice type="error">{yatim} program studi belum terhubung ke fakultas mana pun, sehingga tidak muncul di pemilih. Perbaiki kolom fakultas_id pada tabel akreditasi_prodi.</Notice>}
 
     {/* Pemilih prodi & dokumen hanya tampil saat memilih laporan; saat laporan terbuka cukup "Ganti laporan". */}
@@ -188,7 +191,8 @@ export function AccreditationWorkspace({ catalog, onCatalogChange, initialProdi,
                 ? <div className="loading" role="status">Memuat kelengkapan data…</div>
                 : <>
                 <div className="laporan-bar">
-                  <div><p className="section-kicker">{workspace.prodi.nama} · {dokumen}</p><h2>{workspace.laporan.nama}</h2></div>
+                  <div className="laporan-bar__judul"><img src={assetUrl('logo/certificate.png')} alt="" />
+                    <div><p className="section-kicker">Akreditasi · {workspace.prodi.nama} · {dokumen}</p><h1>{workspace.laporan.nama}</h1></div></div>
                   <button className="button secondary" onClick={() => { setLaporanId(null); setWorkspace(null); }}>Ganti laporan</button>
                 </div>
                 <nav className="ruang-mode" aria-label="Tahap pengerjaan laporan">
@@ -350,13 +354,13 @@ function UploadPanel({ workspace, dokumen, onChange }: { workspace: Workspace; d
       <button className={`button ${bisaDiekstrak.length ? '' : 'secondary'}`} disabled={sibuk || bisaDiekstrak.length === 0 || !workspace.ekstraksi.tersedia} onClick={ekstrak}>
         {sedang.length ? `Mengekstrak ${sedang.length} file…` : bisaDiekstrak.length ? `Ekstrak data dari ${bisaDiekstrak.length} file` : 'Semua file sudah diekstrak'}
       </button>
-      {!workspace.ekstraksi.tersedia && <span className="field-hint">Ekstraksi AI nonaktif: isi OPENAI_API_KEY di .env lalu jalankan ulang API.</span>}
-      {workspace.ekstraksi.tersedia && bisaDiekstrak.length > 0 && <span className="field-hint">Bisa makan beberapa menit per file (dipecah jadi beberapa panggilan AI kecil).</span>}
+      {!workspace.ekstraksi.tersedia && <span className="field-hint">Ekstraksi nonaktif: isi OPENAI_API_KEY di .env lalu jalankan ulang API.</span>}
+      {workspace.ekstraksi.tersedia && bisaDiekstrak.length > 0 && <span className="field-hint">Bisa makan beberapa menit per file (diproses per bagian).</span>}
     </div>
   </section>;
 }
 
-/** Semua nilai hasil ekstraksi AI laporan ini dan apa yang terjadi saat diterapkan ke tabel data. */
+/** Semua nilai hasil ekstraksi laporan ini dan apa yang terjadi saat diterapkan ke tabel data. */
 function RiwayatEkstraksiPanel({ workspace, onBuka }: { workspace: Workspace; onBuka: (itemId: string, grup: string) => void }) {
   const semua = workspace.ekstraksi.riwayat;
   const [saring, setSaring] = useState<RiwayatEkstraksi['status'] | ''>('');
@@ -377,7 +381,7 @@ function RiwayatEkstraksiPanel({ workspace, onBuka }: { workspace: Workspace; on
       <div><p className="section-kicker">Hasil ekstraksi</p><h2 id="ekstraksi-preview-title">Riwayat data hasil ekstraksi</h2></div>
       <span className="status-pill">{per('ditambahkan')} nilai masuk tabel · {nFile} file</span>
     </div>
-    <p className="section-note">Setiap nilai yang ditemukan AI dan apa yang terjadi padanya. Nilai berstatus <b>Ditambahkan</b> sudah masuk tabel data (bisa diedit di item). Nilai yang sama atau yang bertentangan dengan isian yang ada tidak menimpa apa pun, tetapi tetap tercatat di sini.</p>
+    <p className="section-note">Setiap nilai hasil ekstraksi dan apa yang terjadi padanya. Nilai berstatus <b>Ditambahkan</b> sudah masuk tabel data (bisa diedit di item). Nilai yang sama atau yang bertentangan dengan isian yang ada tidak menimpa apa pun, tetapi tetap tercatat di sini.</p>
     <div className="ekstraksi-preview__tools">
       <div className="ekstraksi-preview__chips" role="group" aria-label="Saring status">
         {([['', `Semua (${semua.length})`], ['ditambahkan', `Ditambahkan (${per('ditambahkan')})`], ['sudah_ada', `Sudah ada (${per('sudah_ada')})`], ['tidak_menimpa', `Tidak menimpa (${per('tidak_menimpa')})`], ['kolom_lain', `Di luar kolom (${per('kolom_lain')})`]] as const)
@@ -392,12 +396,12 @@ function RiwayatEkstraksiPanel({ workspace, onBuka }: { workspace: Workspace; on
     {baris.length === 0
       ? <p className="section-note">Tidak ada nilai yang cocok dengan saringan ini.</p>
       : <div className="data-table-wrap"><table className="data-table ekstraksi-preview__table">
-        <caption className="sr-only">Riwayat nilai hasil ekstraksi AI laporan ini</caption>
-        <thead><tr><th scope="col">Item</th><th scope="col">Kolom</th><th scope="col">Nilai hasil AI</th><th scope="col">Sumber</th><th scope="col">Status</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
+        <caption className="sr-only">Riwayat nilai hasil ekstraksi laporan ini</caption>
+        <thead><tr><th scope="col">Item</th><th scope="col">Kolom</th><th scope="col">Nilai hasil ekstraksi</th><th scope="col">Sumber</th><th scope="col">Status</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
         <tbody>{baris.map(r => <tr key={r.id}>
           <td data-label="Item">{r.item_nama}</td>
           <td data-label="Kolom">{r.kolom}<small className="ekstraksi-preview__baris">baris {r.baris_ke} di file</small></td>
-          <td data-label="Nilai hasil AI" className="ekstraksi-preview__nilai">{r.nilai.length > NILAI_RINGKAS
+          <td data-label="Nilai hasil ekstraksi" className="ekstraksi-preview__nilai">{r.nilai.length > NILAI_RINGKAS
             ? <details><summary>{r.nilai.slice(0, NILAI_RINGKAS).trimEnd()}… <span className="ekstraksi-preview__lagi">Selengkapnya</span></summary><p>{r.nilai}</p></details>
             : r.nilai}</td>
           <td data-label="Sumber">{r.nama_file}{r.kutipan && <details><summary>Kutipan</summary><p>{r.kutipan}</p></details>}</td>
@@ -463,12 +467,12 @@ function ItemCard({ item, laporanId, fokus, onSaved }: { item: WorkspaceItem; la
 
   useEffect(() => { if (fokus) { setOpen(true); el.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }, [fokus]);
 
-  const dariAi = Boolean(item.diisi_oleh?.startsWith('AI: '));
+  const dariAi = dariEkstraksi(item.diisi_oleh);
   return <article ref={el} className={`requirement-card state-${item.state}${open ? ' is-open' : ''}`}>
     <button className="requirement-card__head" aria-expanded={open} onClick={() => setOpen(o => !o)}>
       <span className={`state-badge ${item.state}`}>{STATE_LABEL[item.state]}</span>
       <span className="requirement-card__title">{item.nama}{item.tabel_lkps && <small> · Tabel {item.tabel_lkps}</small>}</span>
-      {dariAi && <span className="state-badge ai">Dari ekstraksi AI</span>}
+      {dariAi && <span className="state-badge ai">Hasil ekstraksi</span>}
       {dirty && <span className="state-badge dirty">Belum disimpan</span>}
       <span className="requirement-card__chevron" aria-hidden="true">{open ? '−' : '+'}</span>
     </button>
@@ -477,7 +481,7 @@ function ItemCard({ item, laporanId, fokus, onSaved }: { item: WorkspaceItem; la
       <dl className="requirement-meta">
         <div><dt>Status sumber</dt><dd><span className={`state-badge kategori-${item.kategori}`}>{item.kategori_label}</span></dd></div>
         <div><dt>Sumber data</dt><dd>{item.sumber_asli ?? item.sumber_data}</dd></div>
-        {item.diisi_oleh && <div><dt>Terakhir diisi</dt><dd>{item.diisi_oleh} · {waktu(item.updated_at)}</dd></div>}
+        {item.diisi_oleh && <div><dt>Terakhir diisi</dt><dd>{labelPengisi(item.diisi_oleh)} · {waktu(item.updated_at)}</dd></div>}
       </dl>
       {item.live && <DataLive live={item.live} terisi={item.terisi} />}
       {item.pendukung && <DataPendukung data={item.pendukung} teks={item.sumber_tambahan} />}
@@ -485,10 +489,19 @@ function ItemCard({ item, laporanId, fokus, onSaved }: { item: WorkspaceItem; la
         ? <Notice type="info">Belum ada pipeline/form untuk item ini. Sumber data seharusnya: <b>{item.sumber_data}</b>.</Notice>
         : <>
           {item.narasi && <Notice type="info"><b>Narasi ini perlu disesuaikan tim penyusun dengan kondisi &amp; evaluasi terkini</b> sebelum digunakan — termasuk bila isinya berasal dari ekstraksi dokumen yang diupload.</Notice>}
-          {dariAi && <p className="field-hint">Sebagian isian item ini berasal dari ekstraksi AI ({item.diisi_oleh?.slice(4)}). Periksa lalu klik Simpan untuk mengonfirmasi atas nama Anda.</p>}
+          {dariAi && <p className="field-hint">Sebagian isian item ini merupakan hasil ekstraksi ({item.diisi_oleh?.slice(PREFIX_EKSTRAKSI.length)}). Periksa lalu klik Simpan untuk mengonfirmasi atas nama Anda.</p>}
           {basi && <Notice type="warning">Data item ini berubah di server (mis. disimpan staf lain atau hasil ekstraksi baru) saat Anda mengedit. Simpan untuk memakai isian Anda, atau <button className="link-button" onClick={batal}>muat versi terbaru</button>.</Notice>}
 
-          {item.tipe === 'narasi'
+          {item.bentuk === 'vertikal'
+            ? <div className="data-table-wrap item-editor"><table className="tabel-vertikal">
+              <caption className="sr-only">Isian {item.nama}</caption>
+              <thead><tr><th scope="col">Butir</th><th scope="col">Keterangan</th></tr></thead>
+              <tbody>{item.kolom.map(k => <tr key={k}>
+                <th scope="row"><label htmlFor={`${item.id}-${k}`}>{k}</label></th>
+                <td><input id={`${item.id}-${k}`} value={rows[0]?.[k] ?? ''} onChange={e => ubah(0, k, e.target.value)} /></td>
+              </tr>)}</tbody>
+            </table></div>
+            : item.tipe === 'narasi'
             ? <div className="narasi-editor">{item.kolom.map(k => <div className="field" key={k}>
                 <label htmlFor={`${item.id}-${k}`}>{k}</label>
                 <textarea id={`${item.id}-${k}`} rows={3} value={rows[0]?.[k] ?? ''} onChange={e => ubah(0, k, e.target.value)} />
@@ -509,7 +522,7 @@ function ItemCard({ item, laporanId, fokus, onSaved }: { item: WorkspaceItem; la
             {item.tipe === 'tabel' && <button className="button secondary" onClick={tambahBaris}>+ Tambah baris</button>}
             <button className="button" disabled={sibuk} onClick={simpan}>{sibuk ? 'Menyimpan…' : 'Simpan'}</button>
             {dirty && <button className="link-button" onClick={batal}>Batalkan perubahan</button>}
-            {item.tipe === 'tabel' && item.format_excel && <FormatTabelAksi itemId={item.id} laporanId={laporanId}
+            {item.format_excel && <FormatTabelAksi itemId={item.id} laporanId={laporanId}
               onRows={muatDariFile} onError={teks => setStatus({ type: 'error', text: teks })} />}
           </div>
           {status && <Notice type={status.type}>{status.text}</Notice>}

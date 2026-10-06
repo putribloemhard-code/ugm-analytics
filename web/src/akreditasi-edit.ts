@@ -15,6 +15,13 @@ export function pesan(e: unknown, cadangan: string): string {
   return e instanceof Error && e.message ? e.message : cadangan;
 }
 
+/** Penanda pengisi di database: 'AI: nama-file' = isian hasil ekstraksi dokumen; tampilkan sebagai "Hasil ekstraksi". */
+export const PREFIX_EKSTRAKSI = 'AI: ';
+export const dariEkstraksi = (oleh: string | null | undefined) => Boolean(oleh?.startsWith(PREFIX_EKSTRAKSI));
+export function labelPengisi(oleh: string): string {
+  return dariEkstraksi(oleh) ? `Hasil ekstraksi: ${oleh.slice(PREFIX_EKSTRAKSI.length)}` : oleh;
+}
+
 export function barisKosong(kolom: string[]): ItemRow { return Object.fromEntries(kolom.map(k => [k, ''])); }
 
 /** State edit satu item laporan: baris isian, tanda belum disimpan, dan simpan ke server.
@@ -49,6 +56,12 @@ export function useItemEditor(item: WorkspaceItem, laporanId: number, onSaved: (
   /** Baris dari file Excel yang diupload: baris kosong di form diganti, baris berisi dipertahankan
    *  dan baris file ditambahkan di bawahnya. Belum tersimpan sampai user menekan Simpan. */
   function muatDariFile(baru: ItemRow[]) {
+    if (item.tipe === 'narasi') {  // satu record (mis. Identitas): nilai file yang terisi menggantikan isian
+      const isi = Object.fromEntries(Object.entries(baru[0] ?? {}).filter(([k, v]) => item.kolom.includes(k) && v.trim()));
+      setRows(rs => [{ ...(rs[0] ?? barisKosong(item.kolom)), ...isi }]); setDirty(true);
+      setStatus({ type: 'info', text: `${Object.keys(isi).length} butir dari file dimasukkan. Periksa isinya, lalu klik Simpan.` });
+      return;
+    }
     const kosong = (r: ItemRow) => item.kolom.every(k => !(r[k] ?? '').trim());
     const rapi = baru.map(r => Object.fromEntries(item.kolom.map(k => [k, r[k] ?? ''])));
     setRows(rs => [...rs.filter(r => !kosong(r)), ...rapi]); setDirty(true);

@@ -244,6 +244,8 @@ class AccreditationWorkspaceService:
             "status_label": registry.STATUS_LABEL.get(status, status),
             "tipe": item["tipe"], "kolom": kolom, "tabel_lkps": item["tabel_lkps"],
             "format_excel": item["id"] in getattr(registry, "FORMAT_TABEL", {}),
+            # "vertikal": satu record ditampilkan sebagai tabel Butir | Keterangan (Identitas Pengusul).
+            "bentuk": getattr(registry, "FORMAT_TABEL", {}).get(item["id"], {}).get("bentuk", "horizontal"),
             "narasi": bool(registry.is_narasi_penilaian(item)),
             "terisi": terisi, "state": state, "editable": status != "belum_tersedia",
             "rows": rows,

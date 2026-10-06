@@ -1,5 +1,5 @@
 {
- "_readme": "Format tabel isian LED/LKPS: SATU acuan untuk kolom form (registry), template Excel unduhan, dan upload data. Disusun dari header 80 file di akreditasi/docs/tabel_xlsx (artefak PDF & data contoh prodi dibuang). Kolom 'Grup > Sub' = header bertingkat; nama kolom di form = bagiannya digabung ' – '. nomor=true: template punya kolom No. (diabaikan saat upload). kolom_lama: nama kolom registry sebelum 2026-10-06 -> kolom baru (dipakai migrasi_kolom_tabel.py). baru: isian yang ditambahkan (tabel LED C1.1-C6.6).",
+ "_readme": "Format tabel isian LED/LKPS: SATU acuan untuk kolom form (registry), template Excel unduhan, dan upload data. Disusun dari header 80 file di akreditasi/docs/tabel_xlsx (artefak PDF & data contoh prodi dibuang). Kolom 'Grup > Sub' = header bertingkat; nama kolom di form = bagiannya digabung ' – '. nomor=true: template punya kolom No. (diabaikan saat upload). kolom_lama: nama kolom registry sebelum 2026-10-06 -> kolom baru (dipakai migrasi_kolom_tabel.py). baru: isian yang ditambahkan (tabel LED C1.1-C6.6). bentuk=vertikal: satu record, baris = butir (Identitas Pengusul A. Spesifikasi Program).",
  "tabel": [
   {
    "kode": "C1.1",
@@ -913,6 +913,34 @@
     "Metode Analisis yang Didukung": "Metode Analisis"
    },
    "sumber_xlsx": "LED/D3.1"
+  },
+  {
+   "kode": "A",
+   "dokumen": "LED",
+   "item_id": "identitas_pt_upps_ps",
+   "judul": "Spesifikasi Program",
+   "nomor": false,
+   "kolom": [
+    "Perguruan Tinggi",
+    "Unit Pengelola Program Studi",
+    "Jenis Program",
+    "Nama Program Studi",
+    "Alamat",
+    "Nomor Telepon",
+    "E-mail dan Website",
+    "Nomor SK Pendirian PT",
+    "Tanggal SK Pendirian PT",
+    "SK Pendirian PT",
+    "Nomor SK Pembukaan PS",
+    "Tanggal SK Pembukaan PS",
+    "Pejabat Penandatangan SK Pembukaan PS",
+    "Tahun Pertama Kali Menerima Mahasiswa",
+    "Peringkat Terbaru Akreditasi PS",
+    "Nomor SK LAM INFOKOM"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/Identitas Pengusul",
+   "bentuk": "vertikal"
   },
   {
    "kode": "Tanpa Nomor",

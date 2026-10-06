@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 from pathlib import Path
 
 from sqlalchemy import URL, bindparam, create_engine, inspect, text
@@ -73,6 +74,86 @@ def _tanda_tahun(conn: Connection, terapkan: bool) -> int:
     return baru
 
 
+# Identitas PT/UPPS/PS: 5 kolom gabungan lama -> satu kolom per butir "Spesifikasi program" LED.
+IDENTITAS = "identitas_pt_upps_ps"
+_LABEL_IDENTITAS = [("perguruan", "Perguruan Tinggi"), ("unit pengelola", "Unit Pengelola Program Studi"),
+                    ("jenis program", "Jenis Program"), ("program studi", "Nama Program Studi"), ("alamat", "Alamat")]
+_TANGGAL = re.compile(r"^(.*?)[,;]\s*(?:tanggal\s+|tgl\.?\s+)?(\d{1,2}\s+[A-Za-z]+\s+\d{4})\s*\.?$", re.I)
+
+
+def pecah_identitas(lama: dict[str, str]) -> dict[str, str]:
+    """Nilai kolom gabungan lama -> {kolom butir: nilai}. Bagian yang tidak dikenali tidak dipakai
+    (nilai aslinya tetap tersimpan di arsip)."""
+    hasil: dict[str, str] = {}
+
+    def isi(kolom: str, nilai: str) -> None:
+        nilai = nilai.strip(" ;,")
+        if nilai and kolom not in hasil:
+            hasil[kolom] = nilai
+
+    for bagian in (lama.get("Nama & Alamat PT/UPPS/PS") or "").split(";"):
+        label, _, nilai = bagian.partition(":") if ":" in bagian else ("", "", bagian)
+        label = label.strip().lower()
+        kolom = next((k for kunci, k in _LABEL_IDENTITAS if kunci in label), None) if label else None
+        if kolom is None:  # bagian tanpa label (format data live): tebak dari isinya
+            teks = nilai.strip()
+            if "(UPPS)" in teks:
+                kolom, nilai = "Unit Pengelola Program Studi", teks.replace("(UPPS)", "")
+            elif teks.lower().startswith("program studi "):
+                kolom, nilai = "Nama Program Studi", teks[len("program studi "):]
+            else:
+                kolom = "Perguruan Tinggi" if "Perguruan Tinggi" not in hasil else "Alamat"
+        isi(kolom, nilai)
+
+    telepon, email, web = [], [], []
+    for bagian in (lama.get("Kontak") or "").split(";"):
+        label, _, nilai = bagian.partition(":") if re.match(r"\s*[A-Za-z -]+:", bagian) else ("", "", bagian)
+        label, nilai = label.strip().lower(), nilai.strip()
+        if "telepon" in label or "phone" in label or (not label and re.match(r"[(\d+]", nilai)):
+            telepon.append(nilai)
+        elif "mail" in label or (not label and "@" in nilai):
+            email.append(nilai)
+        elif "web" in label or nilai.startswith("http"):
+            web.append(nilai)
+    isi("Nomor Telepon", ", ".join(telepon))
+    isi("E-mail dan Website", " dan ".join(x for x in (", ".join(email), ", ".join(web)) if x))
+
+    for kolom_lama, nomor, tanggal in (("No. & Tanggal SK Pendirian PT", "Nomor SK Pendirian PT", "Tanggal SK Pendirian PT"),
+                                       ("No. & Tanggal SK Pembukaan PS", "Nomor SK Pembukaan PS", "Tanggal SK Pembukaan PS")):
+        nilai = (lama.get(kolom_lama) or "").strip()
+        m = _TANGGAL.match(nilai)
+        isi(nomor, m.group(1) if m else nilai)
+        if m:
+            isi(tanggal, m.group(2))
+    isi("Pejabat Penandatangan SK Pembukaan PS", lama.get("Pejabat Penandatangan") or "")
+    return hasil
+
+
+def _pecah_identitas(conn: Connection, tabel: str, per_laporan: bool, terapkan: bool) -> int:
+    lama_kolom = ["Nama & Alamat PT/UPPS/PS", "Kontak", "No. & Tanggal SK Pendirian PT",
+                  "No. & Tanggal SK Pembukaan PS", "Pejabat Penandatangan"]
+    rows = [dict(r) for r in conn.execute(_sql(f"SELECT * FROM {tabel} WHERE item_id = :i AND kolom IN :k"),
+                                          {"i": IDENTITAS, "k": lama_kolom}).mappings()]
+    kelompok: dict[object, list[dict]] = {}
+    for r in rows:
+        kelompok.setdefault(r.get("laporan_id") if per_laporan else None, []).append(r)
+    baru = 0
+    for laporan, sel in kelompok.items():
+        filter_lap, arg = (" AND laporan_id = :l", {"l": laporan}) if per_laporan else ("", {})
+        sudah = set(conn.execute(text(f"SELECT kolom FROM {tabel} WHERE item_id = :i{filter_lap}"),
+                                 {"i": IDENTITAS, **arg}).scalars())
+        contoh = sel[0]
+        for kolom, nilai in pecah_identitas({r["kolom"]: r["nilai"] or "" for r in sel}).items():
+            if kolom in sudah:
+                continue
+            baru += 1
+            if terapkan:
+                isi = {k: v for k, v in contoh.items() if k != "id"}
+                isi.update(kolom=kolom, nilai=nilai, baris_ke=1)
+                conn.execute(text(f"INSERT INTO {tabel} ({', '.join(isi)}) VALUES ({', '.join(':' + k for k in isi)})"), isi)
+    return baru
+
+
 def _level(nilai: str) -> str | None:
     awal = (nilai or "").strip().upper()
     for kode in ("UPPS", "PT", "PS"):  # UPPS dulu: "PS"/"PT" bisa jadi awalan kata lain
@@ -88,6 +169,8 @@ def rencana(registry) -> dict[str, dict]:
         ganti = {lama: registry.kunci_kolom(baru) for lama, baru in fmt["kolom_lama"].items()
                  if lama != registry.kunci_kolom(baru)}
         hasil[item_id] = {"ganti": ganti, "kolom": list(registry.KEBUTUHAN_DATA[item_id]["kolom_dibutuhkan"])}
+    # Identitas (narasi, bukan tabel): kolom gabungan lama dipecah oleh _pecah_identitas lalu diarsipkan.
+    hasil[IDENTITAS] = {"ganti": {}, "kolom": list(registry.KEBUTUHAN_DATA[IDENTITAS]["kolom_dibutuhkan"])}
     return hasil
 
 
@@ -124,7 +207,8 @@ def migrasi(engine: Engine, terapkan: bool = False) -> dict[str, int]:
     tabel_ada = set(inspect(engine).get_table_names())
     punya_live, punya_ekstraksi = LIVE in tabel_ada, EKSTRAKSI in tabel_ada
     hasil = dict.fromkeys(["ganti_manual", "arsip_manual", "ganti_live", "ganti_ekstraksi",
-                           "visi_manual", "visi_live", "hapus_live_visi", "tanda_tahun"], 0)
+                           "visi_manual", "visi_live", "hapus_live_visi", "tanda_tahun",
+                           "identitas_manual", "identitas_live", "hapus_live_identitas"], 0)
     with engine.connect() as conn:
         if terapkan and ARSIP not in tabel_ada:
             conn.execute(text(f"CREATE TABLE {ARSIP} AS SELECT * FROM {MANUAL} WHERE 1=0"))
@@ -132,6 +216,9 @@ def migrasi(engine: Engine, terapkan: bool = False) -> dict[str, int]:
         # Tabel 6 lebih dulu: butuh kolom Level + Teks Visi sebelum keduanya diarsipkan.
         hasil["visi_manual"] = _putar_visi(conn, MANUAL, True, terapkan)
         hasil["tanda_tahun"] = _tanda_tahun(conn, terapkan)
+        hasil["identitas_manual"] = _pecah_identitas(conn, MANUAL, True, terapkan)
+        if punya_live:
+            hasil["identitas_live"] = _pecah_identitas(conn, LIVE, False, terapkan)
         if punya_live:
             hasil["visi_live"] = _putar_visi(conn, LIVE, False, terapkan)
 
@@ -163,6 +250,12 @@ def migrasi(engine: Engine, terapkan: bool = False) -> dict[str, int]:
             hasil["hapus_live_visi"] = conn.execute(_sql(f"SELECT COUNT(*) {lama_visi}"), {"k": list(VISI.values())}).scalar() or 0
             if terapkan:
                 conn.execute(_sql(f"DELETE {lama_visi}"), {"k": list(VISI.values())})
+            # Data live Identitas format lama (kolom gabungan) juga ditulis ulang pipeline: hapus.
+            lama_id = f"FROM {LIVE} WHERE item_id = :i AND kolom NOT IN :k"
+            arg = {"i": IDENTITAS, "k": plan[IDENTITAS]["kolom"]}
+            hasil["hapus_live_identitas"] = conn.execute(_sql(f"SELECT COUNT(*) {lama_id}"), arg).scalar() or 0
+            if terapkan:
+                conn.execute(_sql(f"DELETE {lama_id}"), arg)
 
         if terapkan:
             conn.commit()
@@ -197,6 +290,8 @@ def main() -> None:
     print(f"  tabel 6     : {hasil['visi_manual']} sel visi isian tim + {hasil['visi_live']} sel visi data live diputar")
     print(f"  tahun (√)   : {hasil['tanda_tahun']} sel 'TS-2/TS-1/TS' jadi tanda √ di kolom tahunnya (3.C.2, 3.C.3, 4.C.3)")
     print(f"  data live   : {hasil['ganti_live']} sel ganti nama kolom, {hasil['hapus_live_visi']} sel format lama tabel 6 dihapus")
+    print(f"  identitas   : {hasil['identitas_manual']} sel isian tim + {hasil['identitas_live']} sel data live dipecah per butir; "
+          f"{hasil['hapus_live_identitas']} sel data live format lama dihapus")
     print(f"  ekstraksi AI: {hasil['ganti_ekstraksi']} riwayat ganti nama kolom")
 
 

@@ -35,6 +35,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt, RGBColor
 
 from registry_kebutuhan_data import (  # noqa: E402
+    FORMAT_TABEL,
     KEBUTUHAN_DATA,
     LABEL_BAGIAN_LKPS,
     LABEL_KRITERIA,
@@ -111,6 +112,10 @@ def _add_narasi_item(doc: Document, item: dict, rows: list[dict]) -> None:
         _placeholder_paragraph(doc, item["sumber_data"])
         return
     row = rows[0]
+    fmt = FORMAT_TABEL.get(item.get("id", ""))
+    if fmt and fmt.get("bentuk") == "vertikal":
+        _add_tabel_vertikal(doc, fmt, item, row)
+        return
     for k in item["kolom_dibutuhkan"]:
         nilai = row.get(k, "")
         p = doc.add_paragraph()
@@ -119,6 +124,24 @@ def _add_narasi_item(doc: Document, item: dict, rows: list[dict]) -> None:
             p.add_run(str(nilai))
         else:
             run = p.add_run("⚠️ Data belum tersedia")
+            run.italic = True
+            run.font.color.rgb = WARNA_PLACEHOLDER
+
+
+def _add_tabel_vertikal(doc: Document, fmt: dict, item: dict, row: dict) -> None:
+    """Satu record sebagai tabel tanpa garis: butir | : | keterangan (seperti Identitas Pengusul LED)."""
+    judul = doc.add_paragraph()
+    judul.add_run(f"{fmt['kode']}. {fmt['judul']}").bold = True
+    kolom = item["kolom_dibutuhkan"]
+    table = doc.add_table(rows=len(kolom), cols=3)  # gaya bawaan "Normal Table" = tanpa garis
+    for cells, k in zip(table.rows, kolom):
+        cells.cells[0].text = k
+        cells.cells[1].text = ":"
+        nilai = row.get(k, "")
+        if nilai:
+            cells.cells[2].text = str(nilai)
+        else:
+            run = cells.cells[2].paragraphs[0].add_run("⚠️ Data belum tersedia")
             run.italic = True
             run.font.color.rgb = WARNA_PLACEHOLDER
 
