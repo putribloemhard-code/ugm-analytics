@@ -6,15 +6,12 @@
     <meta name="description" content="Analisis dampak UGM berdasarkan Kepmen 361/M/KEP/2025 dan SDGs." />
     <title>UGM Analytics</title>
     <link rel="icon" type="image/png" href="/logo/LogoUGM.png" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="light" />
     <script>
-      // Terapkan tema tersimpan (atau preferensi sistem) sebelum render agar tidak berkedip.
-      (function () {
-        var theme = null;
-        try { theme = localStorage.getItem('ugm-analytics-theme'); } catch (e) {}
-        if (theme !== 'light' && theme !== 'dark') theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        document.documentElement.dataset.theme = theme;
-      })();
+      // Tampilan selalu terang (tombol mode gelap/terang dihapus). Diset sebelum render supaya
+      // pilihan "dark" lama di localStorage atau tema gelap OS tidak ikut terpakai.
+      document.documentElement.dataset.theme = 'light';
+      try { localStorage.removeItem('ugm-analytics-theme'); } catch (e) {}
     </script>
   </head>
   <body>

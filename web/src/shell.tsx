@@ -50,17 +50,6 @@ export function useInView<T extends Element>(ref: RefObject<T | null>, rootMargi
   return seen;
 }
 
-function useTheme() {
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'));
-  function toggle() {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
-    try { localStorage.setItem('ugm-analytics-theme', next); } catch { /* penyimpanan diblokir -- tema tetap berlaku untuk sesi ini */ }
-    setTheme(next);
-  }
-  return { theme, toggle };
-}
-
 function useReadingProgress() {
   const bar = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -125,7 +114,6 @@ function useDampakAuthUser() {
 
 function SiteHeader() {
   const location = useLocation();
-  const { theme, toggle } = useTheme();
   const progress = useReadingProgress();
   const active = useActiveSection(location.pathname, headerSectionIds);
   const accUser = useAuthUser();
@@ -157,9 +145,7 @@ function SiteHeader() {
         <Link to="/profil" title={accUser.email}>{accUser.nama}</Link>
         {accUser.is_admin && <Link className="auth-chip__admin" to="/admin" title="Kelola akun pengguna">Admin</Link>}
         <button type="button" onClick={() => { void keluarKe('akreditasi'); }}>Keluar</button>
-      </span>}
-      <button className="theme-toggle" type="button" aria-pressed={theme === 'dark'} onClick={toggle}><span className="theme-toggle__panjang">Mode </span>{theme === 'dark' ? 'terang' : 'gelap'}</button>
-    </div>
+      </span>}    </div>
   </header>;
 }
 
