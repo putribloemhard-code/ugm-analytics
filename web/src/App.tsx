@@ -93,11 +93,11 @@ function TopicPicker({ id, options, value, onChange }: { id: string; options: To
   return <div className="field topic-picker"><label htmlFor={id}>Pilih tema (keyword)</label><select id={id} value={value} onChange={event => onChange(event.target.value)}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>;
 }
 
-function PillarDetailView({ detail, topic, onTopic, busy }: { detail: PillarDetail; topic: string; onTopic: (topic: string) => void; busy: boolean }) {
+function PillarDetailView({ detail, topic, onTopic, busy, anchorId }: { detail: PillarDetail; topic: string; onTopic: (topic: string) => void; busy: boolean; anchorId?: string }) {
   const [tabId, setTabId] = useState(detail.tabs[0]?.id ?? '');
   const active = detail.tabs.find(tab => tab.id === tabId) ?? detail.tabs[0];
   if (!active) return null;
-  return <section className={`story-block ${busy ? 'is-busy' : ''}`} aria-label={`Detail dampak ${detail.pillar}`} aria-busy={busy}>
+  return <section id={anchorId} className={`story-block ${busy ? 'is-busy' : ''}`} aria-label={`Detail dampak ${detail.pillar}`} aria-busy={busy}>
     <h3>Detail dampak: {detail.pillar}</h3>
     <Insight label={detail.narrative_source === 'llm' ? 'Narasi dampak · dirangkai AI dari angka dashboard' : 'Narasi dampak'}>{detail.narrative}</Insight>
     <div className="analysis-summary-grid analysis-summary-grid--3">{detail.metrics.map(metric => <div className="metric" key={metric.label} title={metric.help ?? undefined}><div className="metric-label">{metric.label}</div><div className="metric-value">{fmtValue(metric.value)}</div></div>)}</div>
@@ -121,7 +121,7 @@ function CrossSection({ story, topic, onTopic }: { story: Story; topic: string; 
   </section>;
 }
 
-function AnalyticsContent({ story, pillar, onPickPillar, topic, onTopic, busy, onDataChanged }: { story: Story; pillar: string; onPickPillar: (pillar: string) => void; topic: string; onTopic: (topic: string) => void; busy: boolean; onDataChanged: () => void }) {
+function AnalyticsContent({ story, pillar, onPickPillar, topic, onTopic, busy, onDataChanged, detailAnchorId }: { story: Story; pillar: string; onPickPillar: (pillar: string) => void; topic: string; onTopic: (topic: string) => void; busy: boolean; onDataChanged: () => void; detailAnchorId?: string }) {
   const [news, setNews] = useState<{ rows: unknown[]; total: number } | null>(null);
   const [newsError, setNewsError] = useState('');
   const [page, setPage] = useState(1);
@@ -137,9 +137,9 @@ function AnalyticsContent({ story, pillar, onPickPillar, topic, onTopic, busy, o
     {/* Data mata kuliah (sumber kedua, bukan berita): di mode Dampak panelnya ada di akhir laporan
         berbab (+ ringkasan per sub-bab); di Dampak × SDGs lewat klaster SDG tema; di SDGs lewat
         tagging SDG langsung dengan kamus yang sama dengan berita. */}
-    {(story.mode === 'impact-sdgs' || story.mode === 'sdgs') && story.mata_kuliah && <MataKuliahPanel blok={story.mata_kuliah} />}
+    {(story.mode === 'impact-sdgs' || story.mode === 'sdgs') && story.mata_kuliah && <MataKuliahPanel blok={story.mata_kuliah} anchorId={`laporan-matkul-${story.mode === 'sdgs' ? 'sdgs' : 'impact-sdgs'}`} />}
     {story.overview.length > 0 && <Overview story={story} pillar={pillar} onPick={onPickPillar} />}
-    {story.pillar_detail && <PillarDetailView detail={story.pillar_detail} topic={topic} onTopic={onTopic} busy={busy} />}
+    {story.pillar_detail && <PillarDetailView detail={story.pillar_detail} topic={topic} onTopic={onTopic} busy={busy} anchorId={detailAnchorId} />}
     <CrossSection story={story} topic={topic} onTopic={onTopic} />
     {story.cross.pemetaan && <PemetaanKepmenPanel data={story.cross.pemetaan} mode={story.mode} />}
     {story.mode !== 'sdgs' && story.cross.pemetaan && <TagTemaManual tema={story.cross.pemetaan.rows} mode={story.mode} filter={{ year_from: story.filters.year_from as string, year_to: story.filters.year_to as string, units: story.filters.units as string[] }} onChanged={onDataChanged} />}
@@ -159,6 +159,14 @@ const analysisSections: AnalysisDef[] = [
 ];
 const routeTitle = { dampak: 'Dampak', 'dampak-sdgs': 'Dampak × SDGs', sdgs: 'SDGs' } as const;
 const defaultFilters = (metadata: Metadata): FilterState => ({ ...emptyFilters, yearFrom: metadata.years.min, yearTo: metadata.years.max });
+
+/** Hash bertingkat dari rail: '#dampak-ekonomi' = bagian 'dampak' + pilar 'Ekonomi'. */
+const PILAR_HASH: Record<string, string> = { lingkungan: 'Lingkungan', ekonomi: 'Ekonomi', sosial: 'Sosial' };
+function parseHashPilar(hash: string): { bagian: string; pilar: string } {
+  const segmen = hash.slice(1).split('-');
+  const pilar = PILAR_HASH[segmen[segmen.length - 1]] ?? '';
+  return { bagian: pilar ? segmen.slice(0, -1).join('-') : hash.slice(1), pilar };
+}
 
 /** "2026-09-15T00:44:34+00:00" -> "15 September 2026". */
 function tanggalData(nilai: unknown): string {
@@ -203,7 +211,7 @@ function ChapterIntro({ id, number, title, description, children }: { id?: strin
   return <section className="chapter-intro" id={id} aria-labelledby={titleId}><div className="chapter-intro__inner"><p className="chapter-intro__number">{number}</p><div className="chapter-intro__rule" aria-hidden="true" /><h2 id={titleId}>{title}</h2><p className="chapter-intro__description">{description}</p>{children}</div></section>;
 }
 
-function AnalysisScene({ def, metadata, metadataError, seeded, seedKey, tint }: { def: AnalysisDef; metadata: Metadata | null; metadataError: string; seeded: boolean; seedKey: string; tint: boolean }) {
+function AnalysisScene({ def, metadata, metadataError, seeded, seedKey, tint, pillarFromHash }: { def: AnalysisDef; metadata: Metadata | null; metadataError: string; seeded: boolean; seedKey: string; tint: boolean; pillarFromHash?: string }) {
   const ref = useRef<HTMLElement>(null);
   const seen = useInView(ref);
   const active = seen || seeded;
@@ -211,10 +219,21 @@ function AnalysisScene({ def, metadata, metadataError, seeded, seedKey, tint }: 
   const [story, setStory] = useState<Story | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [pillar, setPillar] = useState('Lingkungan');
+  const [pillar, setPillar] = useState(pillarFromHash ?? 'Lingkungan');
   const [topic, setTopic] = useState('');
   // Naik setiap data berubah dari dalam bagian ini (mis. tag SDG manual) supaya story dimuat ulang.
   const [versi, setVersi] = useState(0);
+  // Sub-bullet pilar di rail menulis hash bertingkat (#dampak-ekonomi): terapkan sebagai pilar
+  // terpilih, lalu gulir ke detailnya setelah data siap (lihat efek di bawah).
+  useEffect(() => { if (pillarFromHash) { setPillar(pillarFromHash); setTopic(''); } }, [pillarFromHash, seedKey]);
+  // Gulir ke "Detail dampak" setelah story untuk pilar dari hash benar-benar termuat:
+  // section ini bisa baru dimuat lazy (useInView) dan tingginya berubah saat data datang,
+  // jadi scroll menunggu loading selesai + satu tick render.
+  useEffect(() => {
+    if (!pillarFromHash || !story || loading || story.pillar_detail?.pillar !== pillarFromHash) return;
+    const timer = window.setTimeout(() => document.getElementById(`${def.id}-detail`)?.scrollIntoView({ block: 'start' }), 80);
+    return () => window.clearTimeout(timer);
+  }, [pillarFromHash, story, loading, def.id, seedKey]);
   useEffect(() => { if (metadata) setFilters(seeded ? queryFilters(metadata) : defaultFilters(metadata)); }, [metadata, seeded, seedKey]);
   useEffect(() => {
     if (!active || !metadata || !filters.yearFrom) return;
@@ -230,7 +249,7 @@ function AnalysisScene({ def, metadata, metadataError, seeded, seedKey, tint }: 
     <header className="story-scene__header"><p className={`eyebrow eyebrow--${def.accent}`}><img src={assetUrl(`logo/${def.icon}`)} alt="" />{def.eyebrow}</p><h2 id={`${def.id}-title`}>{def.title}</h2><p className="story-scene__deck">{def.caption}</p></header>
     {failure ? <Notice type="error">{failure}</Notice> : !active || !metadata ? <div className="loading loading--scene" role="status">Bagian ini dimuat saat Anda menggulir ke sini...</div> : <>
       <Filters metadata={metadata} value={filters} onChange={setFilters} sdgMode={!!def.sdgMode} idPrefix={def.id} syncUrl={seeded} />
-      {!story ? <div className="loading" role="status">Memuat hasil analisis...</div> : <><AnalyticsContent story={story} pillar={pillar} onPickPillar={value => { setPillar(value); setTopic(''); }} topic={topic} onTopic={setTopic} busy={loading} onDataChanged={() => setVersi(v => v + 1)} /><p className="footer-note">Data terakhir: {story.data_as_of ?? 'waktu pembaruan belum tersedia'}.</p></>}
+      {!story ? <div className="loading" role="status">Memuat hasil analisis...</div> : <><AnalyticsContent story={story} pillar={pillar} onPickPillar={value => { setPillar(value); setTopic(''); }} topic={topic} onTopic={setTopic} busy={loading} onDataChanged={() => setVersi(v => v + 1)} detailAnchorId={`${def.id}-detail`} /><p className="footer-note">Data terakhir: {story.data_as_of ?? 'waktu pembaruan belum tersedia'}.</p></>}
     </>}
   </div></section>;
 }
@@ -242,21 +261,25 @@ function ScrollReport({ target }: { target?: AnalysisDef['id'] }) {
   const [metadata, setMetadata] = useState<Metadata | null>(null);
   const [metadataError, setMetadataError] = useState('');
   useEffect(() => { getHomeSummary().then(setSummary).catch(e => setSummaryError(pesanMuat(e, 'Ringkasan data'))); getMetadata().then(setMetadata).catch(e => setMetadataError(pesanMuat(e, 'Metadata filter'))); }, []);
+  // Hash '#dampak-ekonomi' dari sub-bullet rail: bagian = scene tujuan, pilar diteruskan ke scene.
+  const { bagian: bagianHash, pilar: pilarHash } = parseHashPilar(location.hash);
   useEffect(() => {
-    const dariHash = location.hash ? location.hash.slice(1) : target;
+    const dariHash = location.hash ? bagianHash : target;
     const id = dariHash === 'metodologi' ? 'sumber' : dariHash;
     if (!id) { window.scrollTo(0, 0); return; }
+    // Hash bertingkat (#dampak-ekonomi): pemilihan pilar + scroll ke detail ditangani AnalysisScene.
+    if (pilarHash) return;
     // Instan, bukan smooth: bagian di antaranya dimuat lazy saat terlewati dan akan menggeser posisi tujuan.
     const timer = window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: 'start' }), 60);
     return () => window.clearTimeout(timer);
-  }, [location.key, location.hash, target]);
+  }, [location.key, location.hash, target, bagianHash, pilarHash]);
   return <AppShell><Hero summary={summary} error={summaryError} />
     <SumberSection />
     <ChapterIntro id="ringkasan" number="Bagian II" title="Tiga Jalur untuk Membaca Dampak" description="Setiap jalur memakai sumber dan metode yang berbeda. Pilih jalur yang paling sesuai dengan pertanyaan Anda, bukan sekadar grafik yang ingin dilihat.">
       <div className="route-grid">{analysisSections.map(def => <Link className={`route-card ${def.accent}`} to={{ pathname: '/dampak', hash: `#${def.id}` }} key={def.id}><div className="route-card-top"><img src={assetUrl(`logo/${def.icon}`)} alt="" /><span>{def.eyebrow}</span></div><h3>{routeTitle[def.id]}</h3><p>{def.description}</p><span className="route-action">Buka bagian ini <b aria-hidden="true">↓</b></span></Link>)}</div>
     </ChapterIntro>
     <ChapterIntro number="Bagian III" title="Analisis Data Berita" description="Tiap bagian punya filter sendiri. Angka, grafik, tabel, dan laporan Word mengikuti filter yang aktif." />
-    {analysisSections.map((def, index) => <AnalysisScene key={def.id} def={def} metadata={metadata} metadataError={metadataError} seeded={target === def.id} seedKey={location.key} tint={index % 2 === 1} />)}
+    {analysisSections.map((def, index) => <AnalysisScene key={def.id} def={def} metadata={metadata} metadataError={metadataError} seeded={target === def.id} seedKey={location.key} tint={index % 2 === 1} pillarFromHash={bagianHash === def.id && pilarHash ? pilarHash : undefined} />)}
   </AppShell>;
 }
 

@@ -167,11 +167,11 @@ function Bab({ chapter }: { chapter: Chapter }) {
  *  yang dimatching-kan ke tema Kepmen 361/M/KEP/2025. Tema resmi indikator ini =
  *  "Pendidikan dan Penelitian" (Dampak Lingkungan) — SEMUA MK substansial masuk di sana;
  *  kaitan ke tema lain berasal dari kriteria a-j yang tercantum di tema tersebut. */
-export function MataKuliahPanel({ blok, pillar }: { blok: MataKuliahBlok; pillar?: string }) {
+export function MataKuliahPanel({ blok, pillar, anchorId }: { blok: MataKuliahBlok; pillar?: string; anchorId?: string }) {
   if (!blok.tersedia) return null;
   const kosong = blok.metrics[0]?.value === 0 || blok.metrics[0]?.value === undefined;
   const sdg = blok.mode === 'sdg';
-  return <section className="story-block laporan-matkul" aria-label="Data mata kuliah terkait dampak">
+  return <section id={anchorId} className="story-block laporan-matkul" aria-label="Data mata kuliah terkait dampak">
     <div className="laporan-matkul__head">
       <div>
         <p className="section-kicker">Sumber data kedua (bukan berita)</p>

@@ -22,9 +22,17 @@ export const reportSections = [
 ];
 
 const reportSectionIds = reportSections.map(section => section.id);
+/** Sub-bullet pilar di rail: hash bertingkat seperti '#dampak-ekonomi' dipakai rail untuk
+ *  memilih pilar di dalam satu scene analisis (lihat railSubItems + AnalysisScene). */
+const PILLAR_HASH: Record<string, string> = { lingkungan: 'Lingkungan', ekonomi: 'Ekonomi', sosial: 'Sosial' };
+const isPillarHash = (hash: string) => {
+  const tail = hash.slice(1).split('-').pop() ?? '';
+  return tail in PILLAR_HASH;
+};
 /** Laporan hanya hidup di pathname '/dampak' (di balik login); '/' kini beranda/landing page. */
 // '#metodologi' = anchor lama bagian "Data & metodologi", kini digantikan bagian Sumber.
-const isReportLocation = (pathname: string, hash: string) => pathname === '/dampak' && (!hash || hash === '#metodologi' || reportSectionIds.some(id => `#${id}` === hash));
+const isReportLocation = (pathname: string, hash: string) => pathname === '/dampak'
+  && (!hash || hash === '#metodologi' || isPillarHash(hash) || reportSectionIds.some(id => `#${id}` === hash));
 /** Halaman-halaman milik portal Akreditasi -- dipakai untuk menentukan kapan chip akun & nav akreditasi tampil. */
 const accreditationPaths = ['/akreditasi', '/profil', '/admin'];
 
@@ -166,20 +174,66 @@ const railItems = [
 ];
 const railIds = railItems.map(item => item.id);
 
+type RailSub = { key: string; label: string } & ({ kind: 'pillar'; pillar: string } | { kind: 'scroll'; anchor: string });
+
+/** Sub-bullet per scene analisis: item rail yang mengembang saat bagian itu dibuka/aktif.
+ *  kind 'pillar' = menulis hash bertingkat (#dampak-ekonomi) yang diparsing AnalysisScene untuk
+ *  memilih pilar lalu menggulir ke detailnya; kind 'scroll' = gulir murni ke anchor blok. */
+const railSubItems: Record<string, RailSub[]> = {
+  dampak: [
+    { key: 'lingkungan', label: 'Lingkungan', kind: 'pillar', pillar: 'Lingkungan' },
+    { key: 'ekonomi', label: 'Ekonomi', kind: 'pillar', pillar: 'Ekonomi' },
+    { key: 'sosial', label: 'Sosial', kind: 'pillar', pillar: 'Sosial' },
+    { key: 'laporan', label: 'Laporan', kind: 'scroll', anchor: 'laporan-unduh-impact' },
+  ],
+  'dampak-sdgs': [
+    { key: 'lingkungan', label: 'Lingkungan', kind: 'pillar', pillar: 'Lingkungan' },
+    { key: 'ekonomi', label: 'Ekonomi', kind: 'pillar', pillar: 'Ekonomi' },
+    { key: 'sosial', label: 'Sosial', kind: 'pillar', pillar: 'Sosial' },
+    { key: 'laporan', label: 'Laporan', kind: 'scroll', anchor: 'laporan-unduh-impact-sdgs' },
+  ],
+  sdgs: [
+    { key: 'peta', label: 'Peta 17 SDG', kind: 'scroll', anchor: 'sdg-map-title' },
+    { key: 'matkul', label: 'Mata kuliah', kind: 'scroll', anchor: 'laporan-matkul-sdgs' },
+    { key: 'cek', label: 'Cek manual', kind: 'scroll', anchor: 'sdg-tag-title' },
+    { key: 'laporan', label: 'Laporan', kind: 'scroll', anchor: 'laporan-unduh-sdgs' },
+  ],
+};
+
+const scrollKe = (anchor: string) => document.getElementById(anchor)?.scrollIntoView({ block: 'start' });
+
 function SectionRail() {
   const location = useLocation();
-  const active = useActiveSection(location.pathname, railIds) || 'pembuka';
-  const activeIndex = railIds.indexOf(active);
+  const segmen = location.hash.slice(1).split('-');
+  const pilarHash = PILLAR_HASH[segmen[segmen.length - 1]] ?? '';
+  // Hash '#dampak-ekonomi' tetap berarti bagian 'dampak' untuk penanda posisi baca.
+  const bagianHash = pilarHash ? segmen.slice(0, -1).join('-') : location.hash.slice(1);
+  const scrollAktif = useActiveSection(location.pathname, railIds);
+  const active = (bagianHash && railIds.includes(bagianHash) ? bagianHash : scrollAktif) || 'pembuka';
+  const activeIndex = Math.max(0, railIds.indexOf(active));
+  const [buka, setBuka] = useState('');
+  // Sub-bullet yang tampil: milik bagian yang diklik, atau (bila belum ada yang diklik) milik bagian aktif.
+  const tampil = railSubItems[buka] ? buka : (railSubItems[active] ? active : '');
+  useEffect(() => { if (railSubItems[active] && !railSubItems[buka]) setBuka(active); }, [active, buka]);
   return <nav className="rail" aria-label="Peta laporan">
     <p className="rail__heading">Jelajahi laporan</p>
     <ol className="rail__list">
       {railItems.map((item, index) => {
-        const state = index === activeIndex ? 'is-active' : index < activeIndex ? 'is-past' : '';
+        const state = item.id === active ? 'is-active' : index < activeIndex ? 'is-past' : '';
+        const subs = railSubItems[item.id];
         return <li key={item.id} className={`rail__item ${state}`}>
-          <Link to={{ pathname: '/dampak', hash: `#${item.id}` }} aria-current={index === activeIndex ? 'location' : undefined} aria-label={`${item.caption}: ${item.title}`}>
+          <Link to={{ pathname: '/dampak', hash: `#${item.id}` }} aria-current={item.id === active ? 'location' : undefined} aria-label={`${item.caption}: ${item.title}`}
+            onClick={() => { if (subs) setBuka(item.id); }}>
             <span className="rail__label"><small>{item.caption}</small><strong>{item.title}</strong></span>
             <span className="rail__node" aria-hidden="true">{item.node}</span>
           </Link>
+          {subs && <ol className={`rail__subs ${tampil === item.id ? 'is-open' : ''}`} aria-label={`Lompat di dalam ${item.title}`}>
+            {subs.map(sub => <li key={sub.key}>
+              {sub.kind === 'pillar'
+                ? <Link to={{ pathname: '/dampak', hash: `#${item.id}-${sub.key}` }} className={pilarHash === sub.pillar && bagianHash === item.id ? 'is-on' : ''}>{sub.label}</Link>
+                : <button type="button" onClick={() => scrollKe(sub.anchor)}>{sub.label}</button>}
+            </li>)}
+          </ol>}
         </li>;
       })}
     </ol>

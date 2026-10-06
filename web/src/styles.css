@@ -485,6 +485,17 @@ td { line-height: 1.45; }
 @media (min-width: 1500px) { .rail__item.is-active .rail__label { opacity: 1; } }
 .rail__end { display: grid; width: 32px; min-height: 0; height: 28px; margin-top: 6px; place-items: center; border: 0; color: var(--text-muted); background: transparent; font-size: 1rem; cursor: pointer; }
 .rail__end:hover { color: var(--text-heading); }
+
+/* Sub-bullet mini di bawah node analisis (03/04/05): tersembunyi sampai bagiannya dibuka/aktif. */
+.rail__subs { display: none; margin: 0; padding: 0 0 6px; list-style: none; }
+.rail__subs.is-open { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.rail__subs a, .rail__subs button { display: block; padding: 3px 22px 3px 10px; border: 0; border-radius: 999px; color: var(--text-muted); background: transparent; font-size: .72rem; font-weight: 600; line-height: 1.4; text-align: right; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.rail__subs a::after, .rail__subs button::after { content: ""; position: absolute; right: 14px; top: 50%; width: 6px; height: 6px; border: 1.5px solid var(--border); border-radius: 50%; background: var(--surface-page); transform: translateY(-50%); }
+.rail__subs li { position: relative; }
+.rail__subs a:hover, .rail__subs button:hover, .rail__subs a:focus-visible, .rail__subs button:focus-visible { color: var(--text-heading); }
+.rail__subs a:hover::after, .rail__subs button:hover::after { border-color: var(--text-link); }
+.rail__subs a.is-on { color: var(--text-heading); font-weight: 800; }
+.rail__subs a.is-on::after { border-color: var(--chart-primary); background: var(--chart-primary); }
 @media (prefers-reduced-motion: reduce) { .rail__node, .rail__label { transition: none; } }
 @media print { .rail { display: none !important; } }
 
