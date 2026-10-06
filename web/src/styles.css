@@ -145,6 +145,26 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .cold-open { position: relative; display: flex; align-items: center; min-height: min(86vh, 760px); padding: clamp(48px, 9vw, 96px) 0; color: var(--text-on-dark); background: linear-gradient(90deg, rgba(3,14,24,.9) 0%, rgba(3,14,24,.72) 45%, rgba(3,14,24,.25) 100%), url('../public/hero_bg.jpg') center / cover no-repeat var(--surface-hero); }
 .cold-open--landing { background: linear-gradient(90deg, rgba(3,14,24,.9) 0%, rgba(3,14,24,.72) 45%, rgba(3,14,24,.25) 100%), url('../public/page-landing.jpg') center / cover no-repeat var(--surface-hero); }
 .cold-open__inner { width: min(var(--page-width), calc(100% - 32px)); margin: 0 auto; }
+
+/* Beranda satu layar: header + hero + footer mengisi tinggi layar, hero mengambil sisanya, dan
+   pilihan portal berupa dua kartu ringkas di dalam hero (tidak perlu scroll di desktop). */
+.site--landing { display: flex; flex-direction: column; min-height: 100svh; }
+.site--landing main { display: flex; flex: 1; flex-direction: column; }
+.cold-open.landing { flex: 1; align-items: stretch; min-height: 0; padding: clamp(24px, 5vh, 56px) 0 clamp(20px, 4vh, 40px); }
+/* Judul, paragraf, dan kartu satu blok di tengah hero secara vertikal; kartu selebar paragraf. */
+.landing .cold-open__inner { display: flex; flex-direction: column; justify-content: center; }
+.landing h1 { margin-bottom: 10px; }
+.landing .cold-open__statement { font-size: 1rem; line-height: 1.6; }
+.landing .landing__pilih { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; width: 100%; max-width: 720px; margin-top: clamp(22px, 4vh, 34px); }
+/* Selektor ganda (.route-card.route-card--ringkas) supaya menang atas aturan .route-card di bawah. */
+.route-card.route-card--ringkas { min-height: 0; padding: 12px 14px; border-top-width: 3px; border-radius: 10px; }
+.route-card.route-card--ringkas .route-card-top { justify-content: flex-start; }
+.route-card.route-card--ringkas .route-card-top img { width: 28px; height: 28px; padding: 3px; border-radius: 7px; }
+.route-card.route-card--ringkas .route-card-top span { display: none; }
+.route-card.route-card--ringkas h3 { margin: 8px 0 2px; font-size: 1.02rem; }
+.route-card.route-card--ringkas p { font-size: .8rem; line-height: 1.45; }
+.route-card.route-card--ringkas .route-action { padding-top: 8px; font-size: .84rem; }
+@media (max-width: 640px) { .landing .landing__pilih { grid-template-columns: 1fr; } }
 .cold-open__inner > * { max-width: 720px; }
 .eyebrow { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .cold-open .eyebrow { color: var(--text-on-dark-muted); }
@@ -487,13 +507,15 @@ td { line-height: 1.45; }
 /* Sub-bullet mini di bawah node analisis (03/04/05): tersembunyi sampai bagiannya dibuka/aktif. */
 .rail__subs { display: none; margin: 0; padding: 0 0 6px; list-style: none; }
 .rail__subs.is-open { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-.rail__subs a, .rail__subs button { display: block; padding: 3px 22px 3px 10px; border: 0; border-radius: 999px; color: var(--text-muted); background: transparent; font-size: .72rem; font-weight: 600; line-height: 1.4; text-align: right; text-decoration: none; white-space: nowrap; cursor: pointer; }
-.rail__subs a::after, .rail__subs button::after { content: ""; position: absolute; right: 14px; top: 50%; width: 6px; height: 6px; border: 1.5px solid var(--border); border-radius: 50%; background: var(--surface-page); transform: translateY(-50%); }
+.rail__subs a, .rail__subs button { display: block; padding: 3px 30px 3px 10px; border: 0; border-radius: 999px; color: var(--text-muted); background: transparent; font-size: .72rem; font-weight: 600; line-height: 1.4; text-align: right; text-decoration: none; white-space: nowrap; cursor: pointer; }
+/* Titik 8px berpusat tepat di garis rail (garis 2px di right: 15px, pusatnya 16px dari kanan);
+   teks berhenti 30px dari kanan supaya tidak menyentuh titik maupun garis. */
+.rail__subs a::after, .rail__subs button::after { content: ""; position: absolute; right: 12px; top: 50%; box-sizing: border-box; width: 8px; height: 8px; border: 1.5px solid var(--border); border-radius: 50%; background: var(--surface-page); transform: translateY(-50%); }
 .rail__subs li { position: relative; }
 .rail__subs a:hover, .rail__subs button:hover, .rail__subs a:focus-visible, .rail__subs button:focus-visible { color: var(--text-heading); }
 .rail__subs a:hover::after, .rail__subs button:hover::after { border-color: var(--text-link); }
-.rail__subs a.is-on { color: var(--text-heading); font-weight: 800; }
-.rail__subs a.is-on::after { border-color: var(--chart-primary); background: var(--chart-primary); }
+.rail__subs .is-on { color: var(--text-heading); font-weight: 800; }
+.rail__subs .is-on::after { border-color: var(--chart-primary); background: var(--chart-primary); }
 @media (prefers-reduced-motion: reduce) { .rail__node, .rail__label { transition: none; } }
 @media print { .rail { display: none !important; } }
 

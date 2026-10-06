@@ -180,8 +180,8 @@ export function MataKuliahPanel({ blok, pillar, anchorId }: { blok: MataKuliahBl
       <span className="laporan-matkul__badge" title="Angka indikator resmi Kepmen (MK unik berstatus Substansial)">{fmtValue(blok.n_mk_unik)} MK indikator resmi</span>
     </div>
     <Insight label="Dari mana angka ini">
-      Kurasi kurikulum UGM (Deskripsi Matkul Kepmen.csv): {fmtValue(blok.total_penawaran)} baris penawaran
-      mata kuliah. Indikator resmi Kepmen untuk kurikulum hanya satu: <em>jumlah mata kuliah yang memuat
+      Kurasi kurikulum UGM (Deskripsi Matkul Kepmen.csv): {fmtValue(blok.total_penawaran)} MK ditawarkan
+      (MK yang sama di beberapa prodi dihitung per prodi). Indikator resmi Kepmen untuk kurikulum hanya satu: <em>jumlah mata kuliah yang memuat
       materi sustainability dan biodiversitas</em> (tema 4.5, Dampak Lingkungan) ={" "}
       <strong>{fmtValue(blok.n_mk_unik)} MK unik</strong> berstatus Substansial.{" "}
       {sdg

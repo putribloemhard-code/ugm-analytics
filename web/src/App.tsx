@@ -245,7 +245,8 @@ function AnalysisScene({ def, metadata, metadataError, seeded, seedKey, tint, pi
     return () => { cancelled = true; };
   }, [active, metadata, filters, def.mode, pillar, topic, versi]);
   const failure = metadataError || error;
-  return <section ref={ref} id={def.id} className={`story-scene ${tint ? 'story-scene--tint' : ''}`} aria-labelledby={`${def.id}-title`}><div className="story-scene__inner">
+  // data-pilar: dibaca rail (SectionRail) untuk menandai sub-bullet pilar yang sedang tampil.
+  return <section ref={ref} id={def.id} data-pilar={pillar} className={`story-scene ${tint ? 'story-scene--tint' : ''}`} aria-labelledby={`${def.id}-title`}><div className="story-scene__inner">
     <header className="story-scene__header"><p className={`eyebrow eyebrow--${def.accent}`}><img src={assetUrl(`logo/${def.icon}`)} alt="" />{def.eyebrow}</p><h2 id={`${def.id}-title`}>{def.title}</h2><p className="story-scene__deck">{def.caption}</p></header>
     {failure ? <Notice type="error">{failure}</Notice> : !active || !metadata ? <div className="loading loading--scene" role="status">Bagian ini dimuat saat Anda menggulir ke sini...</div> : <>
       <Filters metadata={metadata} value={filters} onChange={setFilters} sdgMode={!!def.sdgMode} idPrefix={def.id} syncUrl={seeded} />
@@ -285,28 +286,25 @@ function ScrollReport({ target }: { target?: AnalysisDef['id'] }) {
 
 function LandingPage() {
   return <AppShell>
-    <section className="cold-open cold-open--landing" aria-labelledby="landing-title"><div className="cold-open__inner">
+    {/* Satu layar tanpa scroll: pilihan portal ada di dalam hero, tepat di bawah judul. */}
+    <section className="cold-open cold-open--landing landing" aria-labelledby="landing-title"><div className="cold-open__inner">
       <p className="eyebrow">Universitas Gadjah Mada</p>
       <h1 id="landing-title">UGM <span>Analytics</span></h1>
-      <p className="cold-open__statement">Satu pintu untuk dua layanan: membaca jejak dampak sosial, ekonomi, dan lingkungan UGM lewat pemberitaan publik dan kerangka SDGs, serta mengelola kelengkapan data akreditasi Program Studi (LED & LKPS). Pilih salah satu untuk memulai.</p>
-      <a className="cold-open__continue" href="#pilihan">Pilih menu untuk mulai <span aria-hidden="true">↓</span></a>
-    </div></section>
-    <ChapterIntro id="pilihan" number="Mulai dari sini" title="Pilih Jalur Anda" description="Analisis Dampak dan Akreditasi memakai akun masing-masing yang terpisah. Anda akan diminta masuk atau daftar akun saat membuka salah satu di bawah.">
-      <div className="route-grid route-grid--pair">
-        <Link className="route-card green" to="/dampak">
+      <p className="cold-open__statement">Satu pintu untuk dua layanan: membaca jejak dampak sosial, ekonomi, dan lingkungan UGM lewat pemberitaan publik dan kerangka SDGs, serta mengelola kelengkapan data akreditasi Program Studi (LED & LKPS).</p>
+      <div className="landing__pilih" aria-label="Pilih layanan">
+        <Link className="route-card route-card--ringkas green" to="/dampak">
           <div className="route-card-top"><img src={assetUrl('logo/dampak.png')} alt="" /><span>Analisis data</span></div>
           <h3>Analisis Dampak</h3>
-          <p>Telaah dampak Lingkungan, Ekonomi, dan Sosial UGM lewat pemberitaan publik dan kerangka SDGs resmi Kepmen 361/M/KEP/2025.</p>
+          <p>Dampak Lingkungan, Ekonomi, dan Sosial UGM dari pemberitaan publik dan SDGs (Kepmen 361/M/KEP/2025).</p>
           <span className="route-action">Buka Analisis Dampak <b aria-hidden="true">→</b></span>
         </Link>
-        <Link className="route-card orange" to="/akreditasi">
+        <Link className="route-card route-card--ringkas orange" to="/akreditasi">
           <div className="route-card-top"><img src={assetUrl('logo/certificate.png')} alt="" /><span>Akreditasi</span></div>
           <h3>Portal Akreditasi</h3>
-          <p>Kelola kelengkapan data LED & LKPS, ekstrak dokumen pendukung, dan susun laporan akreditasi Program Studi.</p>
+          <p>Kelengkapan data LED & LKPS, ekstraksi dokumen pendukung, dan laporan akreditasi Program Studi.</p>
           <span className="route-action">Buka Akreditasi <b aria-hidden="true">→</b></span>
         </Link>
-      </div>
-    </ChapterIntro>
+      </div>    </div></section>
   </AppShell>;
 }
 

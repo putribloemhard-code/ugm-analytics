@@ -186,7 +186,29 @@ const railSubItems: Record<string, RailSub[]> = {
   ],
 };
 
-const scrollKe = (anchor: string) => document.getElementById(anchor)?.scrollIntoView({ block: 'start' });
+/** Gulir ke `anchor`. Blok di dalam scene analisis baru dirender setelah scene-nya terlihat dan
+ *  datanya termuat (useInView + fetch), jadi anchor bisa belum ada saat diklik: gulir dulu ke
+ *  `bagian` (memicu pemuatan), lalu tunggu anchor muncul dan gulir lagi. Satu gulir ulang setelah
+ *  jeda kecil menyesuaikan posisi bila tinggi blok di atasnya masih berubah. */
+let batalTunggu: (() => void) | null = null;
+function scrollKe(anchor: string, bagian: string) {
+  batalTunggu?.();
+  const gulir = (el: HTMLElement) => {
+    el.scrollIntoView({ block: 'start' });
+    window.setTimeout(() => el.isConnected && el.scrollIntoView({ block: 'start' }), 350);
+  };
+  const ada = document.getElementById(anchor);
+  if (ada) { gulir(ada); return; }
+  document.getElementById(bagian)?.scrollIntoView({ block: 'start' });
+  const amati = new MutationObserver(() => {
+    const el = document.getElementById(anchor);
+    if (el) { selesai(); gulir(el); }
+  });
+  const batas = window.setTimeout(() => selesai(), 10000);
+  const selesai = () => { amati.disconnect(); window.clearTimeout(batas); batalTunggu = null; };
+  batalTunggu = selesai;
+  amati.observe(document.getElementById('main-content') ?? document.body, { childList: true, subtree: true });
+}
 
 function SectionRail() {
   const location = useLocation();
@@ -201,6 +223,42 @@ function SectionRail() {
   // Sub-bullet yang tampil: milik bagian yang diklik, atau (bila belum ada yang diklik) milik bagian aktif.
   const tampil = railSubItems[buka] ? buka : (railSubItems[active] ? active : '');
   useEffect(() => { if (railSubItems[active] && !railSubItems[buka]) setBuka(active); }, [active, buka]);
+  // Sub-bullet yang terakhir dipilih ("dampak:laporan"). Tombol gulir (Laporan, Peta SDG, ...) tidak
+  // mengubah hash, jadi penandanya disimpan di state; hash pilar (#dampak-sosial) ikut mengisinya.
+  const [subAktif, setSubAktif] = useState('');
+  useEffect(() => { if (pilarHash) setSubAktif(`${bagianHash}:${pilarHash.toLowerCase()}`); }, [location.key, pilarHash, bagianHash]);
+  // Ikuti posisi gulir: sub-bullet aktif = target terakhir yang sudah melewati 30% atas layar.
+  // Target pilar = blok "Detail dampak", dan hanya untuk pilar yang sedang dipilih di scene itu
+  // (atribut data-pilar); bila pilar berganti tanpa scroll, MutationObserver menghitung ulang.
+  useEffect(() => {
+    const subs = railSubItems[tampil];
+    if (!subs) return;
+    let raf = 0;
+    const hitung = () => {
+      raf = 0;
+      const scene = document.getElementById(tampil);
+      const batas = window.innerHeight * 0.3;
+      const diDasar = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+      let pilih = '';
+      let terdekat = -Infinity;
+      for (const sub of subs) {
+        if (sub.kind === 'pillar' && scene?.dataset.pilar !== sub.pillar) continue;
+        const el = document.getElementById(sub.kind === 'pillar' ? `${tampil}-detail` : sub.anchor);
+        if (!el) continue;
+        const atas = el.getBoundingClientRect().top;
+        // Blok terakhir di dasar halaman tidak bisa naik ke 30% atas; anggap terlewati bila terlihat.
+        const lewat = atas <= batas || (diDasar && atas < window.innerHeight);
+        if (lewat && atas > terdekat) { terdekat = atas; pilih = `${tampil}:${sub.key}`; }
+      }
+      setSubAktif(pilih);
+    };
+    const jadwal = () => { if (!raf) raf = requestAnimationFrame(hitung); };
+    window.addEventListener('scroll', jadwal, { passive: true });
+    const scene = document.getElementById(tampil);
+    const amati = new MutationObserver(jadwal);
+    if (scene) amati.observe(scene, { attributes: true, attributeFilter: ['data-pilar'] });
+    return () => { window.removeEventListener('scroll', jadwal); amati.disconnect(); cancelAnimationFrame(raf); };
+  }, [tampil]);
   return <nav className="rail" aria-label="Peta laporan">
     <p className="rail__heading">Jelajahi laporan</p>
     <ol className="rail__list">
@@ -216,8 +274,12 @@ function SectionRail() {
           {subs && <ol className={`rail__subs ${tampil === item.id ? 'is-open' : ''}`} aria-label={`Lompat di dalam ${item.title}`}>
             {subs.map(sub => <li key={sub.key}>
               {sub.kind === 'pillar'
-                ? <Link to={{ pathname: '/dampak', hash: `#${item.id}-${sub.key}` }} className={pilarHash === sub.pillar && bagianHash === item.id ? 'is-on' : ''}>{sub.label}</Link>
-                : <button type="button" onClick={() => scrollKe(sub.anchor)}>{sub.label}</button>}
+                // Gulir langsung ke detail pilar yang sudah tampil; AnalysisScene menggulir lagi
+                // setelah data pilar baru selesai dimuat.
+                ? <Link to={{ pathname: '/dampak', hash: `#${item.id}-${sub.key}` }} className={subAktif === `${item.id}:${sub.key}` ? 'is-on' : ''} aria-current={subAktif === `${item.id}:${sub.key}` ? 'location' : undefined}
+                    onClick={() => { setSubAktif(`${item.id}:${sub.key}`); scrollKe(`${item.id}-detail`, item.id); }}>{sub.label}</Link>
+                : <button type="button" className={subAktif === `${item.id}:${sub.key}` ? 'is-on' : ''} aria-current={subAktif === `${item.id}:${sub.key}` ? 'location' : undefined}
+                    onClick={() => { setSubAktif(`${item.id}:${sub.key}`); scrollKe(sub.anchor, item.id); }}>{sub.label}</button>}
             </li>)}
           </ol>}
         </li>;
@@ -236,5 +298,5 @@ export function SiteShell({ children, plain }: { children: ReactNode; plain?: bo
   // Akreditasi, Profil, dan Admin punya navigasi sendiri sehingga rail di kanan justru mengganggu.
   const { pathname, hash } = useLocation();
   const onReport = !plain && isReportLocation(pathname, hash);
-  return <div className="site"><a className="skip-link" href="#main-content">Lewati ke konten utama</a><SiteHeader />{onReport && <SectionRail />}<main id="main-content">{children}</main><SiteFooter /></div>;
+  return <div className={`site ${pathname === '/' ? 'site--landing' : ''}`}><a className="skip-link" href="#main-content">Lewati ke konten utama</a><SiteHeader />{onReport && <SectionRail />}<main id="main-content">{children}</main><SiteFooter /></div>;
 }

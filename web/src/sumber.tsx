@@ -102,7 +102,7 @@ function Diagram({ data }: { data: SumberData }) {
         </Jalur>
         {mk.tersedia
           ? <Jalur nomor="02" nama="Mata kuliah" sumber="Web kurikulum publik tiap program studi (lebih dari 20 situs), dikurasi ke satu berkas"
-            fakta={[`${fmt(mk.prodi)} program studi`, `${fmt(mk.fakultas)} fakultas/sekolah`, `${fmt(mk.baris)} baris penawaran`]}
+            fakta={[`${fmt(mk.prodi)} program studi`, `${fmt(mk.fakultas)} fakultas/sekolah`, `${fmt(mk.baris)} MK ditawarkan`, `${fmt(mk.mk_unik)} MK unik`]}
             catatan={`Dihitung per MK unik. ${fmt(mk.indikator_resmi)} MK di antaranya indikator resmi Kepmen (tema 4.5).`}>
             <RasioDampak diambil={mk.mk_unik} berdampak={mk.berdampak} satuan="MK" label="Mata kuliah diambil" />
             <PerDampak data={mk.per_pilar} dari={mk.berdampak} satuan="MK"

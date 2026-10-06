@@ -260,7 +260,7 @@ def _unit_analisis(lap: _Laporan, story: dict[str, Any], sumber: dict[str, Any] 
                       f"{b.get('tahun_awal', '')}–{b.get('tahun_akhir', '')}"])
     if mk.get("tersedia"):
         baris.append(["Mata kuliah (web program studi)",
-                      f"{ang(mk.get('baris', 0))} baris penawaran dari {ang(mk.get('prodi', 0))} program studi dan "
+                      f"{ang(mk.get('baris', 0))} MK ditawarkan dari{ang(mk.get('prodi', 0))} program studi dan "
                       f"{ang(mk.get('fakultas', 0))} fakultas/sekolah; {ang(mk.get('mk_unik', 0))} MK unik",
                       "Kurikulum berjalan"])
     if baris:
