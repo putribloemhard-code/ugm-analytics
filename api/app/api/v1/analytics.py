@@ -603,6 +603,39 @@ def accreditation_save_item(item_id: str, payload: dict[str, Any], request: Requ
     return hasil
 
 
+@router.get("/accreditation/tabel/{item_id}/template")
+def accreditation_tabel_template(item_id: str, request: Request, api: AnalyticsService = Depends(service)):
+    """Template Excel kosong untuk satu isian tabel (format = akreditasi/format_tabel.json)."""
+    _auth_user(request, api)
+    from urllib.parse import quote
+    from app.services.accreditation_tabel import TabelError, buat_template
+    try:
+        isi, nama = buat_template(item_id)
+    except TabelError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    ascii_nama = nama.encode("ascii", "ignore").decode() or "format.xlsx"
+    return Response(
+        content=isi,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=\"{ascii_nama}\"; filename*=UTF-8''{quote(nama)}"},
+    )
+
+
+@router.post("/accreditation/tabel/{item_id}/baca")
+async def accreditation_tabel_baca(item_id: str, request: Request, laporan_id: int = Form(...),
+                                   file: UploadFile = File(...), api: AnalyticsService = Depends(service)):
+    """Baca baris data dari template yang sudah diisi. Tidak menyimpan: baris dikembalikan ke form,
+    pengguna memeriksa lalu menekan Simpan. File untuk tabel lain ditolak (lihat accreditation_tabel)."""
+    _auth_user(request, api)
+    _laporan_terbuka(request, api, laporan_id)
+    from app.services.accreditation_tabel import MAX_UKURAN, TabelError, baca_upload
+    data = await file.read(MAX_UKURAN + 1)
+    try:
+        return baca_upload(item_id, data)
+    except TabelError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/accreditation/workspace/final")
 def accreditation_item_final(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
     """Tandai / batalkan status final bagian laporan saat review dokumen (satu item atau daftar item)."""

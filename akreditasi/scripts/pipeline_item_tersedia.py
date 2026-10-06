@@ -161,11 +161,12 @@ def kumpulkan_status_akreditasi(now: datetime) -> list[tuple]:
             continue
         peringkat = m2.group(2).replace("-", " ")
         tahun_mulai, tahun_akhir = m2.group(3), m2.group(4)
+        # Nama kolom = kolom isian (akreditasi/format_tabel.json, tabel tanpa nomor LKPS).
         vals = {
             "Jenis Program": jenjang,
-            "Nama PS": nama_bidang,
-            "Status/Peringkat": peringkat,
-            "Tanggal Kadaluarsa": f"{tahun_akhir} (masa berlaku {tahun_mulai}-{tahun_akhir})",
+            "Nama Program Studi": nama_bidang,
+            "Akreditasi Program Studi – Status/Peringkat": peringkat,
+            "Akreditasi Program Studi – Tgl. Kedaluwarsa": f"{tahun_akhir} (masa berlaku {tahun_mulai}-{tahun_akhir})",
         }
         for kolom, nilai in vals.items():
             rows.append(("status_akreditasi_seluruh_ps", baris, kolom, nilai, url, now))
@@ -218,7 +219,8 @@ def kumpulkan_lkps_2_b_1(now: datetime) -> list[tuple]:
             sks = str(row.get("SKS", "")).strip()
             sem = str(row.get("Sem", row.get("Semester", ""))).strip()
             jenis = str(row.get("Jenis", "Pilihan" if "Jenis" not in df.columns else row.get("Jenis", ""))).strip()
-            vals = {"Kode MK": kode, "Nama MK": nama, "SKS": sks, "Semester Penawaran": sem}
+            # Nama kolom = kolom isian Tabel 2.B.1 (akreditasi/format_tabel.json).
+            vals = {"Kode": kode, "Mata Kuliah": nama, "SKS": sks, "Semester": sem}
             if jenis and jenis.lower() != "nan":
                 # LABEL DIPERBAIKI 2026-09-11: field ini cuma status Wajib
                 # (MKW)/Pilihan dari tabel kurikulum -- BUKAN "Domain KKNI"
@@ -234,6 +236,16 @@ def kumpulkan_lkps_2_b_1(now: datetime) -> list[tuple]:
 
 
 def kumpulkan_lkps_6(now: datetime) -> list[tuple]:
+    """Tabel 6 format resmi = satu baris: Visi PT | Visi UPPS | Visi Keilmuan PS
+    (akreditasi/format_tabel.json). Teks misi tidak punya kolom di format itu, jadi tidak ditulis."""
+    kolom_level = {1: "Visi PT", 2: "Visi UPPS", 3: "Visi Keilmuan PS"}
+    return [(item_id, 1, kolom_level[baris], nilai, url, waktu)
+            for item_id, baris, kolom, nilai, url, waktu in _kumpulkan_lkps_6_per_level(now)
+            if kolom == "Teks Visi"]
+
+
+def _kumpulkan_lkps_6_per_level(now: datetime) -> list[tuple]:
+    """Baris per level (1=PT, 2=UPPS, 3=PS) seperti format lama; diputar oleh kumpulkan_lkps_6."""
     rows = []
     r = _get(URL_UGM_VISIMISI)
     if r:

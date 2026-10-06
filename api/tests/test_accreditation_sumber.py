@@ -39,9 +39,10 @@ def live(engine):  # noqa: F811
 
 
 def test_status_mengikuti_peta_sumber_bukan_registry():
-    # 61 item di peta: 5 tersedia, 41 akses data, 15 perlu disusun tim (lihat data_source_map.json).
+    # 100 item di peta: 5 tersedia, 41 akses data, 54 perlu disusun tim (15 narasi + 39 tabel LED
+    # C1.1-C6.6 yang ditambahkan 2026-10-06 dari format_tabel.json; lihat data_source_map.json).
     kategori = [sumber.kategori(i) for i in sumber.peta()]
-    assert (kategori.count("tersedia"), kategori.count("akses_data"), kategori.count("penyusunan")) == (5, 41, 15)
+    assert (kategori.count("tersedia"), kategori.count("akses_data"), kategori.count("penyusunan")) == (5, 41, 54)
     assert sumber.kategori("lkps_6") == "tersedia" and sumber.info_item("lkps_6")["sumber_asli"]
 
 

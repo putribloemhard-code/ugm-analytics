@@ -1,0 +1,1815 @@
+{
+ "_readme": "Format tabel isian LED/LKPS: SATU acuan untuk kolom form (registry), template Excel unduhan, dan upload data. Disusun dari header 80 file di akreditasi/docs/tabel_xlsx (artefak PDF & data contoh prodi dibuang). Kolom 'Grup > Sub' = header bertingkat; nama kolom di form = bagiannya digabung ' – '. nomor=true: template punya kolom No. (diabaikan saat upload). kolom_lama: nama kolom registry sebelum 2026-10-06 -> kolom baru (dipakai migrasi_kolom_tabel.py). baru: isian yang ditambahkan (tabel LED C1.1-C6.6).",
+ "tabel": [
+  {
+   "kode": "C1.1",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c1_1",
+   "judul": "Indikator sistem tata kelola UPPS terkait administrasi akademik",
+   "nomor": true,
+   "kolom": [
+    "Referensi",
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C1.1",
+   "baru": {
+    "kriteria_led": "C1",
+    "nama": "Tabel C1.1 Indikator sistem tata kelola UPPS terkait administrasi akademik"
+   }
+  },
+  {
+   "kode": "C1.2",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c1_2",
+   "judul": "Indikator sistem tata kelola UPPS terkait administrasi akademik",
+   "nomor": true,
+   "kolom": [
+    "Referensi",
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C1.2",
+   "baru": {
+    "kriteria_led": "C1",
+    "nama": "Tabel C1.2 Indikator sistem tata kelola UPPS terkait administrasi akademik"
+   }
+  },
+  {
+   "kode": "C1.3",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c1_3",
+   "judul": "Indikator sistem tata kelola UPPS terkait administrasi SDM",
+   "nomor": true,
+   "kolom": [
+    "Referensi",
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C1.3",
+   "baru": {
+    "kriteria_led": "C1",
+    "nama": "Tabel C1.3 Indikator sistem tata kelola UPPS terkait administrasi SDM"
+   }
+  },
+  {
+   "kode": "C1.4",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c1_4",
+   "judul": "Indikator sistem tata kelola UPPS terkait administrasi aspek lainnya mencakup kerja sama dan pengelolaan sarana prasarana",
+   "nomor": true,
+   "kolom": [
+    "Referensi",
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C1.4",
+   "baru": {
+    "kriteria_led": "C1",
+    "nama": "Tabel C1.4 Indikator sistem tata kelola UPPS terkait administrasi aspek lainnya mencakup kerja sama dan pengelolaan sarana prasarana"
+   }
+  },
+  {
+   "kode": "C1.5",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c1_5",
+   "judul": "Indikator sistem tata kelola UPPS terkait fungsi SPMI Prodi",
+   "nomor": true,
+   "kolom": [
+    "Referensi",
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C1.5",
+   "baru": {
+    "kriteria_led": "C1",
+    "nama": "Tabel C1.5 Indikator sistem tata kelola UPPS terkait fungsi SPMI Prodi"
+   }
+  },
+  {
+   "kode": "C1.6",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c1_6",
+   "judul": "Indikator terkait SDM yang kompeten sebagai pelaksana SPMI Prodi",
+   "nomor": true,
+   "kolom": [
+    "Referensi",
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C1.6",
+   "baru": {
+    "kriteria_led": "C1",
+    "nama": "Tabel C1.6 Indikator terkait SDM yang kompeten sebagai pelaksana SPMI Prodi"
+   }
+  },
+  {
+   "kode": "C1.7",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c1_7",
+   "judul": "Pelaksanaan indikator sistem tata kelola UPPS terkait administrasi akademik",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Target > TS-2",
+    "Target > TS-1",
+    "Target > TS",
+    "Kinerja > TS-2",
+    "Kinerja > TS-1",
+    "Kinerja > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C1.7",
+   "baru": {
+    "kriteria_led": "C1",
+    "nama": "Tabel C1.7 Pelaksanaan indikator sistem tata kelola UPPS terkait administrasi akademik"
+   }
+  },
+  {
+   "kode": "C1.8",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c1_8",
+   "judul": "Pelaksanaan indikator sistem tata kelola UPPS terkait administrasi keuangan",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS",
+    "Capaian > TS-2",
+    "Capaian > TS-1",
+    "Capaian > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C1.8",
+   "baru": {
+    "kriteria_led": "C1",
+    "nama": "Tabel C1.8 Pelaksanaan indikator sistem tata kelola UPPS terkait administrasi keuangan"
+   }
+  },
+  {
+   "kode": "C1.9",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c1_9",
+   "judul": "Pelaksanaan indikator sistem tata kelola UPPS terkait administrasi SDM",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS",
+    "Capaian > TS-2",
+    "Capaian > TS-1",
+    "Capaian > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C1.9",
+   "baru": {
+    "kriteria_led": "C1",
+    "nama": "Tabel C1.9 Pelaksanaan indikator sistem tata kelola UPPS terkait administrasi SDM"
+   }
+  },
+  {
+   "kode": "C1.10",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c1_10",
+   "judul": "Pelaksanaan indikator sistem tata kelola UPPS terkait administrasi kerja sama, sarana dan prasarana",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS",
+    "Capaian > TS-2",
+    "Capaian > TS-1",
+    "Capaian > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C1.10",
+   "baru": {
+    "kriteria_led": "C1",
+    "nama": "Tabel C1.10 Pelaksanaan indikator sistem tata kelola UPPS terkait administrasi kerja sama, sarana dan prasarana"
+   }
+  },
+  {
+   "kode": "C1.11",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c1_11",
+   "judul": "Pelaksanaan indikator sistem tata kelola UPPS terkait SPMI",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS",
+    "Capaian/Kinerja > TS-2",
+    "Capaian/Kinerja > TS-1",
+    "Capaian/Kinerja > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C1.11",
+   "baru": {
+    "kriteria_led": "C1",
+    "nama": "Tabel C1.11 Pelaksanaan indikator sistem tata kelola UPPS terkait SPMI"
+   }
+  },
+  {
+   "kode": "C1.12",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c1_12",
+   "judul": "Pelaksanaan kebijakan, standar dan indikator terkait SDM kompeten sebagai pelaksana SPMI",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS",
+    "Capaian/Kinerja > TS-2",
+    "Capaian/Kinerja > TS-1",
+    "Capaian/Kinerja > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C1.12",
+   "baru": {
+    "kriteria_led": "C1",
+    "nama": "Tabel C1.12 Pelaksanaan kebijakan, standar dan indikator terkait SDM kompeten sebagai pelaksana SPMI"
+   }
+  },
+  {
+   "kode": "C2.1",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c2_1",
+   "judul": "Pemetaan CPL terhadap Spesifikasi KKNI level 8",
+   "nomor": true,
+   "kolom": [
+    "Spesifikasi KKNI",
+    "Capaian Pembelajaran Lulusan (CPL)"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C2.1",
+   "baru": {
+    "kriteria_led": "C2",
+    "nama": "Tabel C2.1 Pemetaan CPL terhadap Spesifikasi KKNI level 8"
+   }
+  },
+  {
+   "kode": "C2.2",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c2_2",
+   "judul": "Hasil evaluasi mandiri terkait sarana prasarana dan layanan akademik",
+   "nomor": false,
+   "kolom": [
+    "Parameter",
+    "TS-2 > Ganjil",
+    "TS-2 > Genap",
+    "TS-1 > Ganjil",
+    "TS-1 > Genap",
+    "TS > Ganjil"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C2.2",
+   "baru": {
+    "kriteria_led": "C2",
+    "nama": "Tabel C2.2 Hasil evaluasi mandiri terkait sarana prasarana dan layanan akademik"
+   }
+  },
+  {
+   "kode": "C2.3",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c2_3",
+   "judul": "Hasil kualitatif evaluasi mandiri terkait sarana prasarana",
+   "nomor": false,
+   "kolom": [
+    "Temuan",
+    "TS-2",
+    "TS-1",
+    "TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C2.3",
+   "baru": {
+    "kriteria_led": "C2",
+    "nama": "Tabel C2.3 Hasil kualitatif evaluasi mandiri terkait sarana prasarana"
+   }
+  },
+  {
+   "kode": "C3.1",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c3_1",
+   "judul": "Pilar strategis roadmap penelitian",
+   "nomor": false,
+   "kolom": [
+    "Pilar Strategis",
+    "Fokus Riset",
+    "Target Teknologi Utama"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C3.1",
+   "baru": {
+    "kriteria_led": "C3",
+    "nama": "Tabel C3.1 Pilar strategis roadmap penelitian"
+   }
+  },
+  {
+   "kode": "C3.2",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c3_2",
+   "judul": "Penetapan kebijakan, standar dan indikator terkait sarana dan prasarana penelitian, DTPR, pembiayaan penelitian, dan peta jalan penelitian",
+   "nomor": true,
+   "kolom": [
+    "Referensi/Kebijakan/Standar",
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C3.2",
+   "baru": {
+    "kriteria_led": "C3",
+    "nama": "Tabel C3.2 Penetapan kebijakan, standar dan indikator terkait sarana dan prasarana penelitian, DTPR, pembiayaan penelitian, dan peta jalan penelitian"
+   }
+  },
+  {
+   "kode": "C3.3",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c3_3",
+   "judul": "Penetapan kebijakan, standar, dan indikator terkait implementasi peta jalan penelitian, pelibatan mahasiswa, dan kebutuhan masyarakat serta DUDIKA",
+   "nomor": true,
+   "kolom": [
+    "Referensi/Kebijakan/Standar",
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C3.3",
+   "baru": {
+    "kriteria_led": "C3",
+    "nama": "Tabel C3.3 Penetapan kebijakan, standar, dan indikator terkait implementasi peta jalan penelitian, pelibatan mahasiswa, dan kebutuhan masyarakat serta DUDIKA"
+   }
+  },
+  {
+   "kode": "C3.4",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c3_4",
+   "judul": "Penetapan kebijakan, standar, dan indikator terkait perolehan hibah, kerja sama, publikasi, HKI, serta keberlanjutan penelitian",
+   "nomor": true,
+   "kolom": [
+    "Referensi/Kebijakan/Standar",
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C3.4",
+   "baru": {
+    "kriteria_led": "C3",
+    "nama": "Tabel C3.4 Penetapan kebijakan, standar, dan indikator terkait perolehan hibah, kerja sama, publikasi, HKI, serta keberlanjutan penelitian"
+   }
+  },
+  {
+   "kode": "C3.5",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c3_5",
+   "judul": "Pelaksanaan kebijakan, standar dan indikator terkait sarana dan prasarana penelitian, DTPR, pembiayaan penelitian, dan peta jalan penelitian",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS",
+    "Capaian Kinerja > TS-2",
+    "Capaian Kinerja > TS-1",
+    "Capaian Kinerja > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C3.5",
+   "baru": {
+    "kriteria_led": "C3",
+    "nama": "Tabel C3.5 Pelaksanaan kebijakan, standar dan indikator terkait sarana dan prasarana penelitian, DTPR, pembiayaan penelitian, dan peta jalan penelitian"
+   }
+  },
+  {
+   "kode": "C3.6",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c3_6",
+   "judul": "Pelaksanaan kebijakan, standar, dan indikator terkait implementasi peta jalan penelitian, pelibatan mahasiswa, dan kebutuhan masyarakat serta DUDIKA",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS",
+    "Capaian Kinerja > TS-2",
+    "Capaian Kinerja > TS-1",
+    "Capaian Kinerja > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C3.6",
+   "baru": {
+    "kriteria_led": "C3",
+    "nama": "Tabel C3.6 Pelaksanaan kebijakan, standar, dan indikator terkait implementasi peta jalan penelitian, pelibatan mahasiswa, dan kebutuhan masyarakat serta DUDIKA"
+   }
+  },
+  {
+   "kode": "C3.7",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c3_7",
+   "judul": "Pelaksanaan kebijakan, standar, dan indikator terkait perolehan hibah, kerja sama, publikasi, HKI, serta keberlanjutan penelitian",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS",
+    "Capaian Kinerja > TS-2",
+    "Capaian Kinerja > TS-1",
+    "Capaian Kinerja > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C3.7",
+   "baru": {
+    "kriteria_led": "C3",
+    "nama": "Tabel C3.7 Pelaksanaan kebijakan, standar, dan indikator terkait perolehan hibah, kerja sama, publikasi, HKI, serta keberlanjutan penelitian"
+   }
+  },
+  {
+   "kode": "C4.1",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c4_1",
+   "judul": "Penetapan kebijakan, standar dan indikator terkait sarana dan prasarana PkM, DTPR, pembiayaan PkM, dan peta jalan PkM",
+   "nomor": true,
+   "kolom": [
+    "Referensi",
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C4.1",
+   "baru": {
+    "kriteria_led": "C4",
+    "nama": "Tabel C4.1 Penetapan kebijakan, standar dan indikator terkait sarana dan prasarana PkM, DTPR, pembiayaan PkM, dan peta jalan PkM"
+   }
+  },
+  {
+   "kode": "C4.2",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c4_2",
+   "judul": "Penetapan kebijakan, standar dan indikator terkait implementasi peta jalan PkM, pelibatan mahasiswa, serta kebutuhan masyarakat dan DUDIKA",
+   "nomor": true,
+   "kolom": [
+    "Referensi",
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C4.2",
+   "baru": {
+    "kriteria_led": "C4",
+    "nama": "Tabel C4.2 Penetapan kebijakan, standar dan indikator terkait implementasi peta jalan PkM, pelibatan mahasiswa, serta kebutuhan masyarakat dan DUDIKA"
+   }
+  },
+  {
+   "kode": "C4.3",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c4_3",
+   "judul": "Penetapan kebijakan, standar, dan indikator terkait perolehan hibah PkM, kerja sama PkM, diseminasi, HKI, serta keberlanjutan PkM",
+   "nomor": true,
+   "kolom": [
+    "Referensi",
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C4.3",
+   "baru": {
+    "kriteria_led": "C4",
+    "nama": "Tabel C4.3 Penetapan kebijakan, standar, dan indikator terkait perolehan hibah PkM, kerja sama PkM, diseminasi, HKI, serta keberlanjutan PkM"
+   }
+  },
+  {
+   "kode": "C4.4",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c4_4",
+   "judul": "Pelaksanaan IKU terkait keberadaan sarana dan prasarana, kualifikasi DTPR, pembiayaan dan peta jalan PkM",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS",
+    "Capaian Kinerja > TS-2",
+    "Capaian Kinerja > TS-1",
+    "Capaian Kinerja > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C4.4",
+   "baru": {
+    "kriteria_led": "C4",
+    "nama": "Tabel C4.4 Pelaksanaan IKU terkait keberadaan sarana dan prasarana, kualifikasi DTPR, pembiayaan dan peta jalan PkM"
+   }
+  },
+  {
+   "kode": "C4.5",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c4_5",
+   "judul": "Pelaksanaan IKU terkait implementasi peta jalan PkM, pelibatan mahasiswa, serta kebutuhan masyarakat dan DUDIKA",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS",
+    "Capaian Kinerja > TS-2",
+    "Capaian Kinerja > TS-1",
+    "Capaian Kinerja > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C4.5",
+   "baru": {
+    "kriteria_led": "C4",
+    "nama": "Tabel C4.5 Pelaksanaan IKU terkait implementasi peta jalan PkM, pelibatan mahasiswa, serta kebutuhan masyarakat dan DUDIKA"
+   }
+  },
+  {
+   "kode": "C4.6",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c4_6",
+   "judul": "Pelaksanaan IKU terkait perolehan hibah PkM, kerja sama PkM, diseminasi, HKI, serta keberlanjutan PkM",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS",
+    "Capaian Kinerja > TS-2",
+    "Capaian Kinerja > TS-1",
+    "Capaian Kinerja > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C4.6",
+   "baru": {
+    "kriteria_led": "C4",
+    "nama": "Tabel C4.6 Pelaksanaan IKU terkait perolehan hibah PkM, kerja sama PkM, diseminasi, HKI, serta keberlanjutan PkM"
+   }
+  },
+  {
+   "kode": "C5.1",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c5_1",
+   "judul": "Indikator dan sasaran sistem tata kelola dan tata pamong",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Referensi Penetapan",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C5.1",
+   "baru": {
+    "kriteria_led": "C5",
+    "nama": "Tabel C5.1 Indikator dan sasaran sistem tata kelola dan tata pamong"
+   }
+  },
+  {
+   "kode": "C5.2",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c5_2",
+   "judul": "Standar mutu",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Referensi Penetapan",
+    "Standar/Target > TS-2",
+    "Standar/Target > TS-1",
+    "Standar/Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C5.2",
+   "baru": {
+    "kriteria_led": "C5",
+    "nama": "Tabel C5.2 Standar mutu"
+   }
+  },
+  {
+   "kode": "C5.3",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c5_3",
+   "judul": "Ketercapaian indikator sistem tata kelola dan tata pamong",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Sasaran/Target > TS-2",
+    "Sasaran/Target > TS-1",
+    "Sasaran/Target > TS",
+    "Kinerja > TS-2",
+    "Kinerja > TS-1",
+    "Kinerja > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C5.3",
+   "baru": {
+    "kriteria_led": "C5",
+    "nama": "Tabel C5.3 Ketercapaian indikator sistem tata kelola dan tata pamong"
+   }
+  },
+  {
+   "kode": "C5.4",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c5_4",
+   "judul": "Ketercapaian standar mutu",
+   "nomor": true,
+   "kolom": [
+    "Indikator",
+    "IKU/IKT",
+    "Standar/Target > TS-2",
+    "Standar/Target > TS-1",
+    "Standar/Target > TS",
+    "Kinerja > TS-2",
+    "Kinerja > TS-1",
+    "Kinerja > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C5.4",
+   "baru": {
+    "kriteria_led": "C5",
+    "nama": "Tabel C5.4 Ketercapaian standar mutu"
+   }
+  },
+  {
+   "kode": "C5.5",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c5_5",
+   "judul": "Efektivitas pelaksanaan audit mutu pemenuhan tupoksi tata kelola dan tata pamong",
+   "nomor": false,
+   "kolom": [
+    "Indeks Kepuasan per Semester (1-5)",
+    "TS-2 > Gasal",
+    "TS-2 > Genap",
+    "TS-1 > Gasal",
+    "TS-1 > Genap",
+    "TS > Gasal"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C5.5",
+   "baru": {
+    "kriteria_led": "C5",
+    "nama": "Tabel C5.5 Efektivitas pelaksanaan audit mutu pemenuhan tupoksi tata kelola dan tata pamong"
+   }
+  },
+  {
+   "kode": "C6.1",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c6_1",
+   "judul": "Indikator yang terkait dengan dokumen kebijakan dan standar VMTS",
+   "nomor": true,
+   "kolom": [
+    "Referensi",
+    "Indikator",
+    "IKU/IKT",
+    "Target > TS-2",
+    "Target > TS-1",
+    "Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C6.1",
+   "baru": {
+    "kriteria_led": "C6",
+    "nama": "Tabel C6.1 Indikator yang terkait dengan dokumen kebijakan dan standar VMTS"
+   }
+  },
+  {
+   "kode": "C6.2",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c6_2",
+   "judul": "Indikator rencana pengembangan strategis UPPS dan/atau PS",
+   "nomor": true,
+   "kolom": [
+    "Referensi",
+    "Indikator",
+    "IKU/IKT",
+    "Target > TS-2",
+    "Target > TS-1",
+    "Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C6.2",
+   "baru": {
+    "kriteria_led": "C6",
+    "nama": "Tabel C6.2 Indikator rencana pengembangan strategis UPPS dan/atau PS"
+   }
+  },
+  {
+   "kode": "C6.3",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c6_3",
+   "judul": "Indikator pengakuan/apresiasi oleh masyarakat dan DUDIKA",
+   "nomor": true,
+   "kolom": [
+    "Referensi",
+    "Indikator",
+    "IKU/IKT",
+    "Target > TS-2",
+    "Target > TS-1",
+    "Target > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C6.3",
+   "baru": {
+    "kriteria_led": "C6",
+    "nama": "Tabel C6.3 Indikator pengakuan/apresiasi oleh masyarakat dan DUDIKA"
+   }
+  },
+  {
+   "kode": "C6.4",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c6_4",
+   "judul": "Capaian indikator yang terkait dengan dokumen kebijakan dan standar VMTS",
+   "nomor": true,
+   "kolom": [
+    "Referensi",
+    "Indikator",
+    "IKU/IKT",
+    "Target > TS-2",
+    "Target > TS-1",
+    "Target > TS",
+    "Kinerja > TS-2",
+    "Kinerja > TS-1",
+    "Kinerja > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C6.4",
+   "baru": {
+    "kriteria_led": "C6",
+    "nama": "Tabel C6.4 Capaian indikator yang terkait dengan dokumen kebijakan dan standar VMTS"
+   }
+  },
+  {
+   "kode": "C6.5",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c6_5",
+   "judul": "Target dan capaian kinerja indikator terkait pelaksanaan rencana pengembangan strategis program studi",
+   "nomor": true,
+   "kolom": [
+    "Referensi",
+    "Indikator",
+    "IKU/IKT",
+    "Target > TS-2",
+    "Target > TS-1",
+    "Target > TS",
+    "Kinerja > TS-2",
+    "Kinerja > TS-1",
+    "Kinerja > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C6.5",
+   "baru": {
+    "kriteria_led": "C6",
+    "nama": "Tabel C6.5 Target dan capaian kinerja indikator terkait pelaksanaan rencana pengembangan strategis program studi"
+   }
+  },
+  {
+   "kode": "C6.6",
+   "dokumen": "LED",
+   "item_id": "led_tabel_c6_6",
+   "judul": "Target dan capaian kinerja indikator yang menunjukkan pengakuan dan apresiasi dari masyarakat serta DUDIKA",
+   "nomor": true,
+   "kolom": [
+    "Referensi",
+    "Indikator",
+    "IKU/IKT",
+    "Target > TS-2",
+    "Target > TS-1",
+    "Target > TS",
+    "Kinerja > TS-2",
+    "Kinerja > TS-1",
+    "Kinerja > TS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": "LED/C6.6",
+   "baru": {
+    "kriteria_led": "C6",
+    "nama": "Tabel C6.6 Target dan capaian kinerja indikator yang menunjukkan pengakuan dan apresiasi dari masyarakat serta DUDIKA"
+   }
+  },
+  {
+   "kode": "D1.1",
+   "dokumen": "LED",
+   "item_id": "lkps_d1",
+   "judul": "Mata Kuliah Inti Kekhasan Program Studi",
+   "nomor": true,
+   "kolom": [
+    "Kode MK",
+    "Nama Mata Kuliah",
+    "Status",
+    "SKS",
+    "Keterangan Kekhasan"
+   ],
+   "kolom_lama": {
+    "Kode MK": "Kode MK",
+    "Nama MK": "Nama Mata Kuliah",
+    "Status (Wajib/Pilihan)": "Status",
+    "SKS": "SKS",
+    "Alasan Kekhasan": "Keterangan Kekhasan"
+   },
+   "sumber_xlsx": "LED/D1.1"
+  },
+  {
+   "kode": "D2.1",
+   "dokumen": "LED",
+   "item_id": "lkps_d2",
+   "judul": "Mata Kuliah Domain/Sektor Spesifik",
+   "nomor": true,
+   "kolom": [
+    "Kode MK",
+    "Nama Mata Kuliah",
+    "Status",
+    "SKS",
+    "Domain Penerapan"
+   ],
+   "kolom_lama": {
+    "Kode MK": "Kode MK",
+    "Nama MK": "Nama Mata Kuliah",
+    "Status (Wajib/Pilihan)": "Status",
+    "SKS": "SKS",
+    "Sektor/Domain Penerapan": "Domain Penerapan"
+   },
+   "sumber_xlsx": "LED/D2.1"
+  },
+  {
+   "kode": "D3.1",
+   "dokumen": "LED",
+   "item_id": "lkps_d3",
+   "judul": "Mata Kuliah Metode Analisis",
+   "nomor": true,
+   "kolom": [
+    "Kode MK",
+    "Nama Mata Kuliah",
+    "Status",
+    "SKS",
+    "Metode Analisis"
+   ],
+   "kolom_lama": {
+    "Kode MK": "Kode MK",
+    "Nama MK": "Nama Mata Kuliah",
+    "Status (Wajib/Pilihan)": "Status",
+    "SKS": "SKS",
+    "Metode Analisis yang Didukung": "Metode Analisis"
+   },
+   "sumber_xlsx": "LED/D3.1"
+  },
+  {
+   "kode": "Tanpa Nomor",
+   "dokumen": "LED",
+   "item_id": "status_akreditasi_seluruh_ps",
+   "judul": "Daftar Program Studi di UPPS",
+   "nomor": true,
+   "kolom": [
+    "Jenis Program",
+    "Nama Program Studi",
+    "Akreditasi Program Studi > Status/Peringkat",
+    "Akreditasi Program Studi > No. dan Tgl. SK",
+    "Akreditasi Program Studi > Tgl. Kedaluwarsa",
+    "Jumlah Mahasiswa saat TS"
+   ],
+   "kolom_lama": {
+    "Jenis Program": "Jenis Program",
+    "Nama PS": "Nama Program Studi",
+    "Status/Peringkat": "Akreditasi Program Studi > Status/Peringkat",
+    "No. & Tanggal SK": "Akreditasi Program Studi > No. dan Tgl. SK",
+    "Tanggal Kadaluarsa": "Akreditasi Program Studi > Tgl. Kedaluwarsa",
+    "Jumlah Mahasiswa Aktif": "Jumlah Mahasiswa saat TS"
+   },
+   "sumber_xlsx": "LKPS/Tanpa Nomor"
+  },
+  {
+   "kode": "Tim Penyusun",
+   "dokumen": "LED",
+   "item_id": "tim_penyusun_led",
+   "judul": "Tim Penyusun LED",
+   "nomor": true,
+   "kolom": [
+    "Nama",
+    "Jabatan dalam Tim",
+    "Tanggung Jawab Bab/Kriteria"
+   ],
+   "kolom_lama": {
+    "Nama": "Nama",
+    "Jabatan dalam Tim": "Jabatan dalam Tim",
+    "Tanggung Jawab Bab/Kriteria": "Tanggung Jawab Bab/Kriteria"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "1.A.1",
+   "dokumen": "LKPS",
+   "item_id": "lkps_1_a_1",
+   "judul": "Pimpinan dan Tupoksi UPPS dan PS",
+   "nomor": false,
+   "kolom": [
+    "Unit Kerja",
+    "Nama Ketua",
+    "Periode Jabatan",
+    "Pendidikan Terakhir",
+    "Jabatan Fungsional",
+    "Tugas Pokok dan Fungsi"
+   ],
+   "kolom_lama": {
+    "Unit Kerja": "Unit Kerja",
+    "Nama Ketua": "Nama Ketua",
+    "Periode Jabatan": "Periode Jabatan",
+    "Pendidikan Terakhir": "Pendidikan Terakhir",
+    "Jabatan Fungsional": "Jabatan Fungsional",
+    "Uraian Tugas Pokok & Fungsi": "Tugas Pokok dan Fungsi"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "1.A.2",
+   "dokumen": "LKPS",
+   "item_id": "lkps_1_a_2",
+   "judul": "Sumber Pendanaan UPPS/PS",
+   "nomor": false,
+   "kolom": [
+    "Sumber Pendanaan",
+    "TS-2",
+    "TS-1",
+    "TS",
+    "Link Bukti"
+   ],
+   "kolom_lama": {
+    "Kategori Sumber Dana": "Sumber Pendanaan",
+    "TS-2 (Rp juta)": "TS-2",
+    "TS-1 (Rp juta)": "TS-1",
+    "TS (Rp juta)": "TS",
+    "Link Bukti": "Link Bukti"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "1.A.3",
+   "dokumen": "LKPS",
+   "item_id": "lkps_1_a_3",
+   "judul": "Penggunaan Dana UPPS/PS",
+   "nomor": false,
+   "kolom": [
+    "Penggunaan Dana",
+    "TS-2",
+    "TS-1",
+    "TS",
+    "Link Bukti"
+   ],
+   "kolom_lama": {
+    "Kategori Penggunaan": "Penggunaan Dana",
+    "TS-2 (Rp juta)": "TS-2",
+    "TS-1 (Rp juta)": "TS-1",
+    "TS (Rp juta)": "TS",
+    "Link Bukti": "Link Bukti"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "1.A.4",
+   "dokumen": "LKPS",
+   "item_id": "lkps_1_a_4",
+   "judul": "Rata-rata Beban DTPR per Semester (EWMP) pada TS",
+   "nomor": true,
+   "kolom": [
+    "Nama DTPR",
+    "SKS Pengajaran pada > PS Sendiri",
+    "SKS Pengajaran pada > PS Lain, PT Sendiri",
+    "SKS Pengajaran pada > PT Lain",
+    "SKS Penelitian",
+    "SKS Pengabdian kepada Masyarakat",
+    "SKS Manajemen > PT Sendiri",
+    "SKS Manajemen > PT Lain",
+    "Total SKS"
+   ],
+   "kolom_lama": {
+    "Nama DTPR": "Nama DTPR",
+    "SKS Penelitian": "SKS Penelitian",
+    "SKS PkM": "SKS Pengabdian kepada Masyarakat",
+    "Total EWMP": "Total SKS"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "1.A.5",
+   "dokumen": "LKPS",
+   "item_id": "lkps_1_a_5",
+   "judul": "Kualifikasi Tenaga Kependidikan",
+   "nomor": true,
+   "kolom": [
+    "Jenis Tenaga Kependidikan",
+    "Jumlah Tenaga Kependidikan dengan Pendidikan Terakhir > S3",
+    "Jumlah Tenaga Kependidikan dengan Pendidikan Terakhir > S2",
+    "Jumlah Tenaga Kependidikan dengan Pendidikan Terakhir > S1",
+    "Jumlah Tenaga Kependidikan dengan Pendidikan Terakhir > D4",
+    "Jumlah Tenaga Kependidikan dengan Pendidikan Terakhir > D3",
+    "Jumlah Tenaga Kependidikan dengan Pendidikan Terakhir > D2",
+    "Jumlah Tenaga Kependidikan dengan Pendidikan Terakhir > D1",
+    "Jumlah Tenaga Kependidikan dengan Pendidikan Terakhir > SMA/SMK/MA",
+    "Unit Kerja"
+   ],
+   "kolom_lama": {
+    "Jenis Tenaga Kependidikan": "Jenis Tenaga Kependidikan",
+    "Unit Kerja": "Unit Kerja",
+    "S3": "Jumlah Tenaga Kependidikan dengan Pendidikan Terakhir > S3",
+    "S2": "Jumlah Tenaga Kependidikan dengan Pendidikan Terakhir > S2",
+    "S1": "Jumlah Tenaga Kependidikan dengan Pendidikan Terakhir > S1",
+    "SMA": "Jumlah Tenaga Kependidikan dengan Pendidikan Terakhir > SMA/SMK/MA"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "1.B",
+   "dokumen": "LKPS",
+   "item_id": "lkps_1_b",
+   "judul": "Unit SPMI dan SDM",
+   "nomor": false,
+   "kolom": [
+    "Unit SPMI",
+    "Nama Unit SPMI",
+    "Dokumen SPMI",
+    "Jumlah Auditor Mutu Internal",
+    "Certified",
+    "Non Certified",
+    "Frekuensi Audit/Monev per Tahun",
+    "Bukti Certified Auditor",
+    "Laporan Audit"
+   ],
+   "kolom_lama": {
+    "Nama Unit SPMI": "Nama Unit SPMI",
+    "Dokumen SPMI Berlaku (link)": "Dokumen SPMI",
+    "Jumlah Auditor Bersertifikat": "Certified",
+    "Jumlah Auditor Non-Sertifikat": "Non Certified",
+    "Frekuensi Audit/Monev per Tahun": "Frekuensi Audit/Monev per Tahun",
+    "Link Laporan Audit": "Laporan Audit"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "2.A.1",
+   "dokumen": "LKPS",
+   "item_id": "lkps_2_a_1",
+   "judul": "Data Mahasiswa",
+   "nomor": false,
+   "kolom": [
+    "TS",
+    "Daya Tampung",
+    "Jumlah Calon Mahasiswa > Pendaftar",
+    "Jumlah Calon Mahasiswa > Pendaftar Afirmasi",
+    "Jumlah Calon Mahasiswa > Pendaftar Kebutuhan Khusus",
+    "Jumlah Mahasiswa Baru > Reguler > Diterima",
+    "Jumlah Mahasiswa Baru > Reguler > Afirmasi",
+    "Jumlah Mahasiswa Baru > Reguler > Kebutuhan Khusus",
+    "Jumlah Mahasiswa Baru > RPL > Diterima",
+    "Jumlah Mahasiswa Baru > RPL > Afirmasi",
+    "Jumlah Mahasiswa Baru > RPL > Kebutuhan Khusus",
+    "Jumlah Mahasiswa Aktif > Reguler > Diterima",
+    "Jumlah Mahasiswa Aktif > Reguler > Afirmasi",
+    "Jumlah Mahasiswa Aktif > Reguler > Kebutuhan Khusus",
+    "Jumlah Mahasiswa Aktif > Reguler > Total Mahasiswa Aktif",
+    "Jumlah Mahasiswa Aktif > RPL > Diterima",
+    "Jumlah Mahasiswa Aktif > RPL > Afirmasi",
+    "Jumlah Mahasiswa Aktif > RPL > Kebutuhan Khusus"
+   ],
+   "kolom_lama": {
+    "Tahun (TS-3/TS-2/TS-1/TS)": "TS",
+    "Daya Tampung": "Daya Tampung"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "2.A.2",
+   "dokumen": "LKPS",
+   "item_id": "lkps_2_a_2",
+   "judul": "Keragaman Asal Mahasiswa",
+   "nomor": false,
+   "kolom": [
+    "Asal Mahasiswa",
+    "Jumlah Mahasiswa Baru > TS-2",
+    "Jumlah Mahasiswa Baru > TS-1",
+    "Jumlah Mahasiswa Baru > TS",
+    "Link Bukti"
+   ],
+   "kolom_lama": {
+    "Kategori Asal Mahasiswa": "Asal Mahasiswa",
+    "Jumlah TS-2": "Jumlah Mahasiswa Baru > TS-2",
+    "Jumlah TS-1": "Jumlah Mahasiswa Baru > TS-1",
+    "Jumlah TS": "Jumlah Mahasiswa Baru > TS"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "2.A.3",
+   "dokumen": "LKPS",
+   "item_id": "lkps_2_a_3",
+   "judul": "Kondisi Jumlah Mahasiswa",
+   "nomor": false,
+   "kolom": [
+    "Uraian",
+    "TS-2",
+    "TS-1",
+    "TS",
+    "Jumlah"
+   ],
+   "kolom_lama": {
+    "Kategori (Baru/Aktif/Lulus/Mengundurkan Diri-DO/Cuti)": "Uraian",
+    "TS-2": "TS-2",
+    "TS-1": "TS-1",
+    "TS": "TS",
+    "Jumlah": "Jumlah"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "2.A.4",
+   "dokumen": "LKPS",
+   "item_id": "lkps_2_a_4",
+   "judul": "Sarana dan Prasarana Pendidikan",
+   "nomor": true,
+   "kolom": [
+    "Nama Prasarana",
+    "Daya Tampung",
+    "Luas Ruang (m2)",
+    "Milik Sendiri (M)/Sewa (W)",
+    "Berlisensi (L)/Public Domain (P)/Tidak Berlisensi (T)",
+    "Perangkat",
+    "Link Bukti"
+   ],
+   "kolom_lama": {
+    "Daya Tampung": "Daya Tampung",
+    "Luas (m2)": "Luas Ruang (m2)",
+    "Status Kepemilikan": "Milik Sendiri (M)/Sewa (W)",
+    "Link Bukti": "Link Bukti",
+    "Nama Ruang/Fasilitas": "Nama Prasarana",
+    "Status Lisensi Perangkat Lunak": "Berlisensi (L)/Public Domain (P)/Tidak Berlisensi (T)",
+    "Daftar Perangkat": "Perangkat"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "2.A.7",
+   "dokumen": "LKPS",
+   "item_id": "lkps_2_a_7",
+   "judul": "Fasilitas Akses bagi Mahasiswa Disabilitas",
+   "nomor": false,
+   "kolom": [
+    "Lokasi",
+    "Lingkup Ruangan",
+    "Akses Fasilitas Difabel",
+    "Link Bukti"
+   ],
+   "kolom_lama": {
+    "Lokasi/Gedung": "Lokasi",
+    "Lingkup Ruangan": "Lingkup Ruangan",
+    "Jenis Akses Fasilitas Difabel": "Akses Fasilitas Difabel"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "2.A.8",
+   "dokumen": "LKPS",
+   "item_id": "lkps_2_a_8",
+   "judul": "Sistem Informasi Terintegrasi Pendukung Kegiatan Tridharma",
+   "nomor": true,
+   "kolom": [
+    "Fungsionalitas",
+    "Nama Sistem Informasi",
+    "Akses",
+    "Unit Kerja/SDM Pengelola",
+    "Link Bukti"
+   ],
+   "kolom_lama": {
+    "Fungsionalitas": "Fungsionalitas",
+    "Nama Sistem Informasi": "Nama Sistem Informasi",
+    "Akses": "Akses",
+    "Unit Kerja/SDM Pengelola": "Unit Kerja/SDM Pengelola",
+    "Link Bukti": "Link Bukti"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "2.B.1",
+   "dokumen": "LKPS",
+   "item_id": "lkps_2_b_1",
+   "judul": "Isi Pembelajaran",
+   "nomor": true,
+   "kolom": [
+    "Kode",
+    "Mata Kuliah",
+    "SKS",
+    "Semester",
+    "CPL",
+    "Profil Lulusan (PL)",
+    "Domain KKNI"
+   ],
+   "kolom_lama": {
+    "Kode MK": "Kode",
+    "Nama MK": "Mata Kuliah",
+    "SKS": "SKS",
+    "Semester Penawaran": "Semester",
+    "Pemetaan CPL (1-5)": "CPL",
+    "Pemetaan Profil Lulusan": "Profil Lulusan (PL)",
+    "Domain KKNI": "Domain KKNI"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "2.B.2",
+   "dokumen": "LKPS",
+   "item_id": "lkps_2_b_2",
+   "judul": "Pemetaan Capaian Pembelajaran Lulusan dan Profil Lulusan",
+   "nomor": false,
+   "kolom": [
+    "CPL",
+    "PL 1",
+    "PL 2",
+    "PL 3",
+    "PL 4",
+    "PL 5"
+   ],
+   "kolom_lama": {
+    "CPL": "CPL"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "2.B.3",
+   "dokumen": "LKPS",
+   "item_id": "lkps_2_b_3",
+   "judul": "Peta Pemenuhan CPL",
+   "nomor": false,
+   "kolom": [
+    "CPL",
+    "CPMK",
+    "Semester 1",
+    "Semester 2",
+    "Semester 3"
+   ],
+   "kolom_lama": {
+    "CPL": "CPL",
+    "CPMK": "CPMK"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "2.B.4",
+   "dokumen": "LKPS",
+   "item_id": "lkps_2_b_4",
+   "judul": "Rata-rata Masa Tunggu Lulusan untuk Bekerja Pertama Kali",
+   "nomor": false,
+   "kolom": [
+    "Tahun Lulus",
+    "Jumlah Lulusan",
+    "Jumlah Lulusan yang Terlacak",
+    "Rata-rata Waktu Tunggu (Bulan)"
+   ],
+   "kolom_lama": {
+    "Tahun Lulus": "Tahun Lulus",
+    "Jumlah Lulusan": "Jumlah Lulusan",
+    "Jumlah Lulusan Terlacak": "Jumlah Lulusan yang Terlacak",
+    "Rata-rata Waktu Tunggu Kerja (bulan)": "Rata-rata Waktu Tunggu (Bulan)"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "2.B.4.1",
+   "dokumen": "LKPS",
+   "item_id": "lkps_2_b_4_1",
+   "judul": "Mata Kuliah yang Mendukung Soft Competence, Hard Competence, dan Integrasi Keduanya",
+   "nomor": true,
+   "kolom": [
+    "Mata Kuliah",
+    "Dukungan Kompetensi",
+    "Analisis Dukungan Kompetensi"
+   ],
+   "kolom_lama": {
+    "Nama MK": "Mata Kuliah",
+    "Kategori (Soft/Hard/Integrasi)": "Dukungan Kompetensi",
+    "Analisis Kontribusi Kompetensi": "Analisis Dukungan Kompetensi"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "2.B.5",
+   "dokumen": "LKPS",
+   "item_id": "lkps_2_b_5",
+   "judul": "Kesesuaian Bidang Kerja Lulusan",
+   "nomor": false,
+   "kolom": [
+    "Tahun Lulus",
+    "Jumlah Lulusan",
+    "Jumlah Lulusan yang Terlacak",
+    "Profesi Kerja > Bidang Infokom",
+    "Profesi Kerja > Bidang Non Infokom",
+    "Lingkup Tempat Kerja > Multinasional/Internasional",
+    "Lingkup Tempat Kerja > Nasional",
+    "Lingkup Tempat Kerja > Wirausaha"
+   ],
+   "kolom_lama": {
+    "Tahun Lulus": "Tahun Lulus",
+    "Jumlah Lulusan Terlacak": "Jumlah Lulusan yang Terlacak",
+    "Sesuai Bidang Infokom": "Profesi Kerja > Bidang Infokom",
+    "Tidak Sesuai": "Profesi Kerja > Bidang Non Infokom"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "2.B.6",
+   "dokumen": "LKPS",
+   "item_id": "lkps_2_b_6",
+   "judul": "Kepuasan Pengguna Lulusan",
+   "nomor": true,
+   "kolom": [
+    "Jenis Kemampuan",
+    "Tingkat Kepuasan Pengguna (%) > Sangat Baik",
+    "Tingkat Kepuasan Pengguna (%) > Baik",
+    "Tingkat Kepuasan Pengguna (%) > Cukup",
+    "Tingkat Kepuasan Pengguna (%) > Kurang",
+    "Rencana Tindak Lanjut oleh UPPS/PS"
+   ],
+   "kolom_lama": {
+    "Jenis Kemampuan Dinilai": "Jenis Kemampuan",
+    "% Sangat Baik": "Tingkat Kepuasan Pengguna (%) > Sangat Baik",
+    "% Baik": "Tingkat Kepuasan Pengguna (%) > Baik",
+    "% Cukup": "Tingkat Kepuasan Pengguna (%) > Cukup",
+    "% Kurang": "Tingkat Kepuasan Pengguna (%) > Kurang",
+    "Rencana Tindak Lanjut UPPS/PS": "Rencana Tindak Lanjut oleh UPPS/PS"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "2.C",
+   "dokumen": "LKPS",
+   "item_id": "lkps_2_c",
+   "judul": "Fleksibilitas dalam Proses Pembelajaran",
+   "nomor": false,
+   "kolom": [
+    "Tahun Akademik",
+    "TS-2",
+    "TS-1",
+    "TS",
+    "Link Bukti"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "2.D.1",
+   "dokumen": "LKPS",
+   "item_id": "lkps_2_d",
+   "judul": "Rekognisi dan Apresiasi Kompetensi Lulusan",
+   "nomor": false,
+   "kolom": [
+    "Sumber Rekognisi",
+    "Jenis Pengakuan Lulusan (Rekognisi)",
+    "Tahun Akademik > TS-2",
+    "Tahun Akademik > TS-1",
+    "Tahun Akademik > TS",
+    "Link Bukti"
+   ],
+   "kolom_lama": {
+    "Sumber Rekognisi": "Sumber Rekognisi",
+    "Jenis Pengakuan": "Jenis Pengakuan Lulusan (Rekognisi)",
+    "TS-2": "Tahun Akademik > TS-2",
+    "TS-1": "Tahun Akademik > TS-1",
+    "TS": "Tahun Akademik > TS"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "3.A.1",
+   "dokumen": "LKPS",
+   "item_id": "lkps_3_a_1",
+   "judul": "Sarana dan Prasarana Penelitian",
+   "nomor": false,
+   "kolom": [
+    "Nama Prasarana",
+    "Daya Tampung",
+    "Luas Ruang (m2)",
+    "Milik Sendiri (M)/Sewa (W)",
+    "Berlisensi (L)/Public Domain (P)/Tidak Berlisensi (T)",
+    "Perangkat",
+    "Link Rincian Perangkat",
+    "Link Bukti"
+   ],
+   "kolom_lama": {
+    "Daya Tampung": "Daya Tampung",
+    "Luas (m2)": "Luas Ruang (m2)",
+    "Status Kepemilikan": "Milik Sendiri (M)/Sewa (W)",
+    "Link Bukti": "Link Bukti",
+    "Nama Lab/Fasilitas": "Nama Prasarana",
+    "Status Lisensi": "Berlisensi (L)/Public Domain (P)/Tidak Berlisensi (T)",
+    "Daftar Perangkat Riset": "Perangkat"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "3.A.2",
+   "dokumen": "LKPS",
+   "item_id": "lkps_3_a_2",
+   "judul": "Penelitian DTPR, Hibah, dan Pembiayaan Penelitian",
+   "nomor": true,
+   "kolom": [
+    "Nama DTPR (Ketua)",
+    "Judul Penelitian",
+    "Jumlah Mahasiswa yang Terlibat",
+    "Jenis Hibah Penelitian",
+    "Peran (Ketua/Anggota)",
+    "Sumber L/N/I",
+    "Durasi (tahun)",
+    "Pendanaan (Rp juta) > TS-2",
+    "Pendanaan (Rp juta) > TS-1",
+    "Pendanaan (Rp juta) > TS",
+    "Link Bukti"
+   ],
+   "kolom_lama": {
+    "Nama DTPR (Ketua)": "Nama DTPR (Ketua)",
+    "Judul Penelitian": "Judul Penelitian",
+    "Jumlah Mahasiswa Terlibat": "Jumlah Mahasiswa yang Terlibat",
+    "Jenis Hibah": "Jenis Hibah Penelitian",
+    "Peran (Ketua/Anggota)": "Peran (Ketua/Anggota)",
+    "Lingkup (L/N/I)": "Sumber L/N/I",
+    "Durasi": "Durasi (tahun)",
+    "Nominal TS-2 (Rp juta)": "Pendanaan (Rp juta) > TS-2",
+    "Nominal TS-1 (Rp juta)": "Pendanaan (Rp juta) > TS-1",
+    "Nominal TS (Rp juta)": "Pendanaan (Rp juta) > TS",
+    "Link Bukti": "Link Bukti"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "3.A.3",
+   "dokumen": "LKPS",
+   "item_id": "lkps_3_a_3",
+   "judul": "Pengembangan DTPR di Bidang Penelitian",
+   "nomor": false,
+   "kolom": [
+    "Tahun Akademik",
+    "TS-2",
+    "TS-1",
+    "TS",
+    "Link Bukti"
+   ],
+   "kolom_lama": {
+    "Jenis Pengembangan": "Tahun Akademik",
+    "Jumlah Dosen TS-2": "TS-2",
+    "Jumlah Dosen TS-1": "TS-1",
+    "Jumlah Dosen TS": "TS"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "3.A.4",
+   "dokumen": "LKPS",
+   "item_id": "lkps_3_a_4",
+   "judul": "Dukungan Institusi dalam Pengembangan DTPR di Bidang Penelitian",
+   "nomor": false,
+   "kolom": [
+    "Tahun Akademik",
+    "TS-2",
+    "TS-1",
+    "TS",
+    "Link Bukti"
+   ],
+   "kolom_lama": {
+    "Jenis Pembiayaan": "Tahun Akademik",
+    "Nominal TS-2 (Rp juta)": "TS-2",
+    "Nominal TS-1 (Rp juta)": "TS-1",
+    "Nominal TS (Rp juta)": "TS"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "3.C.1",
+   "dokumen": "LKPS",
+   "item_id": "lkps_3_c_1",
+   "judul": "Kerja Sama Penelitian",
+   "nomor": true,
+   "kolom": [
+    "Judul Kerjasama",
+    "Mitra Kerja Sama",
+    "Sumber L/N/I",
+    "Durasi (tahun)",
+    "Pendanaan (Rp juta)",
+    "Link Bukti",
+    "Ciri Khas PS"
+   ],
+   "kolom_lama": {
+    "Judul Kerja Sama": "Judul Kerjasama",
+    "Mitra (Nama Institusi)": "Mitra Kerja Sama",
+    "Ciri Khas PS (Ya/Tidak)": "Ciri Khas PS",
+    "Link Bukti": "Link Bukti",
+    "Lingkup (L/N/I)": "Sumber L/N/I",
+    "Durasi (tahun)": "Durasi (tahun)",
+    "Nominal per Tahun (Rp juta)": "Pendanaan (Rp juta)"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "3.C.2",
+   "dokumen": "LKPS",
+   "item_id": "lkps_3_c_2",
+   "judul": "Publikasi Penelitian",
+   "nomor": true,
+   "kolom": [
+    "Nama DTPR",
+    "Judul Publikasi",
+    "Jenis Publikasi (IB/I/S1/S2/S3/S4/T)",
+    "Tahun Terbit (beri tanda √) > TS-2",
+    "Tahun Terbit (beri tanda √) > TS-1",
+    "Tahun Terbit (beri tanda √) > TS",
+    "Link Bukti",
+    "Ciri Khas PS",
+    "Link PDF"
+   ],
+   "kolom_lama": {
+    "Nama DTPR": "Nama DTPR",
+    "Judul Publikasi": "Judul Publikasi",
+    "Jenis Publikasi (IB/I/S1-S4/T)": "Jenis Publikasi (IB/I/S1/S2/S3/S4/T)",
+    "Ciri Khas PS (Ya/Tidak)": "Ciri Khas PS",
+    "Link Bukti/PDF": "Link Bukti"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "3.C.3",
+   "dokumen": "LKPS",
+   "item_id": "lkps_3_c_3",
+   "judul": "Perolehan HKI (Granted) Penelitian",
+   "nomor": true,
+   "kolom": [
+    "Judul",
+    "Jenis HKI",
+    "Nama DTPR",
+    "Tahun Perolehan (beri tanda √) > TS-2",
+    "Tahun Perolehan (beri tanda √) > TS-1",
+    "Tahun Perolehan (beri tanda √) > TS",
+    "Link Bukti",
+    "Ciri Khas PS (1=ya, 0=tidak)"
+   ],
+   "kolom_lama": {
+    "Judul HKI": "Judul",
+    "Jenis HKI": "Jenis HKI",
+    "Nama DTPR": "Nama DTPR",
+    "Ciri Khas PS (Ya/Tidak)": "Ciri Khas PS (1=ya, 0=tidak)",
+    "Link Bukti": "Link Bukti"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "4.A.1",
+   "dokumen": "LKPS",
+   "item_id": "lkps_4_a_1",
+   "judul": "Sarana dan Prasarana PkM",
+   "nomor": false,
+   "kolom": [
+    "Nama Prasarana",
+    "Daya Tampung",
+    "Luas Ruang (m2)",
+    "Milik Sendiri (M)/Sewa (W)",
+    "Berlisensi (L)/Public Domain (P)/Tidak Berlisensi (T)",
+    "Perangkat",
+    "Link Bukti"
+   ],
+   "kolom_lama": {
+    "Daya Tampung": "Daya Tampung",
+    "Luas (m2)": "Luas Ruang (m2)",
+    "Status Kepemilikan": "Milik Sendiri (M)/Sewa (W)",
+    "Link Bukti": "Link Bukti",
+    "Nama Lab/Fasilitas": "Nama Prasarana",
+    "Status Lisensi": "Berlisensi (L)/Public Domain (P)/Tidak Berlisensi (T)",
+    "Daftar Perangkat": "Perangkat"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "4.A.2",
+   "dokumen": "LKPS",
+   "item_id": "lkps_4_a_2",
+   "judul": "PkM DTPR, Hibah, dan Pembiayaan PkM",
+   "nomor": false,
+   "kolom": [
+    "Nama DTPR (Ketua)",
+    "Judul PkM",
+    "Jumlah Mahasiswa yang Terlibat",
+    "Jenis Hibah PkM",
+    "Sumber Dana",
+    "Durasi (tahun)",
+    "Pendanaan (Rp juta)",
+    "Link Bukti",
+    "Ciri Khas PS (1=ya, 0=tidak)",
+    "DUDIKA"
+   ],
+   "kolom_lama": {
+    "Nama DTPR (Ketua PkM)": "Nama DTPR (Ketua)",
+    "Judul PkM": "Judul PkM",
+    "Jumlah Mahasiswa Terlibat": "Jumlah Mahasiswa yang Terlibat",
+    "Jenis Hibah PkM": "Jenis Hibah PkM",
+    "Sumber Dana": "Sumber Dana",
+    "Durasi (tahun)": "Durasi (tahun)",
+    "Pendanaan (Rp Juta)": "Pendanaan (Rp juta)"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "4.C.1",
+   "dokumen": "LKPS",
+   "item_id": "lkps_4_c_1",
+   "judul": "Kerja Sama PkM",
+   "nomor": true,
+   "kolom": [
+    "Judul Kerjasama",
+    "Mitra Kerja Sama",
+    "Sumber L/N/I",
+    "Durasi (tahun)",
+    "Pendanaan (Rp juta) > TS-2",
+    "Pendanaan (Rp juta) > TS-1",
+    "Pendanaan (Rp juta) > TS",
+    "Link Bukti",
+    "Ciri Khas PS"
+   ],
+   "kolom_lama": {
+    "Judul Kerja Sama": "Judul Kerjasama",
+    "Mitra (Nama Institusi)": "Mitra Kerja Sama",
+    "Ciri Khas PS (Ya/Tidak)": "Ciri Khas PS",
+    "Link Bukti": "Link Bukti",
+    "Lingkup (L/N/I)": "Sumber L/N/I",
+    "Durasi (tahun)": "Durasi (tahun)"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "4.C.2",
+   "dokumen": "LKPS",
+   "item_id": "lkps_4_c_2",
+   "judul": "Diseminasi Hasil PkM",
+   "nomor": true,
+   "kolom": [
+    "Nama DTPR (Ketua)",
+    "Judul",
+    "Diseminasi Hasil PkM (L/N/I)",
+    "TS-2",
+    "TS-1",
+    "TS",
+    "Link Bukti",
+    "Ciri Khas PS"
+   ],
+   "kolom_lama": {
+    "Nama DTPR (Ketua)": "Nama DTPR (Ketua)",
+    "Judul Kegiatan PkM": "Judul",
+    "Lingkup Diseminasi (L/N/I)": "Diseminasi Hasil PkM (L/N/I)",
+    "TS-2": "TS-2",
+    "TS-1": "TS-1",
+    "TS": "TS",
+    "Link Bukti Publikasi/Liputan": "Link Bukti"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "4.C.3",
+   "dokumen": "LKPS",
+   "item_id": "lkps_4_c_3",
+   "judul": "Perolehan HKI PkM",
+   "nomor": true,
+   "kolom": [
+    "Judul",
+    "Jenis HKI",
+    "Nama DTPR",
+    "Tahun Perolehan (beri tanda √) > TS-2",
+    "Tahun Perolehan (beri tanda √) > TS-1",
+    "Tahun Perolehan (beri tanda √) > TS",
+    "Link Bukti",
+    "Ciri Khas PS (1=ya, 0=tidak)"
+   ],
+   "kolom_lama": {
+    "Judul HKI": "Judul",
+    "Jenis HKI": "Jenis HKI",
+    "Nama DTPR": "Nama DTPR",
+    "Ciri Khas PS (Ya/Tidak)": "Ciri Khas PS (1=ya, 0=tidak)",
+    "Link Bukti": "Link Bukti"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "5.1",
+   "dokumen": "LKPS",
+   "item_id": "lkps_5_1",
+   "judul": "Sistem Tata Kelola",
+   "nomor": true,
+   "kolom": [
+    "Jenis Tata Kelola",
+    "Nama Sistem Informasi",
+    "Akses (Lokal/Internet)",
+    "Unit Kerja/SDM Pengelola",
+    "Link Bukti"
+   ],
+   "kolom_lama": {
+    "Jenis Tata Kelola": "Jenis Tata Kelola",
+    "Nama Sistem Informasi": "Nama Sistem Informasi",
+    "Jenis Akses (Lokal/Internet)": "Akses (Lokal/Internet)",
+    "Unit Pengelola": "Unit Kerja/SDM Pengelola",
+    "Link Akses Sistem": "Link Bukti"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "5.2",
+   "dokumen": "LKPS",
+   "item_id": "lkps_5_2",
+   "judul": "Sarana dan Prasarana Pendidikan (UPPS)",
+   "nomor": false,
+   "kolom": [
+    "Nama Prasarana",
+    "Daya Tampung",
+    "Luas Ruang (m2)",
+    "Milik Sendiri (M)/Sewa (W)",
+    "Berlisensi (L)/Public Domain (P)/Tidak Berlisensi (T)",
+    "Perangkat",
+    "Link Bukti"
+   ],
+   "kolom_lama": {
+    "Daya Tampung": "Daya Tampung",
+    "Luas (m2)": "Luas Ruang (m2)",
+    "Status Kepemilikan": "Milik Sendiri (M)/Sewa (W)",
+    "Link Bukti": "Link Bukti",
+    "Nama Ruang/Fasilitas": "Nama Prasarana",
+    "Status Lisensi Perangkat Lunak": "Berlisensi (L)/Public Domain (P)/Tidak Berlisensi (T)",
+    "Daftar Perangkat": "Perangkat"
+   },
+   "sumber_xlsx": null
+  },
+  {
+   "kode": "6",
+   "dokumen": "LKPS",
+   "item_id": "lkps_6",
+   "judul": "Kesesuaian Visi dan Misi",
+   "nomor": false,
+   "kolom": [
+    "Visi PT",
+    "Visi UPPS",
+    "Visi Keilmuan PS"
+   ],
+   "kolom_lama": {},
+   "sumber_xlsx": null
+  }
+ ]
+}

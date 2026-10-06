@@ -125,6 +125,9 @@ _KOLOM_PPEPP = [
     "Hasil Peningkatan setelah RTL",
 ]
 
+# PERHATIAN (2026-10-06): kolom_dibutuhkan item bertipe "tabel" di bawah ini DITIMPA kolom
+# akreditasi/format_tabel.json saat modul dimuat (lihat blok "Format tabel" di akhir dict).
+# Daftar di sini tinggal riwayat nama kolom lama -- ubah kolom tabel di format_tabel.json.
 KEBUTUHAN_DATA: dict[str, dict] = {
     # ============== Umum — Identitas & Administrasi ==============
     "identitas_pt_upps_ps": {
@@ -781,6 +784,50 @@ _JENIS_KENDALA: dict[str, str] = {
 for _id, _jk in _JENIS_KENDALA.items():
     if _id in KEBUTUHAN_DATA:
         KEBUTUHAN_DATA[_id]["jenis_kendala"] = _jk
+
+
+# ---------- Format tabel (2026-10-06): kolom isian tabel = kolom template Excel resmi ----------
+# akreditasi/format_tabel.json adalah SATU acuan untuk kolom form, template Excel yang diunduh,
+# dan upload data (lihat api/app/services/accreditation_tabel.py). Di sini: kolom_dibutuhkan tiap
+# isian tabel diganti kolom format itu ("Grup > Sub" -> "Grup – Sub"), dan 39 tabel LED C1.1-C6.6
+# ditambahkan sebagai isian tabel baru di kriteria masing-masing (narasi PPEPP C1-C6 tetap ada).
+# Isian lama dengan nama kolom sebelumnya dipindah oleh scripts/migrasi_kolom_tabel.py.
+def _muat_format_tabel() -> list[dict]:
+    import json
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[1] / "format_tabel.json"
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)["tabel"]
+
+
+def kunci_kolom(path: str) -> str:
+    """'Sasaran/Target > TS-2' -> 'Sasaran/Target – TS-2' (nama kolom di form & database)."""
+    return " – ".join(bagian.strip() for bagian in path.split(">"))
+
+
+FORMAT_TABEL: dict[str, dict] = {}
+for _t in _muat_format_tabel():
+    FORMAT_TABEL[_t["item_id"]] = _t
+    _kolom = [kunci_kolom(k) for k in _t["kolom"]]
+    if _t["item_id"] in KEBUTUHAN_DATA:
+        KEBUTUHAN_DATA[_t["item_id"]]["kolom_dibutuhkan"] = _kolom
+    elif _t.get("baru"):
+        KEBUTUHAN_DATA[_t["item_id"]] = {
+            "kriteria_led": _t["baru"]["kriteria_led"],
+            # Kode tabel LED disimpan di field tabel_lkps seperti D1-D3: bukan Bagian LKPS 1-6,
+            # jadi dokumen_dari_item() tetap menggolongkannya ke LED.
+            "tabel_lkps": _t["kode"],
+            "nama": _t["baru"]["nama"],
+            "deskripsi_singkat": f"Tabel {_t['kode']} LED: {_t['judul']}.",
+            "tipe": "tabel",
+            "kolom_dibutuhkan": _kolom,
+            "sumber_data": "Dokumen kebijakan, standar, dan capaian kinerja UPPS/PS (disusun tim penyusun)",
+            "status_ketersediaan": "perlu_input_manual",
+            "mysql_table": None,
+            "jenis_kendala": "perlu_penyusunan_manusia",
+        }
+    else:
+        raise RuntimeError(f"format_tabel.json: item {_t['item_id']} tidak ada di registry dan bukan isian baru")
 
 
 def is_narasi_penilaian(item: dict) -> bool:

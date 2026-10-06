@@ -418,6 +418,8 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .ms__list input { flex: none; width: 18px; min-height: 0; height: 18px; padding: 0; accent-color: var(--ugm-blue-sky); }
 .ms__empty { padding: 12px; color: var(--text-muted); text-align: center; }
 .action-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+/* Unduh format / Upload data: sebaris dengan Tambah baris & Simpan, didorong ke ujung kanan. */
+.format-tabel { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 .button { display: inline-flex; align-items: center; justify-content: center; padding: 0 16px; border: 1px solid var(--ugm-blue); border-radius: 9px; color: #fff; background: var(--ugm-blue); font-weight: 700; cursor: pointer; text-decoration: none; }
 :root[data-theme="dark"] .button { border-color: var(--gold); color: var(--ugm-blue); background: var(--gold); }
 .button.secondary, :root[data-theme="dark"] .button.secondary { border-color: var(--border); color: var(--text-heading); background: var(--surface-card); }
@@ -1178,6 +1180,8 @@ td { line-height: 1.45; }
 .review__tabel .review__sel { min-height: 2.2em; min-width: 9em; font-size: .85rem; }
 .review__tabel .link-button { padding: 6px; color: #01416b; font-size: .8rem; }
 .review__tambah { margin-top: 8px; color: #01416b; }
+.review__tabel-aksi { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.review__tabel-aksi .review__tambah { margin-top: 0; }
 .review__aksi { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .review__aksi .button { min-height: 44px; }
 .review__side { display: grid; gap: 12px; position: sticky; top: calc(var(--header-height) + 16px); }

@@ -229,6 +229,8 @@ export type ItemRow = Record<string, string>;
 export type WorkspaceItem = {
   id: string; nama: string; deskripsi: string; sumber_data: string; status: string; status_label: string;
   tipe: 'tabel' | 'narasi'; kolom: string[]; tabel_lkps: string | null; narasi: boolean; terisi: boolean;
+  /** true bila isian ini punya template Excel (Unduh format / Upload data). */
+  format_excel: boolean;
   state: 'otomatis' | 'live' | 'terisi' | 'kosong' | 'belum_tersedia'; editable: boolean; rows: ItemRow[];
   diisi_oleh: string | null; updated_at: string | null;
   /** Status resmi dari data_source_map.json (bukan status_ketersediaan registry). */
@@ -323,8 +325,20 @@ export function startAccreditationExtraction(laporanId: number) {
 async function unduhBerkas(path: string, init: RequestInit, cadangan: string): Promise<{ blob: Blob; filename: string }> {
   const response = await fetch(`${API_BASE}${path}`, { credentials: 'include', ...init });
   if (!response.ok) throw new Error(await pesanError(response));
-  const nama = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')?.[1];
+  const disposisi = response.headers.get('Content-Disposition') ?? '';
+  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(disposisi)?.[1];
+  const nama = utf8 ? decodeURIComponent(utf8) : /filename="([^"]+)"/.exec(disposisi)?.[1];
   return { blob: await response.blob(), filename: nama ?? cadangan };
+}
+/** Template Excel kosong satu isian tabel (kolom = kolom isian di form). */
+export function downloadFormatTabel(itemId: string) {
+  return unduhBerkas(`/analytics/accreditation/tabel/${encodeURIComponent(itemId)}/template`, {}, `Format_${itemId}.xlsx`);
+}
+/** Baca baris dari template yang sudah diisi. Tidak menyimpan; file untuk tabel lain ditolak server. */
+export async function bacaUploadTabel(itemId: string, laporanId: number, file: File) {
+  const form = new FormData(); form.append('laporan_id', String(laporanId)); form.append('file', file);
+  const response = await fetch(`${API_BASE}/analytics/accreditation/tabel/${encodeURIComponent(itemId)}/baca`, { method: 'POST', credentials: 'include', body: form });
+  return kirimJson<{ kolom: string[]; rows: Record<string, string>[] }>(response, 'File gagal dibaca');
 }
 export function generateAccreditationDocument(laporanId: number, dokumen: Dokumen) {
   return unduhBerkas('/analytics/accreditation/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ laporan_id: laporanId }) }, `Laporan_Akreditasi_${dokumen}.docx`);

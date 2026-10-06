@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { setItemFinal, type Workspace, type WorkspaceGroup, type WorkspaceItem } from './lib/api';
 import { Notice } from './ui';
 import { pesan, useItemEditor, waktu } from './akreditasi-edit';
+import { FormatTabelAksi } from './akreditasi-format';
 
 /* Review dokumen LED/LKPS: satu bagian (item) per halaman seperti dokumen, bisa diedit langsung di
    halaman atau lewat tabel isian ("Edit di tabel"). Keduanya menyimpan ke data laporan yang sama.
@@ -105,7 +106,11 @@ function HalamanItem({ bagian, nomor, total, workspace, onNav, onChange, onEditT
               <td><button type="button" className="link-button" aria-label={`Hapus baris ${i + 1}`} onClick={() => ed.hapusBaris(i)}>Hapus</button></td>
             </tr>)}</tbody>
           </table>
-          <button type="button" className="link-button review__tambah" onClick={ed.tambahBaris}>+ Tambah baris</button>
+          <div className="review__tabel-aksi">
+            <button type="button" className="link-button review__tambah" onClick={ed.tambahBaris}>+ Tambah baris</button>
+            {item.format_excel && <FormatTabelAksi itemId={item.id} laporanId={workspace.laporan.id} disabled={!item.editable}
+              onRows={ed.muatDariFile} onError={teks => ed.setStatus({ type: 'error', text: teks })} />}
+          </div>
         </div>}
     </div>
 

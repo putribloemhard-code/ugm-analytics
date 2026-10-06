@@ -18,6 +18,8 @@ COPY akreditasi/scripts/generate_template.py /app/akreditasi/scripts/generate_te
 COPY akreditasi/scripts/ekstraksi_akreditasi.py /app/akreditasi/scripts/ekstraksi_akreditasi.py
 # Status resmi tiap item LED/LKPS (tersedia / perlu akses data / perlu disusun tim), dibaca ruang kerja & generator.
 COPY akreditasi/data_source_map.json /app/akreditasi/data_source_map.json
+# Format tabel isian (kolom form + template Excel unduhan + validasi upload), dibaca registry.
+COPY akreditasi/format_tabel.json /app/akreditasi/format_tabel.json
 COPY deploy/migrate_mysql_to_postgres.py /app/migrate_mysql_to_postgres.py
 # Data kurasi mata kuliah dibaca service story dari disk (bukan dari Postgres/MySQL).
 # Tanpa baris ini, blok `mata_kuliah` di endpoint story akan tersedia:false di container

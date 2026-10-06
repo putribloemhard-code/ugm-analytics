@@ -8,6 +8,7 @@ import {
 import { Notice, PageHeader, ProgressLine } from './ui';
 import { pesan, useItemEditor, waktu } from './akreditasi-edit';
 import { ReviewDokumen } from './akreditasi-dokumen';
+import { FormatTabelAksi } from './akreditasi-format';
 import { DaftarAktivitas } from './aktivitas';
 
 type Mode = 'isi' | 'review' | 'download';
@@ -456,7 +457,7 @@ function DataPendukung({ data, teks }: { data: NonNullable<WorkspaceItem['penduk
 
 
 function ItemCard({ item, laporanId, fokus, onSaved }: { item: WorkspaceItem; laporanId: number; fokus: boolean; onSaved: () => void }) {
-  const { rows, dirty, basi, status, sibuk, ubah, salinLive, tambahBaris, hapusBaris, batal, simpan } = useItemEditor(item, laporanId, onSaved);
+  const { rows, dirty, basi, status, setStatus, sibuk, ubah, salinLive, tambahBaris, hapusBaris, batal, simpan, muatDariFile } = useItemEditor(item, laporanId, onSaved);
   const [open, setOpen] = useState(fokus);
   const el = useRef<HTMLElement>(null);
 
@@ -478,8 +479,6 @@ function ItemCard({ item, laporanId, fokus, onSaved }: { item: WorkspaceItem; la
         <div><dt>Sumber data</dt><dd>{item.sumber_asli ?? item.sumber_data}</dd></div>
         {item.diisi_oleh && <div><dt>Terakhir diisi</dt><dd>{item.diisi_oleh} · {waktu(item.updated_at)}</dd></div>}
       </dl>
-      {item.kategori === 'akses_data' && item.catatan && <p className="field-hint"><b>Kenapa belum otomatis:</b> {item.catatan}</p>}
-      {item.kategori === 'penyusunan' && <p className="field-hint">Item ini memang ditulis tim penyusun prodi (narasi/keputusan), bukan ditarik dari sistem.</p>}
       {item.live && <DataLive live={item.live} terisi={item.terisi} />}
       {item.pendukung && <DataPendukung data={item.pendukung} teks={item.sumber_tambahan} />}
       {!item.editable
@@ -510,6 +509,8 @@ function ItemCard({ item, laporanId, fokus, onSaved }: { item: WorkspaceItem; la
             {item.tipe === 'tabel' && <button className="button secondary" onClick={tambahBaris}>+ Tambah baris</button>}
             <button className="button" disabled={sibuk} onClick={simpan}>{sibuk ? 'Menyimpan…' : 'Simpan'}</button>
             {dirty && <button className="link-button" onClick={batal}>Batalkan perubahan</button>}
+            {item.tipe === 'tabel' && item.format_excel && <FormatTabelAksi itemId={item.id} laporanId={laporanId}
+              onRows={muatDariFile} onError={teks => setStatus({ type: 'error', text: teks })} />}
           </div>
           {status && <Notice type={status.type}>{status.text}</Notice>}
         </>}

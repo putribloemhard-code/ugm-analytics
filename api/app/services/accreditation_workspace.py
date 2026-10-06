@@ -243,6 +243,7 @@ class AccreditationWorkspaceService:
             "sumber_data": item["sumber_data"], "status": status,
             "status_label": registry.STATUS_LABEL.get(status, status),
             "tipe": item["tipe"], "kolom": kolom, "tabel_lkps": item["tabel_lkps"],
+            "format_excel": item["id"] in getattr(registry, "FORMAT_TABEL", {}),
             "narasi": bool(registry.is_narasi_penilaian(item)),
             "terisi": terisi, "state": state, "editable": status != "belum_tersedia",
             "rows": rows,

@@ -46,6 +46,14 @@ export function useItemEditor(item: WorkspaceItem, laporanId: number, onSaved: (
   function tambahBaris() { setRows(rs => [...rs, barisKosong(item.kolom)]); setDirty(true); }
   function hapusBaris(i: number) { setRows(rs => rs.length > 1 ? rs.filter((_, j) => j !== i) : [barisKosong(item.kolom)]); setDirty(true); }
   function batal() { setRows(item.rows); setDirty(false); setBasi(false); setStatus(null); }
+  /** Baris dari file Excel yang diupload: baris kosong di form diganti, baris berisi dipertahankan
+   *  dan baris file ditambahkan di bawahnya. Belum tersimpan sampai user menekan Simpan. */
+  function muatDariFile(baru: ItemRow[]) {
+    const kosong = (r: ItemRow) => item.kolom.every(k => !(r[k] ?? '').trim());
+    const rapi = baru.map(r => Object.fromEntries(item.kolom.map(k => [k, r[k] ?? ''])));
+    setRows(rs => [...rs.filter(r => !kosong(r)), ...rapi]); setDirty(true);
+    setStatus({ type: 'info', text: `${rapi.length} baris dari file ditambahkan. Periksa isinya, lalu klik Simpan.` });
+  }
 
   /** true bila tersimpan (dipakai "Simpan & lanjut" supaya tidak pindah halaman saat gagal). */
   async function simpan(): Promise<boolean> {
@@ -60,5 +68,5 @@ export function useItemEditor(item: WorkspaceItem, laporanId: number, onSaved: (
     finally { setSibuk(false); }
   }
 
-  return { rows, dirty, basi, status, sibuk, ubah, salinLive, tambahBaris, hapusBaris, batal, simpan };
+  return { rows, dirty, basi, status, setStatus, sibuk, ubah, salinLive, tambahBaris, hapusBaris, batal, simpan, muatDariFile };
 }
