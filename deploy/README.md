@@ -16,7 +16,10 @@ Paket ini menjalankan frontend React/Vite, FastAPI read-only, dan MySQL baru dal
 
 ## Isi paket
 
-- `compose.yml` — Compose isolated: `postgres`, `mysql-reader`, `api`, `web`, `edge`.
+- `compose.yml` — Compose isolated: `postgres`, `mysql-reader`, `api`, `web`, `edge`, plus
+  `pipeline` (profil terpisah, hanya dijalankan cron).
+- `pipeline.Dockerfile` + `pipeline.requirements.txt` — pipeline berita mingguan.
+- `update_berita.sh` — job cron Sabtu: pipeline → sinkron tabel berita ke PostgreSQL.
 - `api.Dockerfile` — FastAPI + modul domain yang diperlukan dari pipeline berita.
 - `web.Dockerfile` — build statis React/Vite dan runtime Nginx.
 - `nginx.conf` — SPA fallback, `/api/` proxy internal, dan health endpoint.
@@ -133,10 +136,43 @@ Tanpa konfigurasi, tombol "Ekstrak data" di `/akreditasi` nonaktif. Untuk mengak
 File itu dibaca lewat `env_file` dengan `required: false` (butuh Docker Compose ≥ 2.24) — sengaja
 bukan `${VAR}` karena semua `${VAR}` di compose wajib terisi. `deploy/openai.env` di-gitignore.
 
-Update data berita di server lewat dump MySQL + migrasi (container tidak memuat venv pipeline;
-tombol "Update data" di web sudah dihapus). Karena `mysql-reader` sudah memuat dump yang
-sama, langkah ini hanya perlu kalau data diambil langsung dari MySQL sumber — dan `mysql-reader`
-memang sudah dijalankan lebih dulu (`api` menunggu `mysql-reader` healthy).
+Data berita di server diperbarui otomatis tiap Sabtu — lihat bagian berikut.
+
+## Update berita mingguan (otomatis)
+
+`deploy/update_berita.sh` menjalankan dua langkah:
+
+1. `docker compose --profile pipeline run --rm pipeline` — pipeline berita
+   (`berita-dampak/scripts/update_mingguan.py`: sitemap + RSS → tagging tema & SDG → narasi AI)
+   menulis ke `mysql-reader`. Service `pipeline` (`pipeline.Dockerfile`) berprofil `pipeline`,
+   jadi tidak ikut `docker compose up`. Server butuh akses keluar ke `ugm.ac.id`. Narasi AI hanya
+   diperbarui kalau `deploy/openai.env` terisi.
+2. `migrate_mysql_to_postgres.py --sinkron-berita` (di container `api`) — mengganti tabel
+   `berita_*` hasil pipeline di PostgreSQL dengan isi terbaru `mysql-reader`.
+
+Pasang di cron server (`crontab -e`):
+
+```
+0 6 * * 6 cd /path/ke/ugm-analytics/deploy && sh update_berita.sh >> ../runtime/update_berita.log 2>&1
+```
+
+Sekali setelah `git pull` versi ini: `docker compose up -d --build api` (image `api` harus memuat
+skrip migrasi baru). Uji manual: `sh update_berita.sh`.
+
+**Tag manual aman.** Tag yang diisi pengguna di web hanya hidup di PostgreSQL
+(`berita_sdg_manual`, `berita_tema_manual`) dan TIDAK disentuh sinkron — begitu juga tabel
+berakhiran `_manual`, tabel akun, dan tabel akreditasi. Pengaman lain:
+
+- semua tabel diganti dalam **satu transaksi**: kalau gagal di tengah (koneksi putus, galat skema),
+  PostgreSQL tetap berisi data minggu lalu; pembaca tidak pernah melihat tabel setengah terisi;
+- kalau pipeline gagal, sinkron tidak dijalankan (`set -e`);
+- sinkron **dibatalkan** kalau `berita_berita` di `mysql-reader` lebih sedikit dari 90% isi
+  PostgreSQL (mis. `mysql-reader` terisi ulang dari dump lama). Kalau memang disengaja:
+  `docker compose run --rm --no-deps --entrypoint python api /app/migrate_mysql_to_postgres.py --sinkron-berita --paksa`.
+
+Dashboard memakai data baru paling lambat 5 menit setelah sinkron (cache story API).
+Diuji lokal 2026-10-06 (PostgreSQL 16, 32.228 berita, 21 tabel, ±50 detik): tag manual utuh,
+penyusutan sumber ditolak, kegagalan di tengah ter-rollback.
 
 ## Email "Lupa password" (opsional)
 
