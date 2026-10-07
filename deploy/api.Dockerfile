@@ -25,7 +25,8 @@ COPY deploy/migrate_mysql_to_postgres.py /app/migrate_mysql_to_postgres.py
 # Tanpa baris ini, blok `mata_kuliah` di endpoint story akan tersedia:false di container
 # (endpoint berita tetap hidup — itu memang desainnya, tapi panel MK hilang).
 # PDF Ringkasan tidak di-copy: tidak dibaca kode (hanya sumber angka resmi/dokumentasi).
-COPY "matkul-sustainability/data/Deskripsi Matkul Kepmen.csv" "/app/matkul-sustainability/data/Deskripsi Matkul Kepmen.csv"
+# Bentuk JSON (bukan "…" "…"): nama file berspasi; builder lama di server gagal membaca bentuk berkutip.
+COPY ["matkul-sustainability/data/Deskripsi Matkul Kepmen.csv", "/app/matkul-sustainability/data/Deskripsi Matkul Kepmen.csv"]
 
 RUN useradd --system --uid 10001 --create-home appuser \
     && chown -R appuser:appuser /app
