@@ -41,7 +41,7 @@ from app.services.accreditation_laporan import terapkan_ekstraksi
 logger = logging.getLogger(__name__)
 
 DOKUMEN = ("LED", "LKPS")
-JENJANG = ("Sarjana", "Magister", "Doktor", "Profesi", "Spesialis")
+JENJANG = ("Diploma", "Sarjana", "Sarjana Terapan", "Profesi", "Spesialis", "Magister", "Magister Terapan", "Doktor")
 MAX_ROWS_PER_ITEM = 500
 MAX_VALUE_CHARS = 20_000
 MAX_RIWAYAT = 20
@@ -345,11 +345,12 @@ class AccreditationWorkspaceService:
         with self.engine.begin() as conn:
             if not conn.execute(text("SELECT 1 FROM akreditasi_fakultas WHERE id = :id"), {"id": fakultas_id}).first():
                 raise NotFound("Fakultas tidak ditemukan.")
+            # Nama sama dengan jenjang berbeda = prodi berbeda (mis. Bahasa Inggris D3 dan D4 Sekolah Vokasi).
             ada = conn.execute(text("""
-                SELECT slug FROM akreditasi_prodi WHERE fakultas_id = :f AND LOWER(nama) = :n
-            """), {"f": fakultas_id, "n": nama.lower()}).first()
+                SELECT slug FROM akreditasi_prodi WHERE fakultas_id = :f AND LOWER(nama) = :n AND jenjang = :j
+            """), {"f": fakultas_id, "n": nama.lower(), "j": jenjang}).first()
             if ada:
-                raise WorkspaceError("Program studi dengan nama itu sudah ada di fakultas ini.")
+                raise WorkspaceError("Program studi dengan nama dan jenjang itu sudah ada di fakultas ini.")
             slug, i = base, 2
             while conn.execute(text("SELECT 1 FROM akreditasi_prodi WHERE slug = :s"), {"s": slug}).first():
                 slug, i = f"{base}-{i}", i + 1

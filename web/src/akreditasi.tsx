@@ -20,7 +20,7 @@ const MODE_LABEL: Record<Mode, string> = { isi: '1. Isi data', review: '2. Revie
    Staf satu prodi mengerjakan laporan yang sama; PIN prodi diminta lagi setiap login. */
 
 const TAMBAH_PRODI = '__tambah__';
-const JENJANG = ['Sarjana', 'Magister', 'Doktor', 'Profesi', 'Spesialis'];
+const JENJANG = ['Diploma', 'Sarjana', 'Sarjana Terapan', 'Profesi', 'Spesialis', 'Magister', 'Magister Terapan', 'Doktor'];
 const MAX_UPLOAD_MB = 25;
 const STATE_LABEL: Record<WorkspaceItem['state'], string> = {
   otomatis: 'Tersedia otomatis', live: 'Data live', terisi: 'Terisi', kosong: 'Perlu input', belum_tersedia: 'Belum tersedia',
