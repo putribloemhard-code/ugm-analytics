@@ -198,16 +198,19 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .route-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 32px; }
 .route-grid--pair { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 760px; }
 .route-grid--pair .route-card { min-height: 280px; }
-.route-card { display: flex; min-height: 240px; flex-direction: column; padding: 22px; border: 1px solid var(--border-subtle); border-top-width: 4px; border-radius: 12px; color: var(--text); background: var(--surface-card); text-decoration: none; transition: transform .15s ease, box-shadow .15s ease; }
+.route-card { display: flex; flex-direction: column; padding: 16px 18px; border: 1px solid var(--border-subtle); border-top-width: 4px; border-radius: 12px; color: var(--text); background: var(--surface-card); text-decoration: none; transition: transform .15s ease, box-shadow .15s ease; }
 .route-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0,0,0,.22); }
 .route-card.green { border-top-color: var(--accent-green); }
 .route-card.blue { border-top-color: var(--accent-blue); }
 .route-card.orange { border-top-color: var(--accent-orange); }
 .route-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.route-card-top img { width: 44px; height: 44px; padding: 5px; border: 1px solid var(--border-subtle); border-radius: 10px; background: #fff; object-fit: contain; }
+.route-grid .route-card-top { justify-content: flex-start; margin-bottom: 10px; }
+.route-grid .route-card-top h3 { margin: 0; }
+.route-grid .route-action { padding-top: 12px; }
+.route-card-top img { width: 36px; height: 36px; padding: 4px; border: 1px solid var(--border-subtle); border-radius: 10px; background: #fff; object-fit: contain; }
 .route-card-top span { color: var(--text-muted); font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
-.route-card h3 { margin: 26px 0 8px; font-size: 1.4rem; }
-.route-card p { margin: 0; color: var(--text-muted); line-height: 1.6; }
+.route-card h3 { margin: 26px 0 8px; font-size: 1.2rem; }
+.route-card p { margin: 0; color: var(--text-muted); font-size: .92rem; line-height: 1.55; }
 
 /* BAGIAN I: SUMBER DATA
    Diagram silsilah data: sumber -> diambil -> memuat konten dampak -> per dampak.
@@ -354,9 +357,9 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .story-scene { padding: var(--flow-block) 0; background: var(--surface-page); }
 .story-scene--tint { background: var(--surface-subtle); }
 .story-scene__inner { width: min(var(--page-width), calc(100% - 32px)); margin: 0 auto; }
-.story-scene__header { max-width: 840px; margin-bottom: var(--flow-note); }
-.story-scene__header h2 { margin: 0 0 10px; font-size: clamp(1.7rem, 3.4vw, 2.5rem); }
-.story-scene__deck { margin: 0; color: var(--text-muted); font-size: 1.05rem; line-height: 1.65; }
+.story-scene__header { display: flex; align-items: center; gap: 12px; max-width: 840px; margin-bottom: var(--flow-note); }
+.story-scene__header img { flex: none; width: 40px; height: 40px; padding: 4px; border: 1px solid var(--border-subtle); border-radius: 10px; background: #fff; object-fit: contain; }
+.story-scene__header h2 { margin: 0; font-size: clamp(1.35rem, 2.4vw, 1.75rem); }
 .loading { padding: 28px; color: var(--text-muted); text-align: center; }
 .loading--scene { min-height: 26rem; display: grid; place-items: center; border: 1px dashed var(--border); border-radius: 12px; }
 
@@ -903,7 +906,6 @@ td { line-height: 1.45; }
   .hero-search { flex-direction: column; }
   .hero-search input, .hero-search button { width: 100%; }
   .route-grid, .chart-grid, .filter-grid, .analysis-summary-grid { grid-template-columns: 1fr; }
-  .route-card { min-height: 200px; }
   .chart-row { grid-template-columns: 1fr auto; }
   .chart-track { grid-column: 1 / -1; grid-row: 2; }
   .chart-value { grid-column: 2; grid-row: 1; }

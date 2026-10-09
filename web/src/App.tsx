@@ -152,11 +152,11 @@ function AnalyticsContent({ story, pillar, onPickPillar, topic, onTopic, busy, o
   </div>;
 }
 
-type AnalysisDef = { id: 'dampak' | 'dampak-sdgs' | 'sdgs'; mode: 'impact' | 'impact-sdgs' | 'sdgs'; title: string; icon: string; eyebrow: string; caption: string; description: string; accent: string; sdgMode?: boolean };
+type AnalysisDef = { id: 'dampak' | 'dampak-sdgs' | 'sdgs'; mode: 'impact' | 'impact-sdgs' | 'sdgs'; title: string; icon: string; description: string; accent: string; sdgMode?: boolean };
 const analysisSections: AnalysisDef[] = [
-  { id: 'dampak', mode: 'impact', title: 'Analisis Dampak Universitas', icon: 'dampak.png', eyebrow: 'Pilar Kepmen', caption: '3 dampak dan 14 tema resmi Kepmen 361/M/KEP/2025. Mode ini tidak menghitung SDG langsung.', description: 'Telaah Lingkungan, Ekonomi, dan Sosial melalui 14 tema resmi Kepmen.', accent: 'green' },
-  { id: 'dampak-sdgs', mode: 'impact-sdgs', title: 'Analisis Dampak × SDGs', icon: 'dampakXsdgs.png', eyebrow: 'Peta keterkaitan', caption: 'Tema dampak Kepmen dipetakan ke klaster SDGs resmi. Ini berbeda dari pencocokan SDG langsung.', description: 'Lihat hubungan tema dampak Kepmen dengan klaster SDGs resminya.', accent: 'blue' },
-  { id: 'sdgs', mode: 'sdgs', title: 'SDGs', icon: 'sdgs.png', eyebrow: 'Pencocokan langsung', caption: 'Mapping langsung seluruh URL sitemap ke 17 SDG, tanpa tema dampak Kepmen.', description: 'Telusuri 17 SDG pada URL sitemap dan teks berita yang tersedia.', accent: 'orange', sdgMode: true },
+  { id: 'dampak', mode: 'impact', title: 'Analisis Dampak Universitas', icon: 'dampak.png', description: 'Telaah Lingkungan, Ekonomi, dan Sosial melalui 14 tema resmi Kepmen.', accent: 'green' },
+  { id: 'dampak-sdgs', mode: 'impact-sdgs', title: 'Analisis Dampak × SDGs', icon: 'dampakXsdgs.png', description: 'Lihat hubungan tema dampak Kepmen dengan klaster SDGs resminya.', accent: 'blue' },
+  { id: 'sdgs', mode: 'sdgs', title: 'SDGs', icon: 'sdgs.png', description: 'Telusuri 17 SDG pada URL sitemap dan teks berita yang tersedia.', accent: 'orange', sdgMode: true },
 ];
 const routeTitle = { dampak: 'Dampak', 'dampak-sdgs': 'Dampak × SDGs', sdgs: 'SDGs' } as const;
 const defaultFilters = (metadata: Metadata): FilterState => ({ ...emptyFilters, yearFrom: metadata.years.min, yearTo: metadata.years.max });
@@ -248,7 +248,7 @@ function AnalysisScene({ def, metadata, metadataError, seeded, seedKey, tint, pi
   const failure = metadataError || error;
   // data-pilar: dibaca rail (SectionRail) untuk menandai sub-bullet pilar yang sedang tampil.
   return <section ref={ref} id={def.id} data-pilar={pillar} className={`story-scene ${tint ? 'story-scene--tint' : ''}`} aria-labelledby={`${def.id}-title`}><div className="story-scene__inner">
-    <header className="story-scene__header"><p className={`eyebrow eyebrow--${def.accent}`}><img src={assetUrl(`logo/${def.icon}`)} alt="" />{def.eyebrow}</p><h2 id={`${def.id}-title`}>{def.title}</h2><p className="story-scene__deck">{def.caption}</p></header>
+    <header className="story-scene__header"><img src={assetUrl(`logo/${def.icon}`)} alt="" /><h2 id={`${def.id}-title`}>{def.title}</h2></header>
     {failure ? <Notice type="error">{failure}</Notice> : !active || !metadata ? <div className="loading loading--scene" role="status">Bagian ini dimuat saat Anda menggulir ke sini...</div> : <>
       <Filters metadata={metadata} value={filters} onChange={setFilters} sdgMode={!!def.sdgMode} idPrefix={def.id} syncUrl={seeded} />
       {!story ? <div className="loading" role="status">Memuat hasil analisis...</div> : <><AnalyticsContent story={story} pillar={pillar} onPickPillar={value => { setPillar(value); setTopic(''); }} topic={topic} onTopic={setTopic} busy={loading} onDataChanged={() => setVersi(v => v + 1)} detailAnchorId={`${def.id}-detail`} /><p className="footer-note">Data terakhir: {story.data_as_of ?? 'waktu pembaruan belum tersedia'}.</p></>}
@@ -278,7 +278,7 @@ function ScrollReport({ target }: { target?: AnalysisDef['id'] }) {
   return <AppShell><Hero summary={summary} error={summaryError} />
     <SumberSection />
     <ChapterIntro id="ringkasan" number="Bagian II" title="Tiga Jalur untuk Membaca Dampak" description="Setiap jalur memakai sumber dan metode yang berbeda. Pilih jalur yang paling sesuai dengan pertanyaan Anda, bukan sekadar grafik yang ingin dilihat.">
-      <div className="route-grid">{analysisSections.map(def => <Link className={`route-card ${def.accent}`} to={{ pathname: '/dampak', hash: `#${def.id}` }} key={def.id}><div className="route-card-top"><img src={assetUrl(`logo/${def.icon}`)} alt="" /><span>{def.eyebrow}</span></div><h3>{routeTitle[def.id]}</h3><p>{def.description}</p><span className="route-action">Buka bagian ini <b aria-hidden="true">↓</b></span></Link>)}</div>
+      <div className="route-grid">{analysisSections.map(def => <Link className={`route-card ${def.accent}`} to={{ pathname: '/dampak', hash: `#${def.id}` }} key={def.id}><div className="route-card-top"><img src={assetUrl(`logo/${def.icon}`)} alt="" /><h3>{routeTitle[def.id]}</h3></div><p>{def.description}</p><span className="route-action">Buka bagian ini <b aria-hidden="true">↓</b></span></Link>)}</div>
     </ChapterIntro>
     <ChapterIntro number="Bagian III" title="Analisis Data Berita" description="Tiap bagian punya filter sendiri. Angka, grafik, tabel, dan laporan Word mengikuti filter yang aktif." />
     {analysisSections.map((def, index) => <AnalysisScene key={def.id} def={def} metadata={metadata} metadataError={metadataError} seeded={target === def.id} seedKey={location.key} tint={index % 2 === 1} pillarFromHash={bagianHash === def.id && pilarHash ? pilarHash : undefined} />)}
