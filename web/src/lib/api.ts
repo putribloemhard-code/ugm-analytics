@@ -389,11 +389,7 @@ export type SumberData = {
   };
   internal: { nama: string; status: string; pengganti: string }[];
 };
-export type BeritaDampak = { judul: string; tautan: string | null; tanggal: string; bahasa: 'ID' | 'EN'; tema: string[]; pilar: string[] };
 export function getSumber() { return get<SumberData>('/analytics/sources'); }
-export function getBeritaDampak(params: { page: number; page_size: number; q?: string; pilar?: string }) {
-  return get<{ page: number; page_size: number; total: number; rows: BeritaDampak[] }>(`/analytics/sources/news?${toQuery(params)}`);
-}
 
 /* ---- Tag SDG manual untuk berita tanpa tanda SDG (api/app/services/sdg_manual.py) ---- */
 export type BeritaTanpaSdg = { url: string; tautan: string | null; judul: string; tanggal: string };
