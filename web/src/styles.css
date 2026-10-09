@@ -391,9 +391,17 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .year-range { padding: 14px; margin-bottom: 16px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-subtle); }
 .range-label { display: flex; justify-content: space-between; gap: 12px; color: var(--text-muted); font-size: .84rem; }
 .range-label strong { color: var(--text-heading); }
-.range-inputs { position: relative; display: grid; margin-top: 8px; }
-.range-inputs input { grid-area: 1 / 1; width: 100%; height: 25px; background: transparent; accent-color: var(--chart-primary); }
-.range-inputs input:last-child { opacity: .72; }
+.range-inputs { --thumb: 18px; position: relative; height: 28px; margin-top: 8px; }
+.range-track { position: absolute; top: 50%; left: calc(var(--thumb) / 2); right: calc(var(--thumb) / 2); height: 6px; border-radius: 999px; transform: translateY(-50%); background: linear-gradient(to right, var(--border-subtle) var(--range-start), var(--chart-primary) var(--range-start), var(--chart-primary) var(--range-end), var(--border-subtle) var(--range-end)); }
+/* Kedua input ditumpuk; hanya thumb yang menerima klik supaya input atas tidak menutupi input bawah. */
+.range-inputs input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; background: transparent; pointer-events: none; -webkit-appearance: none; appearance: none; }
+.range-inputs input.is-top { z-index: 2; }
+.range-inputs input::-webkit-slider-runnable-track { height: 100%; background: transparent; }
+.range-inputs input::-moz-range-track { background: transparent; }
+.range-inputs input::-webkit-slider-thumb { -webkit-appearance: none; width: var(--thumb); height: var(--thumb); margin-top: calc((28px - var(--thumb)) / 2); border: 2px solid var(--surface-card); border-radius: 50%; background: var(--chart-primary); box-shadow: 0 1px 3px rgba(0, 0, 0, .3); cursor: grab; pointer-events: auto; }
+.range-inputs input::-moz-range-thumb { width: var(--thumb); height: var(--thumb); border: 2px solid var(--surface-card); border-radius: 50%; background: var(--chart-primary); box-shadow: 0 1px 3px rgba(0, 0, 0, .3); cursor: grab; pointer-events: auto; }
+.range-inputs input:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--chart-primary); outline-offset: 2px; }
+.range-inputs input:focus-visible::-moz-range-thumb { outline: 2px solid var(--chart-primary); outline-offset: 2px; }
 .filter-hint { margin-left: 4px; color: var(--text-muted); font-size: .78rem; }
 .filter-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
