@@ -37,7 +37,7 @@ def test_ringkas_bab_memuat_metrik_dan_tema():
     bab = next(c for c in story["chapters"] if c["pillar"] == "Sosial")
     teks = ringkas_bab(bab, story["filters"])
     assert bab["title"] in teks
-    assert "Berita dampak: 2" in teks
+    assert "Berita dampak: 2" in teks  # nilai < 1.000 tidak berubah oleh pemisah ribuan
     assert "Pendidikan Inklusif" in teks
 
 
@@ -85,3 +85,11 @@ def test_generate_ringkasan_cache_terpisah_dari_insight_bab():
     assert generate_ringkasan(story, client=klien)["cached"] is True
     assert generate_insight(story, "Sosial", client=klien)["cached"] is False
     assert len(klien.panggilan) == 2
+
+
+def test_ringkas_eksekutif_hanya_grafik_lintas_yang_sebasis():
+    story = build_story(make_frames(), FilterParams(), "impact")
+    teks = ringkas_eksekutif(story)
+    for chart in story["cross"]["charts"]:
+        if chart.get("insight") and chart["id"] not in insight_ai._GRAFIK_LINTAS:
+            assert chart["insight"] not in teks, chart["id"]

@@ -21,9 +21,11 @@ _CACHE_MAKS = 200
 
 _ATURAN = (
     "ATURAN KETAT: pakai hanya angka yang ada di data, jangan mengubah, membulatkan, atau mengarang angka; "
-    "jangan menambah klaim yang tidak didukung data; angka berita adalah hasil pencocokan kata kunci "
-    "(batas bawah), jadi jangan menyebutnya sebagai capaian final. "
-    "Tulis teks biasa tanpa markdown, heading, atau bullet; pisahkan paragraf dengan satu baris kosong."
+    "jangan menambah klaim yang tidak didukung data; jangan menyebut angka berita sebagai capaian final. "
+    "JANGAN menulis catatan metodologi (pencocokan kata kunci, batas bawah, irisan klasifikasi, cara "
+    "membaca angka): catatan itu sudah ada di bagian lain halaman. Setiap kalimat harus menyampaikan "
+    "temuan dari data. Tulis teks biasa tanpa markdown, heading, atau bullet; pisahkan paragraf dengan "
+    "satu baris kosong."
 )
 PROMPT_BAB = (
     "Kamu analis untuk laporan dampak sosial, ekonomi, dan lingkungan sebuah universitas. "
@@ -35,10 +37,18 @@ PROMPT_RINGKASAN = (
     "Kamu analis untuk laporan dampak sosial, ekonomi, dan lingkungan sebuah universitas. "
     "Tulis ringkasan eksekutif Bahasa Indonesia yang profesional dari data keseluruhan yang diberikan, "
     "untuk pimpinan yang hanya sempat membaca bagian ini. " + _ATURAN +
+    " Total berita dampak di baris metrik adalah satu-satunya angka total keseluruhan; jangan menyebut angka "
+    "total lain sebagai pembanding." +
     " Format: 2-3 paragraf pendek. Paragraf 1 = skala keseluruhan dan pembagian antar dampak (termasuk "
     "berita yang masuk lebih dari satu dampak); paragraf 2 = dampak/tema yang menonjol dan perubahannya; "
-    "paragraf 3 (bila datanya ada) = hal yang masih lemah atau perlu diperhatikan."
+    "paragraf 3 = tema yang paling sedikit diberitakan di tiap dampak (lihat jumlah per tema) dan satu-dua "
+    "saran tindak lanjut yang konkret untuk pimpinan."
 )
+
+# Grafik lintas-dampak yang dikirim ke AI. Sisanya sengaja tidak: "cakupan" memakai basis tahun
+# sitemap (total berbeda dari total berita dampak), keyword/kata teratas hanya untuk satu tema,
+# "kombinasi" memuat pencilan (mis. 1 berita dengan 8 tema), per_dampak/tren_tema duplikat angka lain.
+_GRAFIK_LINTAS = ("kepmen", "tema_tahun", "musiman", "multi_tema", "multi_tema_peta")
 
 _cache: OrderedDict[str, str] = OrderedDict()
 _cache_lock = threading.Lock()
@@ -61,8 +71,19 @@ def _baris_filter(filters: dict[str, Any]) -> list[str]:
     return baris
 
 
+def _angka(nilai: Any) -> str:
+    """Ribuan pakai koma, sama dengan teks insight grafik yang ikut dikirim, supaya AI tidak mencampur format."""
+    return f"{nilai:,}" if isinstance(nilai, int) and not isinstance(nilai, bool) else str(nilai)
+
+
 def _metrik(metrics: list[dict[str, Any]]) -> list[str]:
-    return [f"{m['label']}: {m['value']}" + (f" ({m['note']})" if m.get("note") else "") for m in metrics]
+    baris = []
+    for m in metrics:
+        # "Sorotan 2026" terlalu ambigu: AI sempat mengira angkanya milik dampak di metrik sebelumnya.
+        label = (f"Total berita dampak (semua dampak) tahun {m['label'].removeprefix('Sorotan ')}"
+                 if m["label"].startswith("Sorotan ") else m["label"])
+        baris.append(f"{label}: {_angka(m['value'])}" + (f" ({m['note']})" if m.get("note") else ""))
+    return baris
 
 
 def ringkas_bab(chapter: dict[str, Any], filters: dict[str, Any]) -> str:
@@ -89,26 +110,31 @@ def ringkas_eksekutif(story: dict[str, Any]) -> str:
              *_metrik(executive.get("metrics", []))]
     pembagian = executive.get("pembagian")
     if pembagian:
-        baris.append(f"Pembagian berita dampak (total {pembagian['total']}, irisan tidak tumpang tindih):")
-        baris += [f"- {i['label']}: {i['jumlah']} ({i.get('persen', 0)}%)" for i in pembagian["irisan"]]
+        baris.append(f"Pembagian berita dampak (total {_angka(pembagian['total'])}, irisan tidak tumpang tindih):")
+        baris += [f"- {i['label']}: {_angka(i['jumlah'])} ({i.get('persen', 0)}%)" for i in pembagian["irisan"]]
         baris.append("Jumlah berita per dampak (satu berita bisa masuk beberapa dampak):")
-        baris += [f"- {p['pilar']}: {p['jumlah']} ({p.get('persen', 0)}%)" for p in pembagian["per_pilar"]]
+        baris += [f"- {p['pilar']}: {_angka(p['jumlah'])} ({p.get('persen', 0)}%)" for p in pembagian["per_pilar"]]
     for row in story.get("overview", []):
         if row.get("top_topic"):
-            baris.append(f"Dampak {row['pillar']}: tema terbanyak {row['top_topic']} ({row['top_topic_count']} berita)")
+            baris.append(f"Dampak {row['pillar']}: tema terbanyak {row['top_topic']} ({_angka(row['top_topic_count'])} berita)")
     for chart in story.get("cross", {}).get("charts", []):
-        if chart.get("insight"):
+        if chart["id"] in _GRAFIK_LINTAS and chart.get("insight"):
             baris.append(f"{chart['title']}: {chart['insight']}")
     for chapter in story.get("chapters", []):
         baris.append(f"{chapter['title']}: " + "; ".join(_metrik(chapter.get("metrics", []))))
+        # Jumlah per tema (terbanyak -> tersedikit) supaya AI bisa menyebut tema yang masih lemah.
+        tema = sorted(((sec["label"], sec["metrics"][0]["value"]) for sec in chapter.get("subsections", [])
+                       if sec.get("metrics")), key=lambda x: -x[1])
+        if tema:
+            baris.append("    Berita per tema: " + "; ".join(f"{label} {_angka(n)}" for label, n in tema))
         for chart in chapter.get("charts", []):
             if chart.get("insight"):
                 baris.append(f"    {chart['title']}: {chart['insight']}")
     peta = story.get("sdg_peta") or {}
     tiles = sorted(peta.get("tiles", []), key=lambda t: t["jumlah"], reverse=True)
     if tiles:
-        baris.append("SDG terbanyak: " + "; ".join(f"SDG {t['sdg']} {t['nama']} ({t['jumlah']} berita)" for t in tiles[:5]))
-        baris.append("SDG paling sedikit: " + "; ".join(f"SDG {t['sdg']} {t['nama']} ({t['jumlah']} berita)" for t in tiles[-3:]))
+        baris.append("SDG terbanyak: " + "; ".join(f"SDG {t['sdg']} {t['nama']} ({_angka(t['jumlah'])} berita)" for t in tiles[:5]))
+        baris.append("SDG paling sedikit: " + "; ".join(f"SDG {t['sdg']} {t['nama']} ({_angka(t['jumlah'])} berita)" for t in tiles[-3:]))
     if executive.get("narrative"):
         baris.append(f"Ringkasan template (rujukan fakta, jangan disalin): {executive['narrative']}")
     return "\n".join(baris)
