@@ -150,11 +150,11 @@ function InsightAi({ story, pillar }: { story: Story; pillar: string }) {
 }
 
 function Bab({ chapter, story }: { chapter: Chapter; story: Story }) {
-  // Sub-bab terbuka secara default; yang ditutup disimpan per-id supaya tombol
+  // Sub-bab tertutup secara default; yang dibuka disimpan per-id supaya tombol
   // "Tutup/Buka semua" dan klik satu sub-bab tidak saling menimpa.
-  const [closed, setClosed] = useState<Set<string>>(new Set());
-  const semuaTerbuka = closed.size === 0;
-  const toggle = (id: string) => setClosed(current => {
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const semuaTerbuka = chapter.subsections.length > 0 && chapter.subsections.every(section => opened.has(subId(section)));
+  const toggle = (id: string) => setOpened(current => {
     const next = new Set(current);
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
@@ -174,10 +174,10 @@ function Bab({ chapter, story }: { chapter: Chapter; story: Story }) {
     <ChartGrid charts={chapter.charts} />
     <div className="laporan-bab__actions">
       <span className="section-note">{adaData ? 'Buka tiap sub-bab untuk indikator resmi + analisis berita tema.' : 'Tidak ada berita pada tema mana pun di bab ini untuk filter saat ini.'}</span>
-      <button type="button" className="button secondary" onClick={() => setClosed(semuaTerbuka ? new Set(chapter.subsections.map(subId)) : new Set())}>{semuaTerbuka ? 'Tutup semua sub-bab' : 'Buka semua sub-bab'}</button>
+      <button type="button" className="button secondary" onClick={() => setOpened(semuaTerbuka ? new Set() : new Set(chapter.subsections.map(subId)))}>{semuaTerbuka ? 'Tutup semua sub-bab' : 'Buka semua sub-bab'}</button>
     </div>
     <div className="laporan-bab__subs">
-      {chapter.subsections.map(section => <SubBab key={section.id} section={section} open={!closed.has(subId(section))} onToggle={() => toggle(subId(section))} />)}
+      {chapter.subsections.map(section => <SubBab key={section.id} section={section} open={opened.has(subId(section))} onToggle={() => toggle(subId(section))} />)}
     </div>
   </section>;
 }
