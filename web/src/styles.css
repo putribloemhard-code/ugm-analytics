@@ -818,6 +818,11 @@ td { line-height: 1.45; }
 .laporan-bab__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 6px; }
 .laporan-bab__actions .section-note { margin: 0; }
 .laporan-bab__subs { display: flex; flex-direction: column; gap: 10px; }
+.laporan-bab__ai { display: flex; flex-direction: column; gap: 10px; }
+.laporan-bab__ai .insight p { white-space: pre-line; }
+.laporan-bab__ai-aksi { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px; }
+.laporan-bab__ai-aksi .section-note { margin: 0 auto 0 0; }
+.laporan-bab__ai-galat { margin: 0; color: var(--status-critical); font-size: .88rem; text-align: right; }
 
 .laporan-sub { border: 1px solid var(--border-subtle); border-left: 4px solid var(--border); border-radius: 12px; background: var(--surface-card); scroll-margin-top: calc(var(--header-height) + 16px); }
 .laporan-bab--sosial .laporan-sub { border-left-color: var(--pillar-3); }

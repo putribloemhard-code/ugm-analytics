@@ -764,6 +764,33 @@ def story(
         raise HTTPException(status_code=503, detail="Story data is unavailable") from exc
 
 
+@router.post("/story/insight")
+def story_insight(
+    request: Request,
+    pillar: str = Query(pattern="^(Lingkungan|Ekonomi|Sosial)$"),
+    mode: str = Query(default="impact", pattern="^(impact|impact-sdgs)$"),
+    params: FilterParams = Depends(filters),
+    api: AnalyticsService = Depends(service),
+):
+    """Insight AI untuk satu bab laporan dampak pada filter yang sedang dipakai (butuh login Analisis Dampak)."""
+    user = _dampak_auth_user(request, api)
+    from app.services.insight_ai import InsightError, generate_insight
+    from app.services.story import StoryService
+
+    try:
+        story = StoryService(api.engine).story(params, mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
+        hasil = generate_insight(story, pillar)
+    except InsightError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not hasil["cached"]:
+        _catat(api, "dampak", user, "generate_insight", f"Generate insight AI dampak {pillar}")
+    return hasil
+
+
+
 @router.get("/sources")
 def sources(api: AnalyticsService = Depends(service)):
     """Bagian "Sumber": asal data berita & mata kuliah, jumlah diambil vs memuat dampak, per pilar."""

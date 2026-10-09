@@ -160,6 +160,8 @@ export type SdgPeta = {
   tiles: { sdg: number; nama: string; jumlah: number; keywords: { keyword: string; jumlah: number | null }[] }[];
 };
 export function getStory(params: Record<string, QueryValue>) { return get<Story>(`/analytics/story?${toQuery(params)}`); }
+/** Insight AI satu bab laporan dampak; `story.filters` dipakai apa adanya supaya angkanya sama dengan yang tampil. */
+export function generateInsightBab(story: Story, pillar: string) { return kirim<{ pillar: string; insight: string; cached: boolean }>(`/analytics/story/insight?${toQuery({ ...(story.filters as Record<string, QueryValue>), mode: story.mode, pillar })}`, 'POST'); }
 
 export function getMetadata() { return get<Metadata>('/analytics/metadata'); }
 export function getAccreditation() { return get<AccreditationResult>('/analytics/accreditation'); }

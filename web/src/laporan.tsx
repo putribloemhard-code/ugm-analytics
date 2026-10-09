@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import type { Chapter, ChapterSection, KurikulumTema, MataKuliahBlok, Story } from './lib/api';
+import { ApiError, generateInsightBab, type Chapter, type ChapterSection, type KurikulumTema, type MataKuliahBlok, type Story } from './lib/api';
 import { ChartGrid, Insight, StoryTableView } from './story';
 
 /* Komponen "Laporan dampak": tata letak mengikuti daftar isi resmi
@@ -125,7 +125,31 @@ function SubBab({ section, open, onToggle }: { section: ChapterSection; open: bo
 }
 
 /* ------------------------------------------------------------------- satu bab ---- */
-function Bab({ chapter }: { chapter: Chapter }) {
+/** Insight AI per bab: dirangkai LLM dari angka bab pada filter yang sedang tampil (api/app/services/insight_ai.py). */
+function InsightAi({ story, pillar }: { story: Story; pillar: string }) {
+  const [hasil, setHasil] = useState<{ teks: string; filter: unknown } | null>(null);
+  const [memuat, setMemuat] = useState(false);
+  const [galat, setGalat] = useState('');
+  // Insight lama tidak berlaku lagi begitu filter berubah; disembunyikan, bukan dibuang dari state.
+  const masihCocok = hasil && JSON.stringify(hasil.filter) === JSON.stringify(story.filters);
+  function generate() {
+    setMemuat(true); setGalat('');
+    generateInsightBab(story, pillar)
+      .then(value => setHasil({ teks: value.insight, filter: story.filters }))
+      .catch(e => setGalat(e instanceof ApiError && e.status === 401 ? 'Sesi login berakhir. Muat ulang halaman lalu masuk kembali.' : e instanceof Error ? e.message : 'Insight gagal dibuat.'))
+      .finally(() => setMemuat(false));
+  }
+  return <div className="laporan-bab__ai">
+    {masihCocok && <Insight label="Insight AI">{hasil.teks}</Insight>}
+    {galat && <p className="laporan-bab__ai-galat" role="alert">{galat}</p>}
+    <div className="laporan-bab__ai-aksi">
+      {masihCocok && <span className="section-note">Dirangkai AI dari angka bab ini. Periksa kembali sebelum dikutip.</span>}
+      <button type="button" className="button" onClick={generate} disabled={memuat} aria-busy={memuat}>{memuat ? 'Membuat insight…' : masihCocok ? 'Generate ulang' : 'Generate insight'}</button>
+    </div>
+  </div>;
+}
+
+function Bab({ chapter, story }: { chapter: Chapter; story: Story }) {
   // Sub-bab terbuka secara default; yang ditutup disimpan per-id supaya tombol
   // "Tutup/Buka semua" dan klik satu sub-bab tidak saling menimpa.
   const [closed, setClosed] = useState<Set<string>>(new Set());
@@ -145,6 +169,7 @@ function Bab({ chapter }: { chapter: Chapter }) {
           <div className={`metric-value ${typeof metric.value === 'string' && metric.value.length > 14 ? 'metric-value--text' : ''}`}>{fmtValue(metric.value)}</div>
         </div>)}
       </div>
+      {adaData && <InsightAi story={story} pillar={chapter.pillar} />}
     </header>
     <ChartGrid charts={chapter.charts} />
     <div className="laporan-bab__actions">
@@ -223,7 +248,7 @@ export function LaporanDampak({ story }: { story: Story }) {
   return <section className="story-block laporan" aria-label="Laporan dampak per bab">
     <DaftarIsi chapters={story.chapters} />
     <div className="laporan__bab-list">
-      {story.chapters.map(chapter => <Bab key={chapter.pillar} chapter={chapter} />)}
+      {story.chapters.map(chapter => <Bab key={chapter.pillar} chapter={chapter} story={story} />)}
     </div>
     {story.mata_kuliah && <MataKuliahPanel blok={story.mata_kuliah} pillar={undefined} />}
   </section>;
