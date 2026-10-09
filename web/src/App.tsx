@@ -1,7 +1,7 @@
 import { type CSSProperties, FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
-import { AUTH_EVENT, DAMPAK_AUTH_EVENT, accreditationLogin, accreditationMe, accreditationRegister, dampakLogin, dampakMe, dampakRegister, getAccreditation, getHomeSummary, getMetadata, getNews, getStory, searchAnalytics, type AccreditationResult, type AuthUser, type Metadata, type PillarDetail, type Story, type TopicOption } from './lib/api';
+import { AUTH_EVENT, DAMPAK_AUTH_EVENT, accreditationLogin, accreditationMe, accreditationRegister, dampakLogin, dampakMe, dampakRegister, getAccreditation, getHomeSummary, getMetadata, getNews, generateRingkasanAi, getStory, searchAnalytics, type AccreditationResult, type AuthUser, type Metadata, type PillarDetail, type Story, type TopicOption } from './lib/api';
 import { assetUrl, keluarKe, SiteShell, useInView } from './shell';
 import { MultiSelect } from './multiselect';
 import { ChartGrid, Insight, StoryTableView } from './story';
@@ -68,12 +68,31 @@ const pillarAccent: Record<string, string> = { Lingkungan: 'green', Ekonomi: 'or
 const fmtValue = (value: unknown) => (typeof value === 'number' ? value.toLocaleString('id-ID') : String(value ?? '-'));
 
 function Executive({ story }: { story: Story }) {
+  // Ringkasan template tampil seketika; versi AI (lebih lengkap) menggantikannya begitu siap.
+  // Kunci = filter + mode, supaya jawaban AI untuk filter lama tidak menimpa filter baru.
+  const kunci = JSON.stringify([story.mode, story.filters, story.data_as_of]);
+  const [ai, setAi] = useState<{ kunci: string; teks: string } | null>(null);
+  const [aiStatus, setAiStatus] = useState<'memuat' | 'gagal' | ''>('');
+  useEffect(() => {
+    if (!story.executive.metrics.length) return;
+    let batal = false; setAiStatus('memuat');
+    generateRingkasanAi(story)
+      .then(value => { if (!batal) { setAi({ kunci, teks: value.narrative }); setAiStatus(''); } })
+      .catch(() => { if (!batal) setAiStatus('gagal'); });
+    return () => { batal = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cukup dipicu perubahan kunci
+  }, [kunci]);
+  const teksAi = ai?.kunci === kunci ? ai.teks : null;
   return <section className="story-block" aria-label="Ringkasan eksekutif">
     <h3>Ringkasan eksekutif</h3>
     <div className="analysis-summary-grid">{story.executive.metrics.map(metric => <div className="metric" key={metric.label} title={metric.help ?? undefined}><div className="metric-label">{metric.label}</div><div className="metric-value">{fmtValue(metric.value)}</div>{metric.note && <div className="metric-note">{metric.note}</div>}</div>)}</div>
     {story.executive.pembagian && <PembagianDampakChart data={story.executive.pembagian} />}
-    {/* Kotak Ringkasan: narasi angka eksekutif. */}
-    <Insight label="Ringkasan">{story.executive.narrative}</Insight>
+    <div className="ringkasan-ai" aria-live="polite" aria-busy={aiStatus === 'memuat'}>
+      <Insight label={teksAi ? 'Ringkasan AI' : 'Ringkasan'}>{teksAi ?? story.executive.narrative}</Insight>
+      {teksAi ? <p className="section-note">Dirangkai AI dari angka di halaman ini. Periksa kembali sebelum dikutip.</p>
+        : aiStatus === 'memuat' ? <p className="section-note">Menyusun ringkasan yang lebih lengkap dengan AI…</p>
+        : aiStatus === 'gagal' ? <p className="section-note">Ringkasan AI belum tersedia; yang tampil ringkasan otomatis biasa.</p> : null}
+    </div>
   </section>;
 }
 

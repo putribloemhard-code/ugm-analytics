@@ -790,6 +790,28 @@ def story_insight(
     return hasil
 
 
+@router.post("/story/ringkasan-ai")
+def story_ringkasan_ai(
+    request: Request,
+    mode: str = Query(default="impact", pattern="^(impact|impact-sdgs|sdgs)$"),
+    params: FilterParams = Depends(filters),
+    api: AnalyticsService = Depends(service),
+):
+    """Ringkasan eksekutif AI; dipanggil otomatis oleh halaman setelah /story termuat (butuh login Analisis Dampak).
+    Sengaja tidak dicatat di log aktivitas: terpanggil tiap ganti filter, bukan aksi pengguna."""
+    _dampak_auth_user(request, api)
+    from app.services.insight_ai import InsightError, generate_ringkasan
+    from app.services.story import StoryService
+
+    try:
+        story = StoryService(api.engine).story(params, mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
+        return generate_ringkasan(story)
+    except InsightError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
 
 @router.get("/sources")
 def sources(api: AnalyticsService = Depends(service)):

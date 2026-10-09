@@ -162,6 +162,8 @@ export type SdgPeta = {
 export function getStory(params: Record<string, QueryValue>) { return get<Story>(`/analytics/story?${toQuery(params)}`); }
 /** Insight AI satu bab laporan dampak; `story.filters` dipakai apa adanya supaya angkanya sama dengan yang tampil. */
 export function generateInsightBab(story: Story, pillar: string) { return kirim<{ pillar: string; insight: string; cached: boolean }>(`/analytics/story/insight?${toQuery({ ...(story.filters as Record<string, QueryValue>), mode: story.mode, pillar })}`, 'POST'); }
+/** Ringkasan eksekutif AI untuk filter yang sedang tampil; dipanggil otomatis setelah story termuat. */
+export function generateRingkasanAi(story: Story) { return kirim<{ narrative: string; cached: boolean }>(`/analytics/story/ringkasan-ai?${toQuery({ ...(story.filters as Record<string, QueryValue>), mode: story.mode })}`, 'POST'); }
 
 export function getMetadata() { return get<Metadata>('/analytics/metadata'); }
 export function getAccreditation() { return get<AccreditationResult>('/analytics/accreditation'); }

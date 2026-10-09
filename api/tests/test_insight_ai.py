@@ -7,7 +7,7 @@ import pytest
 
 from app.domain.models import FilterParams
 from app.services import insight_ai
-from app.services.insight_ai import InsightError, generate_insight, ringkas_bab
+from app.services.insight_ai import InsightError, generate_insight, generate_ringkasan, ringkas_bab, ringkas_eksekutif
 from app.services.story import build_story
 from tests.test_story import make_frames
 
@@ -68,3 +68,20 @@ def test_generate_insight_bab_tanpa_berita_tidak_memanggil_llm():
     with pytest.raises(InsightError):
         generate_insight(story, "Sosial", client=klien)
     assert not klien.panggilan
+
+
+def test_ringkas_eksekutif_memuat_pembagian_dan_bab():
+    story = build_story(make_frames(), FilterParams(), "impact")
+    teks = ringkas_eksekutif(story)
+    assert "Total berita dampak" in teks
+    assert "Pembagian berita dampak" in teks
+    assert all(c["title"] in teks for c in story["chapters"])
+
+
+def test_generate_ringkasan_cache_terpisah_dari_insight_bab():
+    story = build_story(make_frames(), FilterParams(), "impact")
+    klien = KlienTiruan("Ringkasan uji.")
+    assert generate_ringkasan(story, client=klien) == {"narrative": "Ringkasan uji.", "cached": False}
+    assert generate_ringkasan(story, client=klien)["cached"] is True
+    assert generate_insight(story, "Sosial", client=klien)["cached"] is False
+    assert len(klien.panggilan) == 2
