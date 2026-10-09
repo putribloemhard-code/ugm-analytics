@@ -42,6 +42,9 @@ logger = logging.getLogger(__name__)
 PILLARS = ("Lingkungan", "Ekonomi", "Sosial")
 MODE_LABEL = {"impact": "Berdampak", "impact-sdgs": "Berdampak × SDGs"}
 MAX_ROWS = 200
+# Kode bulan "01"-"12" (dari tanggal berita) -> nama untuk teks insight.
+NAMA_BULAN = dict(zip([f"{i:02d}" for i in range(1, 13)], [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]))
 # Baris per halaman untuk tabel "Daftar berita" di web (tombol Sebelumnya/Berikutnya).
 # Tabel berita panjang (sampai MAX_ROWS) jadi 40 halaman; tabel ringkas tetap tampil utuh.
 NEWS_PAGE_SIZE = 5
@@ -1102,7 +1105,7 @@ def _pillar_detail(ctx: _Ctx, pilar: str, topic: str | None) -> dict[str, Any]:
     if len(musim):
         musim["label"] = musim["topik"].map(label_topic)
         bulan_sum = musim.groupby("bulan")["jumlah"].sum().reset_index()
-        bulan_sum["label_bulan"] = "Bulan " + bulan_sum["bulan"]
+        bulan_sum["label_bulan"] = bulan_sum["bulan"].map(lambda b: NAMA_BULAN.get(b, f"Bulan {b}"))
         tren_charts.append(_chart(
             "musiman", "stacked_bar", f"Tren bulanan musiman (dampak {pilar})",
             _stacked_data(musim, "bulan", "label", "jumlah", [label_topic[k] for k in tampil_pilar]),
@@ -1323,7 +1326,7 @@ def _cross(ctx: _Ctx, fr: StoryFrames, topic: str | None) -> dict[str, Any]:
     charts.append(_chart(
         "musiman", "stacked_bar", "Jumlah berita per bulan kalender (semua tahun digabung)",
         _stacked_data(musim, "bulan", "label", "jumlah", [label_topic[k] for k in ctx.tampil]),
-        insight=f"Bulan paling ramai (semua tema & tahun): {bulan_sum.idxmax()} dengan {int(bulan_sum.max()):,} berita.",
+        insight=f"Bulan paling ramai (semua tema & tahun): {NAMA_BULAN.get(bulan_sum.idxmax(), bulan_sum.idxmax())} dengan {int(bulan_sum.max()):,} berita.",
         note="Bulan 01-12 = Januari-Desember.",
     ))
 
@@ -1343,8 +1346,10 @@ def _cross(ctx: _Ctx, fr: StoryFrames, topic: str | None) -> dict[str, Any]:
                 "bars": {"name": "Total berita (sitemap)", "values": [int(v) for v in gab["total"]]},
                 "line": {"name": "Berita bertema dampak", "values": [int(v) for v in gab["bertopik"]]},
             },
-            insight=(f"Sepanjang {start}–{end}: dari {total_all:,} total berita UGM, {total_matched:,} ({pct:.1f}%) "
-                     "terdeteksi tema dampak."),
+            # Rentang disebut dari tahun yang benar-benar ada di sitemap: tahun tanpa baris sitemap ikut
+            # terbuang dari kedua angka, jadi "Sepanjang {start}–{end}" akan menyesatkan.
+            insight=(f"Pada tahun yang tercakup sitemap ({gab['tahun'].iloc[0]}–{gab['tahun'].iloc[-1]}, {len(gab)} tahun): "
+                     f"dari {total_all:,} total berita UGM, {total_matched:,} ({pct:.1f}%) terdeteksi tema dampak."),
             note=("Batang abu-abu = seluruh URL di sitemap ugm.ac.id per tahun (baseline). Garis = berita unik yang match "
                   "tema dampak; nilainya lower-bound karena pencocokan keyword terbatas pada 14 tema Kepmen yang dideteksi."),
         ))
