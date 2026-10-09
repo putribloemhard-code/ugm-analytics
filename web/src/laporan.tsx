@@ -217,11 +217,6 @@ export function MataKuliahPanel({ blok, pillar, anchorId }: { blok: MataKuliahBl
   </section>;
 }
 
-/** Cara membaca laporan per bab; ditampilkan sebagai lanjutan kotak Ringkasan di ringkasan eksekutif. */
-export const CARA_MEMBACA_LAPORAN = 'Laporan dampak di bawah mengikuti struktur Laporan Dampak Sosial, Ekonomi, dan Lingkungan UGM 2025: '
-  + 'Dampak Sosial (4 tema), Dampak Ekonomi (5 tema), dan Dampak Lingkungan (5 tema). Setiap tema menampilkan indikator '
-  + 'penilaian resmi Kepmen 361/M/KEP/2025 di samping analisis pemberitaan publik untuk tema tersebut.';
-
 /* ------------------------------------------------------------- tampilan utama ---- */
 export function LaporanDampak({ story }: { story: Story }) {
   if (!story.chapters.length) return null;

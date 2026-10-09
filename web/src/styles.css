@@ -384,7 +384,6 @@ h1, h2, h3 { color: var(--text-heading); font-family: var(--font-display); line-
 .insight__label { margin-bottom: 6px; color: var(--text-link); font-size: .74rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .insight p { margin: 0; color: var(--text); line-height: 1.7; }
 /* Paragraf lanjutan di kotak yang sama (Ringkasan: narasi + cara membaca laporan). */
-.insight__lanjutan { display: block; margin-top: .7em; }
 
 .filter-panel { padding: 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
 .filter-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
