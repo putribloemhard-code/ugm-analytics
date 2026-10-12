@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
-  ApiError, accreditationUpload, addAccreditationProgram, aktivitasLaporan, ajukanResetPin, buatLaporan, buatPinProdi, bukaProdi, downloadLaporanWord, hapusLaporan,
+  ApiError, accreditationUpload, buatDrafAi, pulihkanIsian, addAccreditationProgram, aktivitasLaporan, ajukanResetPin, buatLaporan, buatPinProdi, bukaProdi, downloadLaporanWord, hapusLaporan,
   generateAccreditationDocument, getAccreditationWorkspace, getDaftarLaporan, simpanBlob, startAccreditationExtraction,
   type AccreditationResult, type AuthUser, type DaftarLaporan, type Dokumen, type RiwayatEkstraksi, type Workspace, type WorkspaceItem, type WorkspaceUpload,
 } from './lib/api';
@@ -226,7 +226,7 @@ export function AccreditationWorkspace({ catalog, onCatalogChange, initialProdi,
                     })}
                   </div>
                   {activeGroup && <div className="requirement-list" role="tabpanel">
-                    {activeGroup.items.map(item => <ItemCard key={item.id} item={item} laporanId={workspace.laporan.id} fokus={fokus === item.id} onSaved={() => muat(true)} />)}
+                    {activeGroup.items.map(item => <ItemCard key={item.id} item={item} laporanId={workspace.laporan.id} fokus={fokus === item.id} onSaved={() => muat(true)} drafAiAktif={workspace.draf_ai.tersedia} />)}
                     {activeGroup.cuplikan.length > 0 && <div className="cuplikan">
                       <h3>Tabel LKPS terkait</h3>
                       <p className="section-note">Diisi dan dilihat lengkap di dokumen LKPS — ditampilkan di sini sebagai cuplikan bukti evaluasi.</p>
@@ -460,9 +460,28 @@ function DataPendukung({ data, teks }: { data: NonNullable<WorkspaceItem['penduk
 }
 
 
-function ItemCard({ item, laporanId, fokus, onSaved }: { item: WorkspaceItem; laporanId: number; fokus: boolean; onSaved: () => void }) {
+/** Item narasi yang bisa dibuatkan draf AI (belum final). Isian tim ikut, tapi hanya diganti bila diminta. */
+const bisaDrafAi = (item: WorkspaceItem) => item.bisa_draf_ai && item.editable && !item.final;
+/** Isian item ditulis tim (bukan draf AI): mengganti dengan draf AI butuh konfirmasi dan dicadangkan. */
+const isianTim = (item: WorkspaceItem) => item.terisi && !item.draf_ai;
+const KONFIRMASI_GANTI = 'Isian tim akan diganti draf AI. Isian lama disimpan sebagai cadangan dan bisa dipulihkan per item '
+  + 'lewat "Pulihkan isian sebelumnya" selama draf AI-nya belum disunting. Lanjutkan?';
+
+function ItemCard({ item, laporanId, fokus, onSaved, drafAiAktif }: { item: WorkspaceItem; laporanId: number; fokus: boolean; onSaved: () => void; drafAiAktif: boolean }) {
   const { rows, dirty, basi, status, setStatus, sibuk, ubah, salinLive, tambahBaris, hapusBaris, batal, simpan, muatDariFile } = useItemEditor(item, laporanId, onSaved);
   const [open, setOpen] = useState(fokus);
+  const [drafSibuk, setDrafSibuk] = useState(false);
+  async function aksiDraf(aksi: () => Promise<{ message: string }>, cadangan: string) {
+    setDrafSibuk(true); setStatus(null);
+    try { const r = await aksi(); setStatus({ type: 'info', text: r.message }); onSaved(); }
+    catch (e) { setStatus({ type: 'error', text: pesan(e, cadangan) }); }
+    finally { setDrafSibuk(false); }
+  }
+  function buatDraf() {
+    const timpa = isianTim(item);
+    if (timpa && !window.confirm(KONFIRMASI_GANTI)) return;
+    void aksiDraf(() => buatDrafAi(laporanId, item.id, timpa), 'Draf AI gagal dibuat.');
+  }
   const el = useRef<HTMLElement>(null);
 
   useEffect(() => { if (fokus) { setOpen(true); el.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }, [fokus]);
@@ -473,6 +492,7 @@ function ItemCard({ item, laporanId, fokus, onSaved }: { item: WorkspaceItem; la
       <span className={`state-badge ${item.state}`}>{STATE_LABEL[item.state]}</span>
       <span className="requirement-card__title">{item.nama}{item.tabel_lkps && <small> · Tabel {item.tabel_lkps}</small>}</span>
       {dariAi && <span className="state-badge ai">Hasil ekstraksi</span>}
+      {item.draf_ai && <span className="state-badge ai">Draf AI</span>}
       {dirty && <span className="state-badge dirty">Belum disimpan</span>}
       <span className="requirement-card__chevron" aria-hidden="true">{open ? '−' : '+'}</span>
     </button>
@@ -489,6 +509,7 @@ function ItemCard({ item, laporanId, fokus, onSaved }: { item: WorkspaceItem; la
         ? <Notice type="info">Belum ada pipeline/form untuk item ini. Sumber data seharusnya: <b>{item.sumber_data}</b>.</Notice>
         : <>
           {item.narasi && <Notice type="info"><b>Narasi ini perlu disesuaikan tim penyusun dengan kondisi &amp; evaluasi terkini</b> sebelum digunakan — termasuk bila isinya berasal dari ekstraksi dokumen yang diupload.</Notice>}
+          {item.draf_ai && <Notice type="warning"><b>Isian ini draf AI.</b> Cari penanda <b>[perlu dilengkapi: …]</b>, lengkapi dan sunting, lalu klik Simpan — tanda Draf AI hilang setelah disimpan atas nama Anda.</Notice>}
           {dariAi && <p className="field-hint">Sebagian isian item ini merupakan hasil ekstraksi ({item.diisi_oleh?.slice(PREFIX_EKSTRAKSI.length)}). Periksa lalu klik Simpan untuk mengonfirmasi atas nama Anda.</p>}
           {basi && <Notice type="warning">Data item ini berubah di server (mis. disimpan staf lain atau hasil ekstraksi baru) saat Anda mengedit. Simpan untuk memakai isian Anda, atau <button className="link-button" onClick={batal}>muat versi terbaru</button>.</Notice>}
 
@@ -504,7 +525,7 @@ function ItemCard({ item, laporanId, fokus, onSaved }: { item: WorkspaceItem; la
             : item.tipe === 'narasi'
             ? <div className="narasi-editor">{item.kolom.map(k => <div className="field" key={k}>
                 <label htmlFor={`${item.id}-${k}`}>{k}</label>
-                <textarea id={`${item.id}-${k}`} rows={3} value={rows[0]?.[k] ?? ''} onChange={e => ubah(0, k, e.target.value)} />
+                <textarea id={`${item.id}-${k}`} rows={Math.min(16, Math.max(3, Math.ceil((rows[0]?.[k] ?? '').length / 110)))} value={rows[0]?.[k] ?? ''} onChange={e => ubah(0, k, e.target.value)} />
               </div>)}</div>
             : <div className="data-table-wrap item-editor"><table>
               <caption className="sr-only">Isian {item.nama}</caption>
@@ -521,6 +542,11 @@ function ItemCard({ item, laporanId, fokus, onSaved }: { item: WorkspaceItem; la
             {item.live && !item.terisi && <button className="button secondary" onClick={salinLive}>Salin data live ke isian</button>}
             {item.tipe === 'tabel' && <button className="button secondary" onClick={tambahBaris}>+ Tambah baris</button>}
             <button className="button" disabled={sibuk} onClick={simpan}>{sibuk ? 'Menyimpan…' : 'Simpan'}</button>
+            {item.bisa_draf_ai && <button className="button secondary" disabled={drafSibuk || dirty || !bisaDrafAi(item) || !drafAiAktif}
+              title={!drafAiAktif ? 'Draf AI nonaktif: isi OPENAI_API_KEY di .env lalu jalankan ulang API' : item.final ? 'Item sudah final; kembalikan ke draft dulu' : dirty ? 'Simpan atau batalkan perubahan dulu' : undefined}
+              onClick={buatDraf}>{drafSibuk ? 'Menyusun draf AI…' : item.draf_ai ? 'Buat ulang draf AI' : isianTim(item) ? 'Ganti dengan draf AI' : 'Buat draf AI'}</button>}
+            {item.bisa_pulihkan && <button className="link-button" disabled={drafSibuk || dirty}
+              onClick={() => void aksiDraf(() => pulihkanIsian(laporanId, item.id), 'Isian sebelumnya gagal dipulihkan.')}>Pulihkan isian sebelumnya</button>}
             {dirty && <button className="link-button" onClick={batal}>Batalkan perubahan</button>}
             {item.format_excel && <FormatTabelAksi itemId={item.id} laporanId={laporanId}
               onRows={muatDariFile} onError={teks => setStatus({ type: 'error', text: teks })} />}

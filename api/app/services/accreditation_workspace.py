@@ -154,13 +154,24 @@ class AccreditationWorkspaceService:
 
         grouped = registry.led_items_by_kriteria() if dokumen == "LED" else registry.lkps_items_by_bagian()
         labels = registry.LABEL_KRITERIA if dokumen == "LED" else registry.LABEL_BAGIAN_LKPS
+        from app.services.accreditation_narasi_ai import DIISI_AI, item_bercadangan, item_draf_ai  # impor lambat: modul itu mengimpor modul ini
+        item_ai = set(item_draf_ai()) if dokumen == "LED" else set()
+        cadangan = item_bercadangan(self.engine, lap_id) if item_ai else set()
+
+        def draf_ai(item_id: str) -> dict[str, bool]:
+            # "Draf AI" = semua sel item masih tulisan AI dan belum ditandai final; disunting tim -> hilang.
+            sel = manual_by_item.get(item_id, [])
+            draf = bool(sel) and item_id not in final and all(r["diisi_oleh"] == DIISI_AI for r in sel)
+            # Isian tim yang diganti draf AI bisa dipulihkan selama draf itu belum disunting.
+            return {"draf_ai": draf, "bisa_draf_ai": item_id in item_ai, "bisa_pulihkan": draf and item_id in cadangan}
+
         groups = []
         for key, items in grouped.items():
             group = {
                 "key": key,
                 "label": labels.get(key, key),
                 "items": [{**self._item_payload(registry, item, manual_by_item.get(item["id"], []), live),
-                           "final": final.get(item["id"])} for item in items],
+                           "final": final.get(item["id"]), **draf_ai(item["id"])} for item in items],
                 "cuplikan": [],
             }
             if dokumen == "LED" and key not in ("Umum", "D"):
@@ -193,6 +204,7 @@ class AccreditationWorkspaceService:
                     for r in ekstraksi if r["item_id"] in grup_item
                 ],
             },
+            "draf_ai": {"tersedia": extraction_available()},
             "riwayat_word": [{"id": int(r["id"]), "oleh": r["user_email"], "waktu": _iso(r["generated_at"])}
                              for r in riwayat[:MAX_RIWAYAT]],
         }
@@ -367,16 +379,22 @@ class AccreditationWorkspaceService:
         with self.engine.connect() as conn:
             program = self._program(conn, prodi_id)
             df = pd.read_sql(text("""
-                SELECT item_id, baris_ke, kolom, tahun, nilai, link_bukti
+                SELECT item_id, baris_ke, kolom, tahun, nilai, link_bukti, diisi_oleh
                 FROM akreditasi_data_manual WHERE laporan_id = :l
             """), conn, params={"l": lap_id})
             live = sumber.data_live(conn, prodi_id)
+            final = {r[0] for r in conn.execute(text("SELECT item_id FROM akreditasi_item_final WHERE laporan_id = :l"),
+                                                {"l": lap_id})}
+        from app.services.accreditation_narasi_ai import DIISI_AI  # impor lambat: modul itu mengimpor modul ini
+        # Item yang seluruh selnya masih tulisan AI dan belum final: ditandai "wajib diperiksa" di Word.
+        draf_ai = {i for i, g in df.groupby("item_id")["diisi_oleh"] if (g == DIISI_AI).all() and i not in final}
         generator = load_accreditation_module("generate_template.py")
         konteks = {
             "prodi": f"{program.get('jenjang') or ''} {program['nama']}".strip() + f" — {_nama_laporan(laporan)}",
             "fakultas": program.get("fakultas"),
             "peta": sumber.peta(),
             "live": live,
+            "draf_ai": draf_ai,
         }
         build = generator.build_led_docx if dokumen == "LED" else generator.build_lkps_docx
         content = build(df, konteks=konteks)

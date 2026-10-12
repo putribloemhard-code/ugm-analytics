@@ -134,6 +134,17 @@ def _table_ddl(engine: Engine) -> list[str]:
             waktu TIMESTAMP NOT NULL,
             PRIMARY KEY (laporan_id, item_id)
         )""",
+        # Isian tim yang diganti draf AI (services/accreditation_narasi_ai.py), bisa dipulihkan per item.
+        """CREATE TABLE IF NOT EXISTS akreditasi_draf_cadangan (
+            laporan_id INTEGER NOT NULL,
+            item_id VARCHAR(64) NOT NULL,
+            baris_ke INTEGER NOT NULL,
+            kolom VARCHAR(255) NOT NULL,
+            nilai TEXT,
+            diisi_oleh VARCHAR(255),
+            updated_at TIMESTAMP NULL,
+            dicadangkan_at TIMESTAMP NOT NULL
+        )""",
     ]
 
 

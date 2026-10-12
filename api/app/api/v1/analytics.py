@@ -603,6 +603,33 @@ def accreditation_save_item(item_id: str, payload: dict[str, Any], request: Requ
     return hasil
 
 
+@router.post("/accreditation/workspace/items/{item_id}/draf-ai")
+def accreditation_draf_ai(item_id: str, payload: dict[str, Any], request: Request,
+                          api: AnalyticsService = Depends(service)):
+    """Buat draf AI satu item narasi LED dari data laporan. Isian tim hanya diganti bila `timpa` (dicadangkan
+    dulu, bisa dipulihkan); item final tidak pernah disentuh."""
+    user = _auth_user(request, api)
+    laporan = _laporan_terbuka(request, api, payload.get("laporan_id"))
+    from app.services.accreditation_narasi_ai import buat_draf
+    timpa = payload.get("timpa") is True
+    hasil = _workspace_call(buat_draf, api.engine, laporan, item_id, timpa=timpa)
+    _catat(api, "akreditasi", user, "draf_ai",
+           f"{'Mengganti isian dengan' if timpa else 'Membuat'} draf AI: {_nama_item(item_id)}", int(laporan["id"]))
+    return hasil
+
+
+@router.post("/accreditation/workspace/items/{item_id}/pulihkan")
+def accreditation_pulihkan(item_id: str, payload: dict[str, Any], request: Request,
+                           api: AnalyticsService = Depends(service)):
+    """Kembalikan isian tim yang diganti draf AI (selama draf itu belum disunting)."""
+    user = _auth_user(request, api)
+    laporan = _laporan_terbuka(request, api, payload.get("laporan_id"))
+    from app.services.accreditation_narasi_ai import pulihkan
+    hasil = _workspace_call(pulihkan, api.engine, laporan, item_id)
+    _catat(api, "akreditasi", user, "pulihkan", f"Memulihkan isian sebelum draf AI: {_nama_item(item_id)}", int(laporan["id"]))
+    return hasil
+
+
 @router.get("/accreditation/tabel/{item_id}/template")
 def accreditation_tabel_template(item_id: str, request: Request, api: AnalyticsService = Depends(service)):
     """Template Excel kosong untuk satu isian tabel (format = akreditasi/format_tabel.json)."""

@@ -421,7 +421,11 @@ def _add_item_gabungan(doc: Document, item: dict, df_manual: pd.DataFrame, konte
     live_item = live["items"].get(item["id"])
     if rows:
         (_add_tabel_item if item["tipe"] == "tabel" else _add_narasi_item)(doc, item, rows)
-        _keterangan(doc, "Sumber: isian tim penyusun.")
+        if item["id"] in konteks.get("draf_ai", ()):
+            _keterangan(doc, "Sumber: DRAF AI dari data laporan — wajib diperiksa dan disunting tim penyusun; "
+                             "lengkapi setiap penanda [perlu dilengkapi: …].")
+        else:
+            _keterangan(doc, "Sumber: isian tim penyusun.")
     elif live_item:
         _add_live(doc, item, live_item)
     else:
@@ -495,6 +499,15 @@ def _add_todo_gabungan(doc: Document, item_ids: list[str], r: dict, konteks: dic
         cells[2].text = LABEL_KRITERIA.get(item["kriteria_led"], item["kriteria_led"])
         cells[3].text = label[_kategori(peta, item_id)]
         cells[4].text = (peta.get(item_id) or {}).get("catatan_jika_tidak_tersedia") or item["sumber_data"]
+    draf_ai = [i for i in item_ids if i in konteks.get("draf_ai", ())]
+    if draf_ai:
+        doc.add_heading("Draf AI yang Wajib Diperiksa", level=2)
+        doc.add_paragraph("Narasi berikut masih berupa draf AI yang disusun dari data laporan ini dan belum disunting "
+                          "tim penyusun. Periksa kebenarannya dan lengkapi setiap penanda [perlu dilengkapi: …].")
+        for item_id in draf_ai:
+            item = KEBUTUHAN_DATA[item_id]
+            doc.add_paragraph(f"{LABEL_KRITERIA.get(item['kriteria_led'], item['kriteria_led'])} — {item['nama']}",
+                              style="List Bullet")
     doc.add_page_break()
 
 

@@ -245,6 +245,12 @@ export type WorkspaceItem = {
   pendukung: { judul: string; total: number; kolom: string[]; rows: string[][]; tautan: string[] | null } | null;
   /** Status review dokumen: null = draft; terisi = sudah ditandai final (kembali null bila diedit lagi). */
   final: { oleh: string | null; waktu: string | null } | null;
+  /** Isian masih tulisan AI (belum disunting tim, belum final). */
+  draf_ai: boolean;
+  /** Item narasi LED yang bisa dibuatkan draf AI. */
+  bisa_draf_ai: boolean;
+  /** Draf AI ini menggantikan isian tim yang tersimpan sebagai cadangan dan bisa dipulihkan. */
+  bisa_pulihkan: boolean;
 };
 export type KategoriSumber = 'tersedia' | 'akses_data' | 'penyusunan';
 /** Satu nilai hasil ekstraksi dan apa yang terjadi saat diterapkan ke data laporan. */
@@ -272,6 +278,8 @@ export type Workspace = {
   groups: WorkspaceGroup[];
   uploads: WorkspaceUpload[];
   ekstraksi: { tersedia: boolean; riwayat: RiwayatEkstraksi[] };
+  /** Draf AI narasi LED (tombol per item): false bila OPENAI_API_KEY belum diisi. */
+  draf_ai: { tersedia: boolean };
   riwayat_word: { id: number; oleh: string; waktu: string | null }[];
 };
 
@@ -316,6 +324,14 @@ export function getAccreditationWorkspace(laporanId: number) {
 }
 export function saveAccreditationItem(laporanId: number, itemId: string, rows: ItemRow[]) {
   return kirim<{ message: string; baris: number; sel: number }>(`/analytics/accreditation/workspace/items/${encodeURIComponent(itemId)}`, 'POST', { laporan_id: laporanId, rows });
+}
+/** Draf AI satu item narasi LED (bisa 10–60 detik); tersimpan sebagai isian bertanda "Draf AI". */
+export function buatDrafAi(laporanId: number, itemId: string, timpa = false) {
+  return kirim<{ message: string; penanda: number }>(`/analytics/accreditation/workspace/items/${encodeURIComponent(itemId)}/draf-ai`, 'POST', { laporan_id: laporanId, timpa });
+}
+/** Kembalikan isian tim yang diganti draf AI. */
+export function pulihkanIsian(laporanId: number, itemId: string) {
+  return kirim<{ message: string }>(`/analytics/accreditation/workspace/items/${encodeURIComponent(itemId)}/pulihkan`, 'POST', { laporan_id: laporanId });
 }
 export function setItemFinal(laporanId: number, itemIds: string[], final: boolean) {
   return kirim<{ message: string }>('/analytics/accreditation/workspace/final', 'POST', { laporan_id: laporanId, item_ids: itemIds, final });

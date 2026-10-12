@@ -18,7 +18,10 @@ export function pesan(e: unknown, cadangan: string): string {
 /** Penanda pengisi di database: 'AI: nama-file' = isian hasil ekstraksi dokumen; tampilkan sebagai "Hasil ekstraksi". */
 export const PREFIX_EKSTRAKSI = 'AI: ';
 export const dariEkstraksi = (oleh: string | null | undefined) => Boolean(oleh?.startsWith(PREFIX_EKSTRAKSI));
+/** Penanda pengisi untuk draf narasi AI (api/app/services/accreditation_narasi_ai.py: DIISI_AI). */
+export const DIISI_DRAF_AI = 'Draf AI';
 export function labelPengisi(oleh: string): string {
+  if (oleh === DIISI_DRAF_AI) return 'Draf AI (belum disunting tim)';
   return dariEkstraksi(oleh) ? `Hasil ekstraksi: ${oleh.slice(PREFIX_EKSTRAKSI.length)}` : oleh;
 }
 
