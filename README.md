@@ -116,10 +116,10 @@ Juga dipindah (2026-09-23, lanjutan):
   `venv\` atau env `UGM_ANALYTICS_PYTHON`), `GET refresh-status` memberi status + tail log
   `berita-dampak/logs_update_dashboard.txt`. Lock `data/.update_lock` dicek (PID yang sudah mati
   dianggap lock yatim). Setelah selesai, cache `/story` dibuang sekali.
-- **Narasi LLM** — `berita_narasi_cache` kini dibaca `/story`: ringkasan eksekutif
-  (`exec_berdampak` / `exec_berdampak_sdgs`) dan insight pilar (`pilar_<pilar>`, hanya mode
-  Dampak × SDGs), **hanya saat filter default** (aturan sama dengan Streamlit). Field
-  `narrative_source: "llm" | "template"`; UI memberi label "dirangkai AI".
+- **Narasi AI** — narasi `/story` selalu template `narasi_logic.py` dari data terbaru. Ringkasan
+  eksekutif AI (`POST /story/ringkasan-ai`, otomatis) dan insight per bab (`POST /story/insight`,
+  tombol) dirangkai di `api/app/services/insight_ai.py` dari angka yang sama, cache di memori.
+  Skrip mingguan `generate_narasi_llm.py` & tabel `berita_narasi_cache` sudah tidak dipakai.
 - **Deploy** — lihat `deploy/README.md`: skrip migrasi kini membuat skema benar (PK, UNIQUE,
   IDENTITY, boolean) dan punya mode `--perbaiki-skema` untuk server yang sudah dimigrasi dengan
   skrip lama (**WAJIB dijalankan sebelum versi ini dipakai di server lama** — tanpanya login pun

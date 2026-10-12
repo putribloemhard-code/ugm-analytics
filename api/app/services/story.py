@@ -138,8 +138,6 @@ class StoryFrames:
     rp: pd.DataFrame          # dampak, jumlah_berita
     data_as_of: str | None = None
     matkul: "MatkulFrames | None" = None   # data mata kuliah (matkul-sustainability)
-    # Narasi hasil LLM (berita_narasi_cache, scripts/generate_narasi_llm.py): cache_key -> teks.
-    narasi_llm: dict[str, str] = field(default_factory=dict)
     # Jumlah berita per keyword SDG (berita_ringkasan_keyword_sdg, scripts/hitung_keyword_sdg.py):
     # kolom sdg, keyword, jumlah_berita. None = tabel belum dibuat.
     keyword_sdg: pd.DataFrame | None = None
@@ -305,32 +303,12 @@ class _Ctx:
     topik_pilih: tuple[str, ...]
     pillar_set: tuple[str, ...]
     keywords_all: dict[str, list[str]]
-    # Narasi LLM yang boleh dipakai (kosong kalau filter bukan default) -- lihat _narasi_llm_aktif.
-    narasi_llm: dict[str, str] = field(default_factory=dict)
 
 
 def _keywords_all() -> dict[str, list[str]]:
     result = dict(keywords().KEYWORDS)
     result.update({key: value["keywords"] for key, value in kepmen().TEMA_KEPMEN_LENGKAP.items()})
     return result
-
-
-def _narasi_llm_aktif(frames: StoryFrames, filters: FilterParams, mode: str, start: str, end: str) -> dict[str, str]:
-    """Narasi LLM hanya valid untuk filter DEFAULT (semua tahun/pilar/tema/SDG, tanpa unit kerja).
-
-    Aturannya sama dengan dashboard Streamlit lama (FILTER_ADALAH_DEFAULT): cache digenerate
-    dari angka seluruh data, jadi begitu filter menyempit angkanya tidak cocok lagi dan narasi
-    template (narasi_logic.py, dihitung ulang dari data ter-filter) yang dipakai.
-    """
-    if not frames.narasi_llm:
-        return {}
-    semua_tahun = (start, end) == _year_range(frames.berita)
-    semua_pilar = set(filters.pillars or PILLARS) == set(PILLARS)
-    semua_tema = set(filters.topics or kepmen().TOPIK_KEPMEN_ALL) == set(kepmen().TOPIK_KEPMEN_ALL)
-    semua_sdg = mode != "impact-sdgs" or set(filters.sdgs or range(1, 18)) == set(range(1, 18))
-    if semua_tahun and semua_pilar and semua_tema and semua_sdg and not filters.units:
-        return frames.narasi_llm
-    return {}
 
 
 def _year_range(berita: pd.DataFrame) -> tuple[str, str]:
@@ -452,8 +430,7 @@ def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str,
         },
         "data_as_of": fr.data_as_of,
         "caveats": list(CAVEATS),
-        "executive": {"metrics": [], "narrative": "Tidak ada data untuk filter ini. Ubah filter untuk melihat analisis lain.",
-                      "narrative_source": "template"},
+        "executive": {"metrics": [], "narrative": "Tidak ada data untuk filter ini. Ubah filter untuk melihat analisis lain."},
         "overview": [],
         "cross": {"title": "Analisis Lintas-Dampak", "charts": [], "tables": []},
         "pillar_detail": None,
@@ -471,7 +448,7 @@ def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str,
         bs = bs[bs["sdg"].isin(filters.sdgs)]
     bs_f = bs[bs["url"].isin(urls_t)]
     ctx = _Ctx(mode, mode_label, start, end, b, b_nounit, t, t_nounit, b_t, bs_f, fr.uk, tampil,
-               topik_pilih, pillar_set, _keywords_all(), _narasi_llm_aktif(fr, filters, mode, start, end))
+               topik_pilih, pillar_set, _keywords_all())
 
     narasi = load_module("narasi_logic.py")
     ringkasan = narasi.generate_executive_summary(b, t, bs_f, mode_label, start, end)
@@ -491,13 +468,8 @@ def _story_impact(fr: StoryFrames, filters: FilterParams, mode: str, start: str,
             {"label": ringkasan["topik_top_kind_label"], "value": ringkasan["topik_top_short"], "note": None},
         ],
         "narrative": ringkasan["narasi"],
-        "narrative_source": "template",
     }
     response["executive"]["pembagian"] = pembagian_dampak(t, pillar_set)
-    # Cache LLM digenerate untuk ringkasan eksekutif kedua mode (lihat generate_narasi_llm.py).
-    exec_key = "exec_berdampak_sdgs" if mode == "impact-sdgs" else "exec_berdampak"
-    if ctx.narasi_llm.get(exec_key):
-        response["executive"].update(narrative=ctx.narasi_llm[exec_key], narrative_source="llm")
     response["overview"] = overview_rows(b, t, pillar_set)
     response["cross"] = _cross(ctx, fr, topic)
     # Bab laporan resmi: Sosial (BAB II) → Ekonomi (BAB III) → Lingkungan (BAB IV),
@@ -993,12 +965,6 @@ def _pillar_detail(ctx: _Ctx, pilar: str, topic: str | None) -> dict[str, Any]:
     detail["narrative"] = narasi.generate_impact_insight(
         selected_news, pilar, ctx.start, ctx.end, selected_t, ctx.mode_label, bs_pilar,
     )
-    detail["narrative_source"] = "template"
-    # Insight pilar LLM hanya digenerate untuk mode Dampak x SDGs (key "pilar_<pilar>"),
-    # sama seperti dashboard lama -- mode Dampak saja selalu template.
-    pilar_key = f"pilar_{pilar.lower()}"
-    if ctx.mode == "impact-sdgs" and ctx.narasi_llm.get(pilar_key):
-        detail.update(narrative=ctx.narasi_llm[pilar_key], narrative_source="llm")
     if selected_news.empty:
         return detail
 
@@ -1755,7 +1721,6 @@ class StoryService:
             rp=self._read("SELECT dampak, jumlah_berita FROM berita_ringkasan_pilar"),
             data_as_of=None if last.empty else str(last.max()),
             matkul=matkul,
-            narasi_llm=self._narasi_llm(),
             keyword_sdg=self._keyword_sdg(),
         )
 
@@ -1767,14 +1732,6 @@ class StoryService:
         df["sdg"] = df["sdg"].astype(int)
         df["jumlah_berita"] = df["jumlah_berita"].astype(int)
         return df
-
-    def _narasi_llm(self) -> dict[str, str]:
-        """Cache narasi LLM; tabel belum ada / gagal baca = kosong (narasi template dipakai)."""
-        try:
-            df = self._read("SELECT cache_key, narasi FROM berita_narasi_cache")
-        except Exception:  # noqa: BLE001 -- fitur opsional, tidak boleh mematikan /story
-            return {}
-        return {str(k): str(v) for k, v in zip(df["cache_key"], df["narasi"]) if v and str(v).strip()}
 
     def frames(self) -> StoryFrames:
         now = time.monotonic()

@@ -28,7 +28,6 @@ Database: **MySQL** (bukan DuckDB lagi — migrasi penuh selesai; lihat
 | `scripts/unit_kerja.py` | Daftar resmi 44 fakultas/sekolah/unit kerja + guard leakage lintas-universitas |
 | `scripts/fetch_backlog.py` | **Sumber tunggal ekstraksi isi lengkap** (`fetch_full()`, `clean_url()`, `ensure_fetch_columns()`) + backfill besar seluruh sitemap (manual/background, lock sendiri) |
 | `scripts/backfill_deskripsi.py` | Isi ulang deskripsi berita sitemap yang kosong (fallback og:description) |
-| `scripts/generate_narasi_llm.py` | Rangkai narasi ringkasan/insight via OpenAI API, cache ke `berita_narasi_cache` (opsional; skip aman ke narasi template kalau key kosong) |
 | `scripts/laporan_static.py` | Cetak `laporan_berita_dampak.html` (11 chart + tabel 14 tema, JS inline) |
 | `scripts/update_mingguan.py` | Update berkala: jalankan pipeline lengkap (sitemap → RSS → fetch → normalisasi → tagging → narasi → laporan) |
 | `scripts/count_berita.py` | Helper kecil: cetak jumlah baris `berita_berita` (dipakai `update_mingguan.sh`) |

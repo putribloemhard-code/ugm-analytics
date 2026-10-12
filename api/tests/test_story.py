@@ -549,50 +549,13 @@ def test_sdgs_story_year_filter_and_no_data():
     assert empty["cross"]["charts"] == [] and empty["tables"] == []
 
 
-LLM = {"exec_berdampak": "Narasi LLM dampak.", "exec_berdampak_sdgs": "Narasi LLM dampak x SDGs.",
-       "pilar_lingkungan": "Insight LLM lingkungan."}
-
-
-def test_narasi_llm_dipakai_hanya_saat_filter_default():
-    frames = make_frames()
-    frames.narasi_llm = dict(LLM)
-    default = build_story(frames, FilterParams(), "impact")
-    assert default["executive"]["narrative"] == "Narasi LLM dampak."
-    assert default["executive"]["narrative_source"] == "llm"
-    sdgs = build_story(frames, FilterParams(), "impact-sdgs", pillar="Lingkungan")
-    assert sdgs["executive"]["narrative"] == "Narasi LLM dampak x SDGs."
-    assert sdgs["pillar_detail"]["narrative"] == "Insight LLM lingkungan."
-    assert sdgs["pillar_detail"]["narrative_source"] == "llm"
-    # Insight pilar LLM hanya untuk mode Dampak x SDGs (sama seperti dashboard lama).
-    impact_pilar = build_story(frames, FilterParams(), "impact", pillar="Lingkungan")
-    assert impact_pilar["pillar_detail"]["narrative_source"] == "template"
-
-
-@pytest.mark.parametrize("filters", [
-    FilterParams(year_from="2024"),
-    FilterParams(pillars=("Lingkungan",)),
-    FilterParams(topics=("energi",)),
-    FilterParams(units=("fakultas_kehutanan",)),
-])
-def test_narasi_llm_tidak_dipakai_saat_filter_menyempit(filters):
-    frames = make_frames()
-    frames.narasi_llm = dict(LLM)
-    result = build_story(frames, filters, "impact")
-    assert result["executive"]["narrative_source"] == "template"
-    assert result["executive"]["narrative"] != "Narasi LLM dampak."
-
-
-def test_narasi_llm_sdg_menyempit_hanya_di_mode_sdgs():
-    frames = make_frames()
-    frames.narasi_llm = dict(LLM)
-    assert build_story(frames, FilterParams(sdgs=(7,)), "impact-sdgs")["executive"]["narrative_source"] == "template"
-    # Mode Dampak tidak punya filter SDG, jadi parameter sdgs tidak menggugurkan cache.
-    assert build_story(frames, FilterParams(sdgs=(7,)), "impact")["executive"]["narrative_source"] == "llm"
-
-
-def test_tanpa_cache_narasi_tetap_template():
-    result = build_story(make_frames(), FilterParams(), "impact")
-    assert result["executive"]["narrative_source"] == "template" and result["executive"]["narrative"]
+def test_narasi_selalu_template_dari_data_terbaru():
+    """Narasi ringkasan & pilar selalu dirakit narasi_logic.py dari data saat ini (versi AI dibuat terpisah)."""
+    for mode in ("impact", "impact-sdgs"):
+        result = build_story(make_frames(), FilterParams(), mode, pillar="Lingkungan")
+        assert result["executive"]["narrative"].startswith("Sepanjang 2023–2025")
+        assert "narrative_source" not in result["executive"]
+        assert result["pillar_detail"]["narrative"] and "narrative_source" not in result["pillar_detail"]
 
 
 def test_pembagian_dampak_irisan_tanpa_tumpang_tindih():

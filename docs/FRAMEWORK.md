@@ -73,7 +73,6 @@ tag_kepmen_all.py   → tagging 14 tema Kepmen + SDG → berita_berita_kepmen_al
                       berita_ringkasan_topik_all
 tag_sdg_langsung.py → mode "SDGs saja" → berita_sitemap_sdg, berita_ringkasan_sdg_sitemap(_tahun)
 tag_unit_kerja.py   → 44 fakultas/sekolah/unit kerja → berita_unit_kerja
-generate_narasi_llm.py → narasi via OpenAI API → berita_narasi_cache (opsional, skip aman)
 laporan_static.py   → laporan_berita_dampak.html
 update_mingguan.py  → jalankan seluruh pipeline berurutan (lock data/.update_lock;
                       dipakai cron + tombol dashboard)

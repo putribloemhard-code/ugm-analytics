@@ -100,12 +100,6 @@ ringkasan/agregat tetap full-replace (`to_sql(if_exists="replace")`) tiap run.
    32.281 sitemap). Snapshot historis 2026-08-21 (sebelum isi lengkap, basis
    32.130 URL): 22.499 pasangan, 15.688 URL (48,8%).
 
-6c. **Narasi LLM** — `scripts/generate_narasi_llm.py` (opsional, setelah
-   tagging selesai). Merangkai angka yang sudah dihitung pandas jadi narasi
-   Bahasa Indonesia via OpenAI API (model `gpt-5.6-luna`), cache ke
-   `berita_narasi_cache`. Skip aman (exit 0) kalau `OPENAI_API_KEY` belum
-   diisi atau API gagal -- dashboard fallback ke narasi template.
-
 6d. **Tagging Fakultas/Unit Kerja** — `scripts/tag_unit_kerja.py` (independen
    dari tagging Kepmen/SDG di atas -- lapisan terpisah, tidak mengubah tabel
    manapun yang sudah ada). Substring match nama resmi 44 fakultas/sekolah/
@@ -179,7 +173,6 @@ ringkasan/agregat tetap full-replace (`to_sql(if_exists="replace")`) tiap run.
 ../venv/Scripts/python.exe scripts/tag_kepmen_all.py   # 14 tema + SDG (utama)
 ../venv/Scripts/python.exe scripts/tag_unit_kerja.py    # 44 fakultas/sekolah/unit kerja
 ../venv/Scripts/python.exe scripts/tag_sdg_langsung.py  # mode "SDGs saja"
-../venv/Scripts/python.exe scripts/generate_narasi_llm.py  # opsional, butuh OPENAI_API_KEY
 ../venv/Scripts/python.exe scripts/laporan_static.py
 ```
 
@@ -302,7 +295,7 @@ Perubahan desain:
   `with_retry()`; satu item/batch yang gagal total di-log dan dilewati,
   tidak menghentikan seluruh pipeline.
 - Engine SQLAlchemy pakai `pool_pre_ping=True` + `pool_recycle=3600` di
-  semua titik koneksi (pipeline, dashboard, generate_narasi_llm.py).
+  semua titik koneksi (pipeline, dashboard).
 
 Diverifikasi (2026-08-29): seluruh step dijalankan satu per satu terhadap
 MySQL produksi (`backfill_sitemap.py`, `ingest.py`, `fetch_detail.py` --

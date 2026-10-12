@@ -2,8 +2,8 @@
 
 Angka dihitung ulang di server dari filter yang sama dengan halaman (build_story),
 diringkas jadi teks, lalu LLM HANYA diminta merangkai angka itu jadi narasi -- bukan
-menghitung atau mengarang angka sendiri (prinsip yang sama dengan
-berita-dampak/scripts/generate_narasi_llm.py). Hasil di-cache di memori per
+menghitung atau mengarang angka sendiri. Narasi template (narasi_logic.py) tampil
+lebih dulu dan diganti versi AI begitu siap. Hasil di-cache di memori per
 (jenis, mode, filter, data_as_of) supaya kunjungan/klik ulang tidak memanggil LLM lagi.
 """
 from __future__ import annotations

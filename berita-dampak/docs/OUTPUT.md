@@ -9,8 +9,8 @@ Tampilan interaktif: web React + API (`web/`, `api/`), dijalankan lokal dengan `
 
 Bagian yang dulu ada di dashboard Streamlit (ringkasan, distribusi per tema, peta tema × SDG,
 tren, cakupan, keyword, multi-tema, word frequency, daftar berita, unit kerja) kini dirender dari
-`GET /api/v1/analytics/story` (`api/app/services/story.py`). Narasi LLM (`berita_narasi_cache`)
-dipakai hanya saat filter default (label "dirangkai AI"); selain itu narasi template `narasi_logic.py`.
+`GET /api/v1/analytics/story` (`api/app/services/story.py`). Narasi selalu template `narasi_logic.py`
+dari data terbaru; Ringkasan AI dibuat terpisah lewat `POST /story/ringkasan-ai` (`insight_ai.py`).
 
 ## 2. Laporan statis HTML (offline)
 
@@ -50,7 +50,6 @@ ikut keyword matching), `fetch_gagal_count` (cap 3x).
 | `berita_sitemap_sdg` | url–sdg mapping LANGSUNG seluruh sitemap (mode "SDGs saja") | 127.871 pasangan / 31.873 url unik |
 | `berita_ringkasan_sdg_sitemap(_tahun)` | jumlah url unik per SDG (17 SDG) | 17 |
 | `berita_unit_kerja` | url–unit–kategori (44 fakultas/sekolah/unit kerja UGM) | 13.488 pasangan / 10.310 url unik |
-| `berita_narasi_cache` | cache narasi LLM (cache_key, narasi, generated_at) | — |
 | `berita_berita_kepmen`, `berita_berita_sdg`, `berita_ringkasan_sdg` | legacy (4 tema inti, tidak dipakai dashboard) | — |
 | `berita_berita_kepmen_lengkap`, `berita_ringkasan_kepmen_lengkap` | legacy (eksplorasi 9 tema) | — |
 

@@ -119,7 +119,7 @@ function PillarDetailView({ detail, topic, onTopic, busy, anchorId }: { detail: 
   if (!active) return null;
   return <section id={anchorId} className={`story-block ${busy ? 'is-busy' : ''}`} aria-label={`Detail dampak ${detail.pillar}`} aria-busy={busy}>
     <h3>Detail dampak: {detail.pillar}</h3>
-    <Insight label={detail.narrative_source === 'llm' ? 'Narasi dampak · dirangkai AI dari angka dashboard' : 'Narasi dampak'}>{detail.narrative}</Insight>
+    <Insight label="Narasi dampak">{detail.narrative}</Insight>
     <div className="analysis-summary-grid analysis-summary-grid--3">{detail.metrics.map(metric => <div className="metric" key={metric.label} title={metric.help ?? undefined}><div className="metric-label">{metric.label}</div><div className="metric-value">{fmtValue(metric.value)}</div></div>)}</div>
     <div className="tabs analysis-tabs" role="tablist" aria-label={`Rincian dampak ${detail.pillar}`}>{detail.tabs.map(tab => <button key={tab.id} id={`tab-${tab.id}`} role="tab" type="button" aria-selected={tab.id === active.id} aria-controls={`panel-${tab.id}`} className={`tab ${tab.id === active.id ? 'active' : ''}`} onClick={() => setTabId(tab.id)}>{tab.label}</button>)}</div>
     <div role="tabpanel" id={`panel-${active.id}`} aria-labelledby={`tab-${active.id}`}>

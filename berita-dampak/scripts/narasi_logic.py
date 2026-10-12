@@ -1,10 +1,9 @@
 """Logika narasi dinamis (template pandas) -- dipakai API web
-(api/app/services/story.py, analytics.py) DAN scripts/generate_narasi_llm.py.
+(api/app/services/story.py, analytics.py).
 
-Satu sumber kebenaran: API web dan generate_narasi_llm.py sama-sama import
-fungsi di sini, supaya angka yang dikirim ke LLM (buat
-dirangkai jadi kalimat) selalu identik dengan angka yang dipakai template
-fallback saat LLM gagal/belum jalan. Cuma pandas, tanpa dependency UI.
+Narasi di sini selalu dihitung dari data terbaru dan tampil seketika; Ringkasan
+AI (api/app/services/insight_ai.py) dibuat terpisah dari angka yang sama dan
+menggantikannya di halaman begitu siap. Cuma pandas, tanpa dependency UI.
 """
 
 from __future__ import annotations
@@ -55,8 +54,7 @@ def hitung_stats_pilar(
     sdg_df: pd.DataFrame | None = None,
 ) -> dict | None:
     """Angka mentah di balik generate_impact_insight -- dipisah supaya bisa
-    dipakai ulang oleh generate_narasi_llm.py (data lengkap yang dikirim ke
-    LLM), bukan cuma kalimat jadinya. None kalau df kosong (belum ada data)."""
+    dipakai ulang sebagai angka, bukan cuma kalimat jadinya. None kalau df kosong (belum ada data)."""
     if df.empty:
         return None
 
@@ -202,7 +200,7 @@ def generate_executive_summary(
     saat render, jadi otomatis ter-update begitu ada berita baru masuk.
 
     `scope_label` disebut di kalimat narasi ("Sepanjang ..., {scope_label}
-    mencatat ...") -- default "UGM" (dipakai page_dampak.py/generate_narasi_llm.py,
+    mencatat ...") -- default "UGM" (dipakai page_dampak.py,
     yang memang selalu lingkup universitas). Caller dengan filter tambahan di
     luar tahun/tema (mis. Lampiran Akreditasi yang bisa difilter per Fakultas)
     WAJIB kirim scope_label yang sesuai (mis. "Fakultas Teknik") -- kalau
@@ -312,7 +310,7 @@ def hitung_stats_sdg_saja(
     tahun_akhir: str,
 ) -> dict | None:
     """Angka mentah di balik generate_sdg_saja_summary -- dipisah supaya bisa
-    dipakai ulang oleh generate_narasi_llm.py. None kalau belum ada data."""
+    dipakai ulang sebagai angka. None kalau belum ada data."""
     n_url = len(sm)
     n_tag = ss_f["url"].nunique()
     if not n_url or not n_tag:

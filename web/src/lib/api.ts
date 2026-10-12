@@ -79,7 +79,7 @@ export type StoryTable = { id: string; title: string; note?: string | null; insi
 export type StoryMetric = { label: string; value: string | number; note?: string | null; help?: string | null };
 export type StoryTab = { id: string; label: string; note?: string | null; charts: Chart[]; tables: StoryTable[] };
 export type TopicOption = { value: string; label: string };
-export type PillarDetail = { pillar: string; narrative: string; /** 'llm' = cache generate_narasi_llm.py (hanya filter default). */ narrative_source?: 'llm' | 'template'; metrics: StoryMetric[]; tabs: StoryTab[]; topic_options: TopicOption[]; selected_topic: string };
+export type PillarDetail = { pillar: string; narrative: string; metrics: StoryMetric[]; tabs: StoryTab[]; topic_options: TopicOption[]; selected_topic: string };
 /** Sub-bab laporan = satu tema resmi Kepmen (mis. 2.1 Pendidikan Inklusif) beserta indikator resminya. */
 export type ChapterSection = {
   id: string;
@@ -142,7 +142,7 @@ export type Story = {
   filters: Record<string, unknown>;
   data_as_of: string | null;
   caveats: string[];
-  executive: { metrics: StoryMetric[]; narrative: string; narrative_source?: 'llm' | 'template'; pembagian?: PembagianDampak };
+  executive: { metrics: StoryMetric[]; narrative: string; pembagian?: PembagianDampak };
   overview: { pillar: string; total: number; top_topic: string | null; top_topic_count: number }[];
   cross: { title: string; charts: Chart[]; tables: StoryTable[]; topic_options?: TopicOption[]; selected_topic?: string; pemetaan?: PemetaanKepmen };
   pillar_detail: PillarDetail | null;

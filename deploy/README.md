@@ -128,9 +128,10 @@ NULL (hasil INSERT di server lama), lalu memasang PK/UNIQUE/IDENTITY. Aman diula
 Kolom yang seharusnya NOT NULL tetapi masih berisi NULL tidak dipaksa — skrip mencetak
 `PERINGATAN` untuk diperiksa manual.
 
-## Ekstraksi AI dokumen akreditasi (opsional)
+## Fitur AI (opsional)
 
-Tanpa konfigurasi, tombol "Ekstrak data" di `/akreditasi` nonaktif. Untuk mengaktifkan:
+Tanpa konfigurasi, tombol "Ekstrak data" di `/akreditasi` dan "Generate insight" di halaman Dampak
+menampilkan pesan belum dikonfigurasi, dan ringkasan eksekutif memakai narasi template. Untuk mengaktifkan:
 `cp deploy/openai.env.example deploy/openai.env && chmod 600 deploy/openai.env`, isi
 `OPENAI_API_KEY` (dan `OPENAI_BASE_URL` bila memakai gateway), lalu `docker compose up -d api`.
 File itu dibaca lewat `env_file` dengan `required: false` (butuh Docker Compose ≥ 2.24) — sengaja
@@ -143,10 +144,9 @@ Data berita di server diperbarui otomatis tiap Sabtu — lihat bagian berikut.
 `deploy/update_berita.sh` menjalankan dua langkah:
 
 1. `docker compose --profile pipeline run --rm pipeline` — pipeline berita
-   (`berita-dampak/scripts/update_mingguan.py`: sitemap + RSS → tagging tema & SDG → narasi AI)
+   (`berita-dampak/scripts/update_mingguan.py`: sitemap + RSS → tagging tema & SDG → laporan statis)
    menulis ke `mysql-reader`. Service `pipeline` (`pipeline.Dockerfile`) berprofil `pipeline`,
-   jadi tidak ikut `docker compose up`. Server butuh akses keluar ke `ugm.ac.id`. Narasi AI hanya
-   diperbarui kalau `deploy/openai.env` terisi.
+   jadi tidak ikut `docker compose up`. Server butuh akses keluar ke `ugm.ac.id`.
 2. `migrate_mysql_to_postgres.py --sinkron-berita` (di container `api`) — mengganti tabel
    `berita_*` hasil pipeline di PostgreSQL dengan isi terbaru `mysql-reader`.
 
