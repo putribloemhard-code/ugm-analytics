@@ -687,13 +687,15 @@ def accreditation_add_program(payload: dict[str, Any], request: Request, api: An
 
 @router.post("/accreditation/extractions")
 def accreditation_extract(payload: dict[str, Any], request: Request, api: AnalyticsService = Depends(service)):
-    """Mulai ekstraksi AI di latar belakang untuk file laporan yang belum/gagal diekstrak; hasilnya langsung
-    diterapkan ke data laporan tanpa menimpa isian yang ada. UI memantau lewat workspace."""
+    """Mulai ekstraksi (tanpa AI) di latar belakang untuk file laporan yang belum/gagal diekstrak, atau satu
+    file (`upload_id`) untuk ekstrak ulang; hasilnya langsung diterapkan ke data laporan tanpa menimpa isian
+    yang ada. UI memantau lewat workspace."""
     user = _auth_user(request, api)
     laporan = _laporan_terbuka(request, api, payload.get("laporan_id"))
-    hasil = _workspace_call(_workspace(api).start_extraction, laporan)
+    hasil = _workspace_call(_workspace(api).start_extraction, laporan, upload_id=payload.get("upload_id"))
     if hasil.get("dimulai"):
-        _catat(api, "akreditasi", user, "ekstraksi", f"Memulai ekstraksi AI untuk {hasil['dimulai']} file", int(laporan["id"]))
+        aksi = "ekstrak ulang" if payload.get("upload_id") is not None else "ekstraksi"
+        _catat(api, "akreditasi", user, "ekstraksi", f"Memulai {aksi} untuk {hasil['dimulai']} file", int(laporan["id"]))
     return hasil
 
 

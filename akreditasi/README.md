@@ -25,8 +25,10 @@ lain bisa ditambah tanpa mengubah struktur.
 | `scripts/pipeline_item_tersedia.py` | **Fase 2**: data live untuk 5 item "tersedia" (identitas PT/UPPS/PS, status akreditasi PS, VMTS, dst.) → `akreditasi_item_tersedia` (snapshot penuh tiap run) |
 | `scripts/pipeline_sinta.py` | **Fase 2**: tarik daftar publikasi Scopus (10 terbaru/dosen) dari sinta.kemdiktisaintek.go.id → `akreditasi_publikasi_dosen` (akumulatif, upsert) |
 | `scripts/pipeline_dcse_berita.py` | **Fase 2**: crawl arsip RSS dcse.fmipa.ugm.ac.id → `akreditasi_berita_dcse` (evidence pendukung lkps_2_d & lkps_4_c_2) |
-| `scripts/ekstraksi_pattern.py` | **Fase 3**: tier ekstraksi TANPA AI (pattern-matching struktur dokumen) — dicoba lebih dulu untuk item berstruktur daftar berulang |
-| `scripts/ekstraksi_akreditasi.py` | **Fase 3**: ekstraksi LLM per batch item registry — modul murni (baca teks + panggil LLM); penerapan hasil ke data laporan dikerjakan API (tanpa menimpa isian yang ada) |
+| `scripts/ekstraksi_struktur.py` | **Ekstraksi yang dipakai API (2026-10-20), TANPA AI**: LED/LKPS lama (PDF/Word) dipindahkan apa adanya menurut struktur dokumen -- narasi disalin utuh per bab/tahap PPEPP, tabel dicari lewat caption → DAFTAR TABEL → kata kunci judul, dan header-nya wajib cocok kolom registry |
+| `scripts/validasi_ekstraksi_struktur.py` | Validasi `ekstraksi_struktur.py` terhadap LED MEI di `docs/sumber` (jalankan setelah mengubah modul itu) |
+| `scripts/ekstraksi_pattern.py` | **Fase 3** (tidak lagi dipanggil API): tier ekstraksi TANPA AI awal untuk item berstruktur daftar berulang |
+| `scripts/ekstraksi_akreditasi.py` | **Fase 3** (tidak lagi dipanggil API sejak 2026-10-20): ekstraksi LLM per batch item registry — modul murni (baca teks + panggil LLM); penerapan hasil ke data laporan dikerjakan API (tanpa menimpa isian yang ada) |
 | `scripts/validasi_ekstraksi_pattern.py` | Validasi manual tier pattern untuk 2 bentuk tabel berbeda (vertikal LED vs horizontal LKPS) |
 | `scripts/generate_template.py` | Generator dokumen `.docx` dari `akreditasi_data_manual` (section kosong tetap dibuat + placeholder). `build_led_docx(df)`/`build_lkps_docx(df)` dipakai API; `generate_*_docx()` untuk CLI |
 | `scripts/generate_laporan_live.py` | Generator dokumen `.docx` **Fase 3** — sumber murni live (hasil pipeline Fase 2), tidak menyentuh tabel data manual |
@@ -96,15 +98,27 @@ Tiga pipeline mengisi item yang berstatus `tersedia` di `data_source_map.json`
 
 ## Fase 3 — ekstraksi dokumen upload
 
-Upload file pendukung lewat dashboard → tersimpan fisik di `data/uploads/<prodi_id>/`
-+ metadata di `akreditasi_upload_file`. Tombol "Ekstrak Data" menjalankan dua tier:
+Upload file pendukung lewat web → tersimpan fisik di `data/uploads/<prodi_id>/`
++ metadata di `akreditasi_upload_file`. Tombol "Ekstrak data" (dan "Ekstrak ulang" per file) menjalankan
+`scripts/ekstraksi_struktur.py` -- TANPA AI, tidak butuh `OPENAI_API_KEY`:
 
-1. `scripts/ekstraksi_pattern.py` — pattern-matching TANPA AI (struktur tabel/pola
-   teks berulang). Dicoba lebih dulu: lebih cepat, gratis, confidence pasti.
-2. `scripts/ekstraksi_akreditasi.py` — fallback LLM per batch item registry (butuh
-   `OPENAI_API_KEY` / `OPENAI_BASE_URL`).
+- Judul bab dicocokkan ke kerangka LED dengan pola persis, lalu kata kunci fallback bila judulnya beda.
+- Narasi disalin utuh (Kata Pengantar, Bab I, Kriteria A-D per kolom, C1-C6 per tahap PPEPP, Penutup);
+  paragraf yang tidak cocok kolom mana pun ikut kolom sebelumnya, tidak ada yang dibuang.
+- Tabel: caption "Tabel C1.1" → DAFTAR TABEL (nomor → halaman) → kata kunci judul → urutan di bab; header
+  wajib cocok kolom registry (header rusak / kolom beda ditolak, lebih baik kosong daripada salah kolom).
+  Baris dibaca dari garis tabel per kolom (sel gabungan disalin ke tiap baris yang dinaunginya).
+- LED MEI: 61 dari 64 item terisi (lihat `scripts/validasi_ekstraksi_struktur.py` untuk 3 tabel yang
+  sengaja kosong).
+- Excel: file dari "Unduh format" (penanda item di properti berkas) dibaca persis seperti "Upload data"
+  (`accreditation_tabel.baca_upload`). Excel bebas: tiap tabel dikenali dari caption "Tabel C1.1 ..." di atasnya,
+  nama sheet berupa kode tabel, atau kata kunci judul; tanpa salah satunya tabel TIDAK ditebak dari urutan.
+  Uji 75 format resmi `docs/tabel_xlsx` (baris contoh diisi): 57 terbaca penuh, sisanya header artefak PDF.
 
-Hasil keduanya dicatat di `akreditasi_upload_ekstraksi` lalu **langsung diterapkan** ke
+Draf AI per item narasi tetap pilihan staf: "Perbarui dengan draf AI" memakai isian sekarang (mis. salinan
+LED lama) sebagai dasar dan memperbarui angka/klaimnya dari data laporan terbaru.
+
+Hasilnya dicatat di `akreditasi_upload_ekstraksi` lalu **langsung diterapkan** ke
 `akreditasi_data_manual` laporan itu tanpa menimpa isian yang ada: kolom kosong item narasi diisi,
 baris tabel baru ditambahkan, baris yang semua nilainya sudah ada dilewati. Status tiap nilai
 (`status_terap`: ditambahkan / sudah_ada / tidak_menimpa / kolom_lain) tampil sebagai riwayat

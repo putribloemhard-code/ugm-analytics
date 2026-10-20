@@ -339,8 +339,10 @@ export function setItemFinal(laporanId: number, itemIds: string[], final: boolea
 export function addAccreditationProgram(fakultasId: string, nama: string, jenjang: string) {
   return kirim<{ slug: string; nama: string }>('/analytics/accreditation/programs', 'POST', { fakultas_id: fakultasId, nama, jenjang });
 }
-export function startAccreditationExtraction(laporanId: number) {
-  return kirim<{ dimulai: number }>('/analytics/accreditation/extractions', 'POST', { laporan_id: laporanId });
+/** Tanpa `uploadId`: semua file yang belum/gagal diekstrak. Dengan `uploadId`: ekstrak ulang satu file. */
+export function startAccreditationExtraction(laporanId: number, uploadId?: number) {
+  return kirim<{ dimulai: number }>('/analytics/accreditation/extractions', 'POST',
+    uploadId === undefined ? { laporan_id: laporanId } : { laporan_id: laporanId, upload_id: uploadId });
 }
 
 /** Unduh berkas dari endpoint ber-login; nama berkas diambil dari Content-Disposition. */

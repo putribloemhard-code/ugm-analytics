@@ -87,6 +87,18 @@ def test_timpa_mencadangkan_isian_tim_dan_bisa_dipulihkan(svc, engine, led):
         pulihkan(engine, led, NARASI)
 
 
+def test_perbarui_memakai_narasi_saat_ini_sebagai_dasar(svc, engine, led):
+    # Narasi LED lama hasil ekstraksi dikirim ke AI untuk diperbarui; draf AI lama tidak ikut sebagai dasar.
+    k = _item(svc.workspace(led), NARASI)["kolom"]
+    svc.save_item(led, NARASI, [{k[0]: "Narasi LED 2023: capaian 12 publikasi"}], "AI: led-lama.pdf")
+    klien = KlienTiruan()
+    buat_draf(engine, led, NARASI, client=klien, timpa=True)
+    pesan = klien.panggilan[-1][1]["content"]
+    assert "NARASI SAAT INI" in pesan and "Narasi LED 2023: capaian 12 publikasi" in pesan
+    buat_draf(engine, led, NARASI, client=klien)   # buat ulang draf: isian sekarang = draf AI, bukan dasar
+    assert "NARASI SAAT INI" not in klien.panggilan[-1][1]["content"]
+
+
 def test_pulihkan_ditolak_bila_draf_sudah_disunting(svc, engine, led):
     k = _item(svc.workspace(led), NARASI)["kolom"]
     svc.save_item(led, NARASI, [{k[0]: "Tulisan tim"}], EMAIL)

@@ -311,10 +311,10 @@ function UploadPanel({ workspace, dokumen, onChange }: { workspace: Workspace; d
     setSibuk(false); onChange();
   }
 
-  async function ekstrak() {
+  async function ekstrak(uploadId?: number) {
     setSibuk(true); setPesanUpload([]);
     try {
-      const { dimulai } = await startAccreditationExtraction(workspace.laporan.id);
+      const { dimulai } = await startAccreditationExtraction(workspace.laporan.id, uploadId);
       setPesanUpload([{ type: 'info', text: dimulai ? `Ekstraksi ${dimulai} file dimulai (mode ${dokumen}). Proses berjalan di latar; hasilnya langsung masuk ke tabel data dan halaman ini diperbarui otomatis.` : 'Tidak ada file yang perlu diekstrak.' }]);
     } catch (e) { setPesanUpload([{ type: 'error', text: pesan(e, 'Ekstraksi gagal dimulai.') }]); }
     setSibuk(false); onChange();
@@ -324,7 +324,7 @@ function UploadPanel({ workspace, dokumen, onChange }: { workspace: Workspace; d
     <div>
       <p className="section-kicker">Dokumen pendukung</p>
       <h2>Unggah & ekstrak file</h2>
-      <p>Unggah dokumen, lalu klik <b>Ekstrak data</b>: isinya masuk ke tabel laporan ini tanpa menimpa isian yang sudah ada.</p>
+      <p>Unggah dokumen (mis. LED lama prodi), lalu klik <b>Ekstrak data</b>: tabel dan narasinya disalin apa adanya ke laporan ini tanpa menimpa isian yang sudah ada.</p>
     </div>
     <label className={`unggah-zona ${seret ? 'is-seret' : ''} ${sibuk ? 'is-sibuk' : ''}`} htmlFor="ak-upload"
       onDragOver={e => { e.preventDefault(); setSeret(true); }} onDragLeave={() => setSeret(false)}
@@ -339,23 +339,25 @@ function UploadPanel({ workspace, dokumen, onChange }: { workspace: Workspace; d
       ? <p className="section-note">Belum ada file untuk laporan ini.</p>
       : <div className="data-table-wrap"><table className="data-table">
         <caption className="sr-only">File pendukung yang sudah diupload untuk laporan ini</caption>
-        <thead><tr><th scope="col">Nama file</th><th scope="col">Tipe</th><th scope="col">Ukuran</th><th scope="col">Status</th><th scope="col">Diunggah</th></tr></thead>
+        <thead><tr><th scope="col">Nama file</th><th scope="col">Tipe</th><th scope="col">Ukuran</th><th scope="col">Status</th><th scope="col">Diunggah</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
         <tbody>{workspace.uploads.map(u => <tr key={u.id}>
           <td>{u.nama_file}{u.diupload_oleh?.includes('@') && <small className="upload-summary">oleh {u.diupload_oleh}</small>}{u.ringkasan && <small className="upload-summary">{u.ringkasan.error
             ? `Kendala: ${u.ringkasan.error}`
             : `${u.ringkasan.n_item_ditemukan ?? 0} item ditemukan${u.ringkasan.diterapkan ? `, ${u.ringkasan.diterapkan.ditambahkan} nilai masuk tabel` : ''}`}</small>}</td>
           <td>{u.tipe_file.toUpperCase()}</td>
           <td>{(u.ukuran_bytes / 1024).toFixed(1)} KB</td>
-          <td><span className={`upload-status ${u.status}`}>{UPLOAD_LABEL[u.status]}{u.progres && u.progres.total ? ` — batch ${u.progres.batch}/${u.progres.total}` : ''}</span></td>
+          <td><span className={`upload-status ${u.status}`}>{UPLOAD_LABEL[u.status]}{u.progres && u.progres.total ? ` — ${u.progres.batch}/${u.progres.total}` : ''}</span></td>
           <td>{waktu(u.uploaded_at)}</td>
+          <td>{u.status === 'diekstrak' && <button type="button" className="link-button" disabled={sibuk || sedang.length > 0}
+            title="Baca ulang file ini dengan daftar item terbaru; isian yang sudah ada tidak ditimpa"
+            onClick={() => void ekstrak(u.id)}>Ekstrak ulang<span className="sr-only"> {u.nama_file}</span></button>}</td>
         </tr>)}</tbody>
       </table></div>}
     <div className="action-row">
-      <button className={`button ${bisaDiekstrak.length ? '' : 'secondary'}`} disabled={sibuk || bisaDiekstrak.length === 0 || !workspace.ekstraksi.tersedia} onClick={ekstrak}>
+      <button className={`button ${bisaDiekstrak.length ? '' : 'secondary'}`} disabled={sibuk || bisaDiekstrak.length === 0 || !workspace.ekstraksi.tersedia} onClick={() => void ekstrak()}>
         {sedang.length ? `Mengekstrak ${sedang.length} file…` : bisaDiekstrak.length ? `Ekstrak data dari ${bisaDiekstrak.length} file` : 'Semua file sudah diekstrak'}
       </button>
-      {!workspace.ekstraksi.tersedia && <span className="field-hint">Ekstraksi nonaktif: isi OPENAI_API_KEY di .env lalu jalankan ulang API.</span>}
-      {workspace.ekstraksi.tersedia && bisaDiekstrak.length > 0 && <span className="field-hint">Bisa makan beberapa menit per file (diproses per bagian).</span>}
+      {bisaDiekstrak.length > 0 && <span className="field-hint">Sekitar satu menit per file PDF 150 halaman. Excel: tiap tabel dikenali dari judul &quot;Tabel C1.1 …&quot; di atasnya atau nama sheet; yang tidak dikenali bisa diisi lewat <b>Upload data</b> di tabelnya.</span>}
     </div>
   </section>;
 }
@@ -544,7 +546,7 @@ function ItemCard({ item, laporanId, fokus, onSaved, drafAiAktif }: { item: Work
             <button className="button" disabled={sibuk} onClick={simpan}>{sibuk ? 'Menyimpan…' : 'Simpan'}</button>
             {item.bisa_draf_ai && <button className="button secondary" disabled={drafSibuk || dirty || !bisaDrafAi(item) || !drafAiAktif}
               title={!drafAiAktif ? 'Draf AI nonaktif: isi OPENAI_API_KEY di .env lalu jalankan ulang API' : item.final ? 'Item sudah final; kembalikan ke draft dulu' : dirty ? 'Simpan atau batalkan perubahan dulu' : undefined}
-              onClick={buatDraf}>{drafSibuk ? 'Menyusun draf AI…' : item.draf_ai ? 'Buat ulang draf AI' : isianTim(item) ? 'Ganti dengan draf AI' : 'Buat draf AI'}</button>}
+              onClick={buatDraf}>{drafSibuk ? 'Menyusun draf AI…' : item.draf_ai ? 'Buat ulang draf AI' : isianTim(item) ? 'Perbarui dengan draf AI' : 'Buat draf AI'}</button>}
             {item.bisa_pulihkan && <button className="link-button" disabled={drafSibuk || dirty}
               onClick={() => void aksiDraf(() => pulihkanIsian(laporanId, item.id), 'Isian sebelumnya gagal dipulihkan.')}>Pulihkan isian sebelumnya</button>}
             {dirty && <button className="link-button" onClick={batal}>Batalkan perubahan</button>}
@@ -695,7 +697,7 @@ function PilihLaporan({ prodi, dokumen, tahunTarget, laporanTarget, onPilih }: {
       : <ul className="laporan-list">{data.laporan.map(l => <li key={l.id} className="laporan-list__item">
         <div className="laporan-list__info">
           <strong>{l.nama}</strong>
-          <span>{l.terakhir_diubah ? `Terakhir diubah ${waktu(l.terakhir_diubah)} oleh ${l.terakhir_oleh ?? '-'}` : 'Belum ada isian'}{l.dibuat_oleh ? ` · dibuat oleh ${l.dibuat_oleh}` : ''}</span>
+          <span>{l.terakhir_diubah ? `Terakhir diubah ${waktu(l.terakhir_diubah)} oleh ${l.terakhir_oleh ? labelPengisi(l.terakhir_oleh) : '-'}` : 'Belum ada isian'}{l.dibuat_oleh ? ` · dibuat oleh ${l.dibuat_oleh}` : ''}</span>
           <ProgressLine value={l.lengkap} total={l.total} percent={l.persen} />
         </div>
         <div className="laporan-list__aksi">

@@ -67,11 +67,47 @@ def _registry():
 
 
 def _default_extractor(path: str, tipe: str, dokumen: str, progress: Callable[[int, int], None]):
-    module = load_accreditation_module("ekstraksi_akreditasi.py")
+    # Tanpa AI: isi dokumen lama dipindahkan apa adanya menurut struktur judul/tabelnya
+    # (akreditasi/scripts/ekstraksi_struktur.py). Draf AI per item tetap pilihan staf.
+    if (tipe or "").lower() == "xlsx":
+        hasil = _ekstrak_template_excel(path)
+        if hasil is not None:
+            return hasil
+    module = load_accreditation_module("ekstraksi_struktur.py")
     return module.ekstrak_dokumen(path, tipe, dokumen, progress_callback=progress)
 
 
+def _ekstrak_template_excel(path: str):
+    """File dari tombol "Unduh format" (penanda item di properti berkas) dibaca persis seperti "Upload data"
+    di tabelnya, termasuk pemeriksaan judul & header. None = bukan template (dibaca sebagai Excel bebas)."""
+    from openpyxl import load_workbook
+
+    from app.services import accreditation_tabel as tabel
+
+    try:
+        penanda = str(load_workbook(path, read_only=True).properties.keywords or "")
+    except Exception:  # noqa: BLE001 -- file rusak: biar modul ekstraksi yang melaporkan
+        return None
+    if not penanda.startswith(tabel.PENANDA):
+        return None
+    item_id = penanda[len(tabel.PENANDA):].strip()
+    ringkasan = {"n_item_ditemukan": 0, "n_kolom_terisi": 0, "n_batch": 1, "n_batch_gagal": 0,
+                 "error": None, "metode": "template_excel"}
+    try:
+        hasil = tabel.baca_upload(item_id, Path(path).read_bytes())
+    except tabel.TabelError as exc:
+        return [], {**ringkasan, "n_batch_gagal": 1, "error": str(exc)}
+    rows = [{"item_id": item_id, "baris_ke": i, "nama_kolom": k, "nilai": v, "kutipan": "template Excel"}
+            for i, rec in enumerate(hasil["rows"], start=1) for k, v in rec.items() if str(v).strip() not in ("", "-")]
+    return rows, {**ringkasan, "n_item_ditemukan": 1 if rows else 0, "n_kolom_terisi": len(rows)}
+
+
 def extraction_available() -> bool:
+    """Ekstraksi tidak memanggil AI, jadi selalu tersedia."""
+    return True
+
+
+def draf_ai_available() -> bool:
     return bool(os.environ.get("OPENAI_API_KEY"))
 
 
@@ -204,7 +240,7 @@ class AccreditationWorkspaceService:
                     for r in ekstraksi if r["item_id"] in grup_item
                 ],
             },
-            "draf_ai": {"tersedia": extraction_available()},
+            "draf_ai": {"tersedia": draf_ai_available()},
             "riwayat_word": [{"id": int(r["id"]), "oleh": r["user_email"], "waktu": _iso(r["generated_at"])}
                              for r in riwayat[:MAX_RIWAYAT]],
         }
@@ -472,16 +508,33 @@ class AccreditationWorkspaceService:
                 path.unlink(missing_ok=True)
         return {"message": f"{_nama_laporan(laporan)} dihapus ({n_isian} sel isian, {len(berkas)} berkas)."}
 
-    # ------------------------------------------------------------------ ekstraksi AI
-    def start_extraction(self, laporan: dict[str, Any], background: bool = True) -> dict[str, Any]:
+    # ------------------------------------------------------------------ ekstraksi
+    def start_extraction(self, laporan: dict[str, Any], background: bool = True,
+                         upload_id: Any = None) -> dict[str, Any]:
+        """Ekstrak file laporan yang belum/gagal diekstrak. `upload_id` = ekstrak ulang SATU file, termasuk
+        yang sudah diekstrak (mis. setelah daftar item bertambah); isian laporan yang ada tetap tidak ditimpa."""
         if not extraction_available():
-            raise WorkspaceError("Ekstraksi AI belum dikonfigurasi (OPENAI_API_KEY kosong di .env).")
+            raise WorkspaceError("Ekstraksi belum tersedia.")
         with self.engine.connect() as conn:
-            candidates = conn.execute(text("""
-                SELECT id, status FROM akreditasi_upload_file
-                WHERE laporan_id = :l AND status IN ('belum_diekstrak', 'gagal_ekstrak', 'sedang_diekstrak')
-                ORDER BY uploaded_at, id
-            """), {"l": int(laporan["id"])}).mappings().all()
+            if upload_id is not None:
+                try:
+                    upload_id = int(upload_id)
+                except (TypeError, ValueError) as exc:
+                    raise WorkspaceError("File tidak valid.") from exc
+                candidates = conn.execute(text("""
+                    SELECT id, status FROM akreditasi_upload_file
+                    WHERE laporan_id = :l AND id = :id AND status <> 'sedang_diekstrak'
+                """), {"l": int(laporan["id"]), "id": upload_id}).mappings().all()
+                if not candidates and not conn.execute(text(
+                        "SELECT 1 FROM akreditasi_upload_file WHERE laporan_id = :l AND id = :id"),
+                        {"l": int(laporan["id"]), "id": upload_id}).first():
+                    raise NotFound("File tidak ditemukan di laporan ini.")
+            else:
+                candidates = conn.execute(text("""
+                    SELECT id, status FROM akreditasi_upload_file
+                    WHERE laporan_id = :l AND status IN ('belum_diekstrak', 'gagal_ekstrak', 'sedang_diekstrak')
+                    ORDER BY uploaded_at, id
+                """), {"l": int(laporan["id"])}).mappings().all()
         claimed: list[int] = []
         for row in candidates:
             upload_id = int(row["id"])

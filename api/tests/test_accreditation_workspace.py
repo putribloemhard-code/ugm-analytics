@@ -259,11 +259,63 @@ def test_ekstraksi_narasi_mengisi_kolom_kosong_saja(engine, tmp_path, monkeypatc
         "Versi AI": "tidak_menimpa", "Kolom kosong diisi": "ditambahkan"}
 
 
-def test_ekstraksi_butuh_api_key(svc, monkeypatch, led):
+def test_ekstraksi_tanpa_api_key_draf_ai_tidak(svc, monkeypatch, led):
+    # Ekstraksi tidak memanggil AI; hanya draf AI yang butuh OPENAI_API_KEY.
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    with pytest.raises(WorkspaceError):
-        svc.start_extraction(led, background=False)
-    assert svc.workspace(led)["ekstraksi"]["tersedia"] is False
+    ws_ = svc.workspace(led)
+    assert ws_["ekstraksi"]["tersedia"] is True and ws_["draf_ai"]["tersedia"] is False
+
+
+def test_template_excel_dibaca_seperti_upload_data(tmp_path):
+    from openpyxl import load_workbook
+
+    from app.services import accreditation_tabel as tabel
+
+    isi, _ = tabel.buat_template("led_tabel_c1_1")
+    path = tmp_path / "c11.xlsx"
+    path.write_bytes(isi)
+    wb = load_workbook(path)
+    dalam, _ = tabel._sel_header(tabel._registry().FORMAT_TABEL["led_tabel_c1_1"])
+    for c, v in enumerate(["1", "Renstra", "Indikator A", "IKU", "1", "2", "3"], start=1):
+        wb.active.cell(2 + dalam, c, v)
+    wb.save(path)
+    rows, ring = ws._default_extractor(str(path), "xlsx", "LED", lambda *_: None)
+    assert ring["metode"] == "template_excel" and ring["error"] is None
+    assert {(r["item_id"], r["nama_kolom"], r["nilai"]) for r in rows} >= {("led_tabel_c1_1", "Indikator", "Indikator A")}
+
+    # Template yang header-nya diubah ditolak dengan pesan yang sama seperti "Upload data".
+    wb.active.cell(2, 2, "Header diubah")
+    wb.save(path)
+    rows, ring = ws._default_extractor(str(path), "xlsx", "LED", lambda *_: None)
+    assert rows == [] and "Header kolom" in ring["error"]
+
+
+def test_ekstrak_ulang_satu_file_tanpa_menimpa(engine, tmp_path, led):
+    k = _item(AccreditationWorkspaceService(engine).workspace(led), NARASI)["kolom"]
+    hasil = [[{"item_id": NARASI, "baris_ke": 1, "nama_kolom": k[0], "nilai": "Isi lama", "kutipan": "hal. 1"}],
+             [{"item_id": NARASI, "baris_ke": 1, "nama_kolom": k[0], "nilai": "Isi lama", "kutipan": "hal. 1"},
+              {"item_id": NARASI, "baris_ke": 1, "nama_kolom": k[1], "nilai": "Item baru", "kutipan": "hal. 2"}]]
+    calls = []
+
+    def fake(path, tipe, dokumen, progress):
+        calls.append(path)
+        return hasil[len(calls) - 1], {"n_batch": 1, "n_batch_gagal": 0}
+
+    svc = AccreditationWorkspaceService(engine, generated_root=tmp_path, extractor=fake)
+    _upload(engine, led, [(1, "led-lama.pdf", "belum_diekstrak"), (2, "lain.pdf", "diekstrak")])
+    svc.start_extraction(led, background=False)
+    assert calls == ["/x/led-lama.pdf"]
+    svc.save_item(led, NARASI, [{k[0]: "Disunting tim"}], EMAIL)
+    # Tanpa upload_id file yang sudah diekstrak tidak disentuh; dengan upload_id dibaca ulang.
+    assert svc.start_extraction(led, background=False) == {"dimulai": 0}
+    assert svc.start_extraction(led, background=False, upload_id=1) == {"dimulai": 1}
+    ws_ = svc.workspace(led)
+    row = _item(ws_, NARASI)["rows"][0]
+    assert row[k[0]] == "Disunting tim" and row[k[1]] == "Item baru"
+    riwayat = {r["nilai"]: r["status"] for r in ws_["ekstraksi"]["riwayat"] if r["nama_file"] == "led-lama.pdf"}
+    assert riwayat == {"Isi lama": "tidak_menimpa", "Item baru": "ditambahkan"}
+    with pytest.raises(NotFound):
+        svc.start_extraction(led, background=False, upload_id=99)
 
 
 def test_endpoint_wajib_login():

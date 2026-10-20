@@ -13,9 +13,9 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 COPY api/app /app/api/app
 COPY berita-dampak/scripts /app/berita-dampak/scripts
 COPY akreditasi/scripts/registry_kebutuhan_data.py /app/akreditasi/scripts/registry_kebutuhan_data.py
-# Dimuat API untuk ruang kerja akreditasi: generate Word dan ekstraksi AI (api/app/domain/source.py).
+# Dimuat API untuk ruang kerja akreditasi: generate Word dan ekstraksi dokumen tanpa AI (api/app/domain/source.py).
 COPY akreditasi/scripts/generate_template.py /app/akreditasi/scripts/generate_template.py
-COPY akreditasi/scripts/ekstraksi_akreditasi.py /app/akreditasi/scripts/ekstraksi_akreditasi.py
+COPY akreditasi/scripts/ekstraksi_struktur.py /app/akreditasi/scripts/ekstraksi_struktur.py
 # Status resmi tiap item LED/LKPS (tersedia / perlu akses data / perlu disusun tim), dibaca ruang kerja & generator.
 COPY akreditasi/data_source_map.json /app/akreditasi/data_source_map.json
 # Format tabel isian (kolom form + template Excel unduhan + validasi upload), dibaca registry.

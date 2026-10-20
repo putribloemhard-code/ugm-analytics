@@ -57,6 +57,10 @@ SYSTEM_PROMPT = (
     "5. SETIAP kolom wajib berisi teks, tidak boleh kosong: bila bahannya tidak ada, tulis kerangka "
     "kalimat dengan penanda.\n"
     "6. Teks biasa tanpa markdown/heading/bullet; paragraf dipisah satu baris kosong.\n"
+    "7. Bila ada NARASI SAAT INI (mis. salinan LED periode lalu): jadikan dasar. Pertahankan struktur, urutan "
+    "pembahasan, dan gaya bahasanya; perbarui angka, tahun, dan klaim agar sesuai BAHAN terbaru. Kalimat yang "
+    "faktanya tidak bisa dipastikan dari BAHAN tetap dipertahankan, diberi penanda \"[perlu dicek: <apa yang "
+    "dicek>]\" di akhir kalimat itu.\n"
     "Balas HANYA satu objek JSON: kunci = nama kolom persis seperti yang diminta, nilai = teks draf."
 )
 
@@ -176,6 +180,20 @@ def _pengisi_dan_final(engine: Engine, lap_id: int, item_id: str) -> tuple[set[s
     return pengisi, bool(final)
 
 
+def _narasi_saat_ini(engine: Engine, lap_id: int, item_id: str, kolom: list[str]) -> str:
+    """Isian item ini sekarang (hasil ekstraksi LED lama atau isian tim), per kolom, untuk diperbarui AI.
+    Draf AI sebelumnya tidak ikut: membuat ulang draf = mulai lagi dari bahan, bukan dari draf lama."""
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT kolom, nilai FROM akreditasi_data_manual
+            WHERE laporan_id = :l AND item_id = :i AND baris_ke = 1 AND (diisi_oleh IS NULL OR diisi_oleh <> :ai)
+        """), {"l": lap_id, "i": item_id, "ai": DIISI_AI}).all()
+    isi = {k: v for k, v in rows if v and str(v).strip()}
+    bagian = [f"### {k}\n{_potong(isi[k], _MAKS_NARASI * 4)}" for k in kolom if k in isi]
+    teks = "\n\n".join(bagian)
+    return teks[:_MAKS_BAHAN]
+
+
 def _cadangkan(engine: Engine, lap_id: int, item_id: str) -> None:
     """Salin isian tim item ini ke tabel cadangan (menggantikan cadangan lama item yang sama)."""
     with engine.begin() as conn:
@@ -242,12 +260,15 @@ def buat_draf(engine: Engine, laporan: dict[str, Any], item_id: str, client: Any
         raise WorkspaceError("Item ini sudah ditandai final; kembalikan ke draft dulu bila ingin dibuatkan draf AI.")
     isian_tim = bool(pengisi - {DIISI_AI})
     if isian_tim and not timpa:
-        raise WorkspaceError("Item ini sudah diisi tim; pilih \"Ganti dengan draf AI\" untuk menggantinya.")
+        raise WorkspaceError("Item ini sudah diisi tim; pilih \"Perbarui dengan draf AI\" untuk memperbaruinya.")
 
     kolom = list(item["kolom_dibutuhkan"])
     pesan = (f"ITEM: {item['nama']}\nKriteria: {registry.LABEL_KRITERIA.get(item['kriteria_led'], item['kriteria_led'])}\n"
              f"Deskripsi: {item['deskripsi_singkat']}\nKOLOM YANG DIMINTA (JSON key): {json.dumps(kolom, ensure_ascii=False)}\n\n"
              f"BAHAN:\n{_bahan(engine, laporan, item)}")
+    saat_ini = _narasi_saat_ini(engine, lap_id, item_id, kolom)
+    if saat_ini:
+        pesan += f"\n\nNARASI SAAT INI (perbarui, jangan tulis dari nol):\n{saat_ini}"
     try:
         resp = (client or _client()).chat.completions.create(
             model=MODEL,

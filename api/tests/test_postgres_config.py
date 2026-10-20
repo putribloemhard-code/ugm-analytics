@@ -72,7 +72,7 @@ def test_image_api_memuat_semua_modul_skrip_yang_diload():
     """Setiap load_accreditation_module("x.py") di api/app wajib ikut di-COPY ke image API.
 
     Regresi nyata: image hanya menyalin registry_kebutuhan_data.py, sehingga generate Word dan
-    ekstraksi AI akreditasi pasti gagal di container walau lolos semua uji lokal.
+    ekstraksi dokumen akreditasi pasti gagal di container walau lolos semua uji lokal.
     """
     import re
 
@@ -80,7 +80,7 @@ def test_image_api_memuat_semua_modul_skrip_yang_diload():
     for path in (ROOT / "api" / "app").rglob("*.py"):
         dipakai |= set(re.findall(r'load_accreditation_module\("([\w.]+)"\)', path.read_text(encoding="utf-8")))
     dockerfile = (ROOT / "deploy" / "api.Dockerfile").read_text(encoding="utf-8")
-    assert dipakai >= {"registry_kebutuhan_data.py", "generate_template.py", "ekstraksi_akreditasi.py"}
+    assert dipakai >= {"registry_kebutuhan_data.py", "generate_template.py", "ekstraksi_struktur.py"}
     for nama in dipakai:
         assert f"akreditasi/scripts/{nama}" in dockerfile or "COPY akreditasi/scripts " in dockerfile, nama
 

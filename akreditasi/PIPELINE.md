@@ -40,9 +40,9 @@ scripts/pipeline_dcse_berita.py      #         arsip RSS dcse.fmipa.ugm.ac.id �
 scripts/upload_akreditasi.py         # Fase 3: file pendukung → data/uploads/<prodi_id>/
                                      #         + metadata akreditasi_upload_file
         ↓
-scripts/ekstraksi_pattern.py         # Fase 3 tier 1: pattern-matching TANPA AI (dicoba dulu)
-        ↓ (kalau tidak cocok)
-scripts/ekstraksi_akreditasi.py      # Fase 3 tier 2: LLM per batch item registry
+scripts/ekstraksi_struktur.py        # TANPA AI (dipakai API sejak 2026-10-20): struktur judul/tabel
+                                     #         dokumen lama -> item (ekstraksi_pattern.py & ekstraksi_akreditasi.py
+                                     #         = tier lama, tidak lagi dipanggil API)
         ↓
 akreditasi_upload_ekstraksi          # PREVIEW -- user review & klik Simpan dulu
         ↓
